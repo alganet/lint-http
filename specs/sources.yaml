@@ -133,6 +133,13 @@ sources:
     # them are here and nowhere else, so a rule reading the field has to cite
     # this or cite a document that does not contain the sentence.
 
+  - label: Network Error Logging
+    url: https://www.w3.org/TR/network-error-logging/
+    type: text/html
+    # A Working Draft, and the only document that defines the `NEL` field. It
+    # does not define how its own value is *parsed*: § 5.1 defers that to
+    # Section 4 of [HTTP-JFV], which is the pinned draft below.
+
   - label: Storage Access Headers
     url: https://privacycg.github.io/storage-access-headers/
     type: text/html
@@ -222,6 +229,22 @@ sources:
   # text, where `§ 2` is an address nothing can resolve.
   - label: draft-thomson-hybi-http-timeout-03
     url: https://datatracker.ietf.org/doc/html/draft-thomson-hybi-http-timeout-03
+
+  # Pinned for a different reason than the one above, and a sharper one: this
+  # draft is still *live* and has been emptied. `draft-reschke-http-jfv` at its
+  # unversioned URL is now a single section reading "We have moved!", with the
+  # content at a personal GitHub page — so an unversioned cite of "§ 4" would
+  # resolve to a document that has no § 4, and would do it silently.
+  #
+  # `-07` is the revision Network Error Logging's own reference names (24
+  # October 2017). Its § 4 *Recipient Requirements* is the algorithm NEL § 5.1
+  # invokes and the only published statement of it: combine the field lines,
+  # add a leading "[" and a trailing "]", and run a JSON parser over the
+  # result. Quoted as the reading NEL delegates to, never as a requirement of
+  # its own — RFC 2026 § 2.2, the same footing the timeout draft above stands
+  # on.
+  - label: draft-reschke-http-jfv-07
+    url: https://datatracker.ietf.org/doc/html/draft-reschke-http-jfv-07
 
   # ── MDN ───────────────────────────────────────────────────────────────
   #

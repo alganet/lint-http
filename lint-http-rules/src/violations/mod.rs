@@ -98,6 +98,7 @@ pub mod media_range;
 pub mod media_type;
 pub mod method;
 pub mod multipart_body;
+pub mod nel;
 pub mod node;
 pub mod oauth2;
 pub mod origin;

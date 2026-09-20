@@ -920,6 +920,130 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/referrer_policy_valid.rs
       line: 302
+- label: Network Error Logging
+  url: https://www.w3.org/TR/network-error-logging/
+  type: text/html
+  fragments:
+  - label: NEL grammar
+    section: § 4.1
+    snippet: NEL = json-field-value
+    cited_by:
+    - file: lint-http-rules/src/violations/nel.rs
+      line: 133
+  - label: nel
+    section: § 4.1
+    snippet: The header's value is interpreted as an array of JSON objects, as defined
+    cited_by:
+    - file: lint-http-rules/src/violations/nel.rs
+      line: 134
+  - label: nel (2)
+    section: § 4.1.1
+    snippet: If present, its value MUST be a string; any other type will result in a parse error.
+    cited_by:
+    - file: lint-http-rules/src/violations/nel.rs
+      line: 214
+  - label: nel (3)
+    section: § 4.1.1
+    snippet: The report_to member is REQUIRED to register a NEL policy,
+    cited_by:
+    - file: lint-http-rules/src/violations/nel.rs
+      line: 180
+  - label: nel (4)
+    section: § 4.1.2
+    snippet: Its value MUST be an non-negative integer; any other type will result in a parse error.
+    cited_by:
+    - file: lint-http-rules/src/violations/nel.rs
+      line: 213
+  - label: nel (5)
+    section: § 4.1.2
+    snippet: The REQUIRED max_age member specifies the
+    cited_by:
+    - file: lint-http-rules/src/violations/nel.rs
+      line: 157
+  - label: nel (6)
+    section: § 4.1.6
+    snippet: about this origin. If present, its value MUST be a list of
+    cited_by:
+    - file: lint-http-rules/src/violations/nel.rs
+      line: 216
+  - label: nel (7)
+    section: § 4.2
+    snippet: If item has no member named report_to, or that member's value is not a string, abort these steps.
+    cited_by:
+    - file: lint-http-rules/src/violations/nel.rs
+      line: 179
+  - label: nel_policy_valid
+    section: § 4.1
+    snippet: policy for the origin. The user agent MUST process the first valid
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 230
+  - label: nel_policy_valid (2)
+    section: § 4.1.1
+    snippet: and OPTIONAL if the intent is to remove a previous registration – see
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 324
+  - label: nel_policy_valid (3)
+    section: § 4.1.3
+    snippet: include_subdomains is present in the object, or its value
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 396
+  - label: nel_policy_valid (4)
+    section: § 4.1.4
+    snippet: its value MUST be a number between 0.0 and
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 352
+    - file: lint-http-rules/src/violations/nel.rs
+      line: 215
+  - label: nel_policy_valid (5)
+    section: § 4.1.5
+    snippet: value MUST be a number between 0.0 and 1.0,
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 353
+  - label: nel_policy_valid (6)
+    section: § 4.1.7
+    snippet: about this origin. If present, its value MUST be a list of
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 374
+  - label: nel_policy_valid (7)
+    section: § 4.2
+    snippet: If item has a member named request_headers, whose value is not a list, or if any element of that list is not a string, abort these steps.
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 373
+  - label: nel_policy_valid (8)
+    section: § 4.2
+    snippet: If item has no member named max_age, or that member's value is not a number, abort these steps.
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 291
+    - file: lint-http-rules/src/violations/nel.rs
+      line: 156
+  - label: nel_policy_valid (9)
+    section: § 4.2
+    snippet: If the value of item's max_age member is 0, then remove any NEL policy from the policy cache whose origin is
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 323
+  - label: nel_policy_valid (10)
+    section: § 4.2
+    snippet: Let item be the first element of list.
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 229
+  - label: nel_policy_valid (11)
+    section: § 4.2
+    snippet: Let list be the result of executing the algorithm defined in Section 4 of [HTTP-JFV] on header. If that algorithm results in an error, or if list is empty, abort these steps.
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 210
+    - file: lint-http-rules/src/violations/nel.rs
+      line: 135
 - label: Storage Access Headers
   url: https://privacycg.github.io/storage-access-headers/
   type: text/html
@@ -1013,6 +1137,27 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 723
+- label: draft-reschke-http-jfv-07
+  url: https://datatracker.ietf.org/doc/html/draft-reschke-http-jfv-07
+  fragments:
+  - label: nel
+    section: § 4
+    snippet: add a leading begin-array ("[") octet and a trailing end-array ("]") octet, then
+    cited_by:
+    - file: lint-http-rules/src/violations/nel.rs
+      line: 136
+  - label: nel_policy_valid
+    section: § 4
+    snippet: combine all header field instances into a single field as per
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 167
+  - label: nel_policy_valid (2)
+    section: § 4
+    snippet: run the resulting octet sequence through a JSON parser.
+    cited_by:
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 184
 - label: MDN Content-Type
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type
   fragments:
@@ -8378,6 +8523,8 @@ sources:
       line: 113
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 213
+    - file: lint-http-rules/src/rules/nel_policy_valid.rs
+      line: 168
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 224
     - file: lint-http-rules/src/rules/referrer_policy_valid.rs

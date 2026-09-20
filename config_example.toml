@@ -555,6 +555,9 @@ enabled = true
 [rules.must_revalidate_enforced]
 enabled = true
 
+[rules.nel_policy_valid]
+enabled = true
+
 [rules.no_body_for_1xx_204_304]
 enabled = true
 
@@ -2404,6 +2407,26 @@ severity = "warn"
 [violations.multipart_body_terminator_missing]
 # The body never closes its last part
 severity = "warn"
+
+[violations.nel_malformed]
+# NEL does not parse, so the origin registers no policy
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
+
+[violations.nel_max_age_missing]
+# NEL states no max_age, and the policy is discarded
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
+[violations.nel_member_invalid]
+# A NEL member carries a value its definition refuses
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
+[violations.nel_report_to_missing]
+# NEL registers a policy and names no endpoint group
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.node_ipv4_address_malformed]
 # Node identifier is digits and dots that are not an IPv4 address

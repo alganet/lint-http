@@ -332,6 +332,10 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [multipart_body_delimiter_missing](violations/multipart_body_delimiter_missing.md) — The body carries no delimiter line for its boundary
 - [multipart_body_part_missing](violations/multipart_body_part_missing.md) — The only delimiter line is the terminating one
 - [multipart_body_terminator_missing](violations/multipart_body_terminator_missing.md) — The body never closes its last part
+- [nel_malformed](violations/nel_malformed.md) — NEL does not parse, so the origin registers no policy
+- [nel_max_age_missing](violations/nel_max_age_missing.md) — NEL states no max_age, and the policy is discarded
+- [nel_member_invalid](violations/nel_member_invalid.md) — A NEL member carries a value its definition refuses
+- [nel_report_to_missing](violations/nel_report_to_missing.md) — NEL registers a policy and names no endpoint group
 - [node_ipv4_address_malformed](violations/node_ipv4_address_malformed.md) — Node identifier is digits and dots that are not an IPv4 address
 - [node_ipv6_address_malformed](violations/node_ipv6_address_malformed.md) — Node identifier brackets something that is not an IPv6 address
 - [node_ipv6_brackets_missing](violations/node_ipv6_brackets_missing.md) — Node identifier holds an IPv6 address without its square brackets
