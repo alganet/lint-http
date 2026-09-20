@@ -14,18 +14,19 @@ _Written where it is reported: this defect's message names the value that caused
 
 ## Obligation
 
-**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+A **`MUST`** binding the sender of the message, so a finding here reports at `error` by default.
 
 ## Specifications
 
-- [RFC 9110 §13.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5): `If-Range`: `entity-tag / HTTP-date`, the first-three-characters DQUOTE test that tells them apart, the MUST NOT on a request with no `Range`, the MUST NOT on a weak entity-tag, and the strong comparison a recipient evaluates the condition with
+- [RFC 9110 §13.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5): `If-Range`: `entity-tag / HTTP-date`, the first-three-characters DQUOTE test that tells them apart, the MUST NOT on a request with no `Range`, the MUST NOT on a weak entity-tag, the MUST NOT on a date where the client holds an entity tag, and the strong comparison a recipient evaluates the condition with
 
 ## Configuration
 
 ```toml
 [violations.if_range_validator_date_forbidden]
 # If-Range carries a date for a representation with an entity tag
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 ```
 
 ## Reported By

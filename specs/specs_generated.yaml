@@ -7062,7 +7062,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 260
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 83
+      line: 84
   - label: conditional_headers_consistent (6)
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field.
@@ -7072,7 +7072,7 @@ sources:
     - file: lint-http-rules/src/rules/status_206_required_fields.rs
       line: 65
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 55
+      line: 56
   - label: conditional_headers_consistent (7)
     section: § 13.1.5
     snippet: A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE.
@@ -7090,7 +7090,7 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 62
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 151
+      line: 158
   - label: conditional_request_handling
     section: § 13.1.1
     snippet: An origin server MUST use the strong comparison function when comparing entity tags for If-Match (Section 8.8.3.2), since the client intends this precondition to prevent the method from being applied if there have been any changes to the representation data.
@@ -7855,6 +7855,12 @@ sources:
       line: 395
     - file: lint-http-rules/src/violations/authority.rs
       line: 285
+  - label: if_range
+    section: § 13.1.5
+    snippet: A client MUST NOT generate an If-Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2.
+    cited_by:
+    - file: lint-http-rules/src/violations/if_range.rs
+      line: 133
   - label: keep_alive_header_valid
     section: § 7.6.1
     snippet: Keep-Alive (Section 19.7.1 of [RFC2068])
@@ -10305,8 +10311,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 322
-    - file: lint-http-rules/src/violations/if_range.rs
-      line: 127
   - label: range_request_and_caching (3)
     section: § 14.4
     snippet: The "Content-Range" header field is sent in a single part 206 (Partial Content) response to indicate the partial range of the selected representation enclosed as the message content, sent in each part of a multipart 206 response to indicate the range enclosed within each body part (Section 14.6), and sent in 416 (Range Not Satisfiable) responses to provide information about the selected representation.

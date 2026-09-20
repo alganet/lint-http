@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! `If-Range` defects — the three things only this field says.
+//! `If-Range` defects — the four things only this field says.
 //!
 //! `If-Range = entity-tag / HTTP-date`, so what a value *is* belongs to
 //! [`etag`](crate::violations::etag) and
@@ -11,10 +11,11 @@
 //! first three characters picks the entity-tag half, and each half is then
 //! measured against the production it chose. What is left over is this subject.
 //!
-//! **All three entries are MUST NOTs on the client, and none of them is about a
-//! value being unreadable.** Two are about a perfectly well-formed value the
-//! field refuses anyway — a weak entity-tag, and a field written where nothing
-//! conditions it — and one is about the alternation having no empty
+//! **Three of the four entries are § 13.1.5's three client-side MUST NOTs, and
+//! none of them is about a value being unreadable.** All three are about a
+//! perfectly well-formed value the field refuses anyway — a weak entity-tag, a
+//! date where the client holds a tag, and a field written where nothing
+//! conditions it — and the fourth is about the alternation having no empty
 //! alternative. § 13.1.5 pairs each of its client-side MUST NOTs with the
 //! recipient behaviour it produces, and those pairings are what rank the
 //! entries: in every case the recipient is told to ignore something, so what
@@ -27,13 +28,13 @@ use crate::rules::SpecRef;
 use crate::violations::defects;
 
 /// The field: its grammar, the DQUOTE that tells the two alternatives apart,
-/// the two client-side MUST NOTs, and the recipient behaviour each of them
+/// the three client-side MUST NOTs, and the recipient behaviour each of them
 /// produces.
 pub const RFC_9110_13_1_5: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("13.1.5"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5",
-    note: "`If-Range`: `entity-tag / HTTP-date`, the first-three-characters DQUOTE test that tells them apart, the MUST NOT on a request with no `Range`, the MUST NOT on a weak entity-tag, and the strong comparison a recipient evaluates the condition with",
+    note: "`If-Range`: `entity-tag / HTTP-date`, the first-three-characters DQUOTE test that tells them apart, the MUST NOT on a request with no `Range`, the MUST NOT on a weak entity-tag, the MUST NOT on a date where the client holds an entity tag, and the strong comparison a recipient evaluates the condition with",
 };
 
 defects! {
@@ -119,18 +120,24 @@ defects! {
     /// only conforming `If-Range` is no `If-Range`. That a weak validator lets
     /// no fragments be combined is a true sentence about a different entry.
     ///
-    /// `warn`, with its siblings, and for the same reason: the recipient's
-    /// answer to a validator it cannot honour is the whole representation,
-    /// which costs the transfer the field existed to avoid rather than the
-    /// wrong bytes.
+    /// `error`, with its siblings and off the same keyword: this is § 13.1.5's
+    /// third client-side MUST NOT, and the quote below carries it. It did not,
+    /// and that is worth knowing — the document wraps the field name at its
+    /// hyphen, so a quote of this sentence beginning at *Range header field*
+    /// reads as text that obliges nobody, which is what the entry then declared
+    /// and what its published page said. The recipient's answer to a validator
+    /// it cannot honour is the whole representation, which costs the transfer
+    /// the field existed to avoid rather than the wrong bytes: a bound on what
+    /// the finding costs and not on its rank.
     ///
-    // cite(RFC 9110 § 13.1.5): "Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2."
+    // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2."
     IF_RANGE_VALIDATOR_DATE_FORBIDDEN = {
         id: "if_range_validator_date_forbidden",
         title: "If-Range carries a date for a representation with an entity tag",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_13_1_5],
+        strength: Strength::Must,
     }
 
     /// An `If-Range` written and left blank.
@@ -163,18 +170,36 @@ defects! {
 mod tests {
     use super::*;
 
-    /// One level for all three, and the subject's doc says why: every one of
-    /// § 13.1.5's client-side MUST NOTs is paired with a recipient told to
-    /// ignore something, so each costs the short-circuit and none costs
+    /// One level for the whole subject, and the subject's doc says why: every
+    /// one of § 13.1.5's client-side MUST NOTs is paired with a recipient told
+    /// to ignore something, so each costs the short-circuit and none costs
     /// correctness. A split here would have to name a consequence the section
     /// does not describe.
+    ///
+    /// **Over every entry of the subject rather than a list of them**, because
+    /// the list is how one escaped: written when there were three entries, it
+    /// went on asserting three after a fourth arrived, and that fourth —
+    /// § 13.1.5's third client-side MUST NOT — sat at `warn` for as long as the
+    /// list did not name it, under a doc claiming it ranked *with its siblings*.
+    /// A claim about "every one" of something cannot be held by naming some of
+    /// them. The count is asserted too, so a fifth entry fails here and is
+    /// ranked on purpose.
     #[test]
     fn every_way_of_losing_the_short_circuit_sits_at_one_level() {
-        for def in [
-            &IF_RANGE_FORBIDDEN,
-            &IF_RANGE_VALIDATOR_WEAK_FORBIDDEN,
-            &IF_RANGE_EMPTY,
-        ] {
+        let subject: Vec<&&crate::violations::ViolationDef> = crate::violations::VIOLATIONS
+            .iter()
+            .filter(|def| def.id.starts_with("if_range"))
+            .collect();
+        assert_eq!(
+            subject.iter().map(|def| def.id).collect::<Vec<_>>(),
+            [
+                "if_range_empty",
+                "if_range_forbidden",
+                "if_range_validator_date_forbidden",
+                "if_range_validator_weak_forbidden",
+            ],
+        );
+        for def in subject {
             assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
         }
     }

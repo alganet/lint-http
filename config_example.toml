@@ -2159,7 +2159,8 @@ severity = "error"
 
 [violations.if_range_validator_date_forbidden]
 # If-Range carries a date for a representation with an entity tag
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.if_range_validator_weak_forbidden]
 # If-Range carries a weak entity-tag
