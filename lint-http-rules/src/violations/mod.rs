@@ -104,6 +104,7 @@ pub mod node;
 pub mod oauth2;
 pub mod origin;
 pub mod origin_agent_cluster;
+pub mod p3p;
 pub mod parameter;
 pub mod permissions_policy;
 pub mod pragma;

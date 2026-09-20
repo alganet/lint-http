@@ -928,6 +928,30 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 620
+- label: P3P
+  url: https://www.w3.org/TR/P3P/
+  type: text/html
+  fragments:
+  - label: p3p
+    section: § 2.2.2
+    snippet: The compact-policy-field is used to specify
+    cited_by:
+    - file: lint-http-rules/src/violations/p3p.rs
+      line: 82
+  - label: p3p_field_obsolete
+    snippet: This specification is obsolete and should no longer be used as a basis for implementation.
+    cited_by:
+    - file: lint-http-rules/src/rules/p3p_field_obsolete.rs
+      line: 120
+    - file: lint-http-rules/src/violations/p3p.rs
+      line: 80
+  - label: p3p_field_obsolete (2)
+    snippet: web site administrators chose to copy general policies rather than encode specific policies that reflected their sites' own privacy practices
+    cited_by:
+    - file: lint-http-rules/src/rules/p3p_field_obsolete.rs
+      line: 121
+    - file: lint-http-rules/src/violations/p3p.rs
+      line: 81
 - label: Referrer Policy
   url: https://www.w3.org/TR/referrer-policy/
   type: text/html
@@ -8418,6 +8442,8 @@ sources:
       line: 153
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 248
+    - file: lint-http-rules/src/rules/p3p_field_obsolete.rs
+      line: 110
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
       line: 144
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
@@ -12768,7 +12794,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 72
     - file: lint-http-rules/src/published_examples.rs
-      line: 187
+      line: 188
   - label: lint-http-core/src/http_version.rs (2)
     section: § 8.3.1
     snippet: Individual HTTP/2 requests do not carry an explicit indicator of protocol version.
@@ -13085,7 +13111,7 @@ sources:
     - file: lint-http-proxy/src/proxy/http3.rs
       line: 399
     - file: lint-http-rules/src/published_examples.rs
-      line: 188
+      line: 189
   - label: lint-http-proxy/src/h3_instrument.rs
     section: § 6.2.1
     snippet: A control stream is indicated by a stream type of 0x00.

@@ -593,6 +593,13 @@ enabled = true
 [rules.origin_matching_for_cors]
 enabled = true
 
+[rules.p3p_field_obsolete]
+enabled = true
+# The evidence is a document status rather than a keyword addressed to a
+# sender, so the finding is advice and the severity says so. The comment sits
+# *below* the line it explains: the generated file runs these sections
+# together, and a comment above a key reads as introducing everything under it.
+
 [rules.patch_method_content_type_match]
 enabled = true
 
@@ -2557,6 +2564,10 @@ severity = "warn"
 # An Origin names a path the production has no component for
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
+
+[violations.p3p_obsolete]
+# A response advertises a privacy policy in a field whose specification is obsolete
+severity = "info"
 
 [violations.parameter_equals_missing]
 # Parameter is written without its '='

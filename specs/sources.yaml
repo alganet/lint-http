@@ -124,6 +124,17 @@ sources:
     type: text/html
     # Editor's draft on purpose: this one has no TR rendition.
 
+  - label: P3P
+    url: https://www.w3.org/TR/P3P/
+    type: text/html
+    # An Obsolete Recommendation, and the document says so on its own title
+    # line — "W3C Recommendation 16 April 2002 obsoleted 30 August 2018". The
+    # TR rendition is the only one there is and it is the obsoletion notice
+    # itself: unlike `MDN Report-To`, where the withdrawing body left no
+    # sentence behind, W3C published the reasoning in this document's own
+    # Status section. That is what makes the field citable to its own
+    # specification rather than to a third party describing it.
+
   - label: Referrer Policy
     url: https://www.w3.org/TR/referrer-policy/
     type: text/html

@@ -359,6 +359,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [origin_malformed](violations/origin_malformed.md) — An Origin derives from neither null nor a serialized origin
 - [origin_missing](violations/origin_missing.md) — A request that must say where it came from carries no Origin
 - [origin_path_forbidden](violations/origin_path_forbidden.md) — An Origin names a path the production has no component for
+- [p3p_obsolete](violations/p3p_obsolete.md) — A response advertises a privacy policy in a field whose specification is obsolete
 - [parameter_equals_missing](violations/parameter_equals_missing.md) — Parameter is written without its '='
 - [parameter_equals_whitespace_forbidden](violations/parameter_equals_whitespace_forbidden.md) — Parameter writes whitespace beside its '='
 - [parameter_value_empty](violations/parameter_value_empty.md) — Parameter is written with no value after its '='
