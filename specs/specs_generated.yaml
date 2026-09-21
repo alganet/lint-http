@@ -1824,6 +1824,33 @@ sources:
       line: 678
     - file: lint-http-rules/src/violations/keep_alive.rs
       line: 159
+- label: RFC 2119
+  url: https://www.rfc-editor.org/rfc/rfc2119.html
+  fragments:
+  - label: lint-http-core/src/lint.rs
+    section: § 1
+    snippet: This word, or the terms "REQUIRED" or "SHALL", mean that the definition is an absolute requirement of the specification.
+    cited_by:
+    - file: lint-http-core/src/lint.rs
+      line: 301
+  - label: lint-http-core/src/lint.rs (2)
+    section: § 2
+    snippet: This phrase, or the phrase "SHALL NOT", mean that the definition is an absolute prohibition of the specification.
+    cited_by:
+    - file: lint-http-core/src/lint.rs
+      line: 302
+  - label: lint-http-core/src/lint.rs (3)
+    section: § 3
+    snippet: This word, or the adjective "RECOMMENDED", mean that there may exist valid reasons in particular circumstances to ignore a particular item, but the full implications must be understood and carefully weighed before choosing a different course.
+    cited_by:
+    - file: lint-http-core/src/lint.rs
+      line: 307
+  - label: lint-http-core/src/lint.rs (4)
+    section: § 5
+    snippet: This word, or the adjective "OPTIONAL", mean that an item is truly optional.
+    cited_by:
+    - file: lint-http-core/src/lint.rs
+      line: 312
 - label: RFC 2616
   url: https://www.rfc-editor.org/rfc/rfc2616.html
   fragments:
@@ -2517,6 +2544,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
       line: 342
+  - label: mod
+    section: § 2.2
+    snippet: The equal sign separates the name from the definition of the rule.
+    cited_by:
+    - file: lint-http-rules/src/violations/mod.rs
+      line: 1248
+  - label: mod (2)
+    section: § 3.3
+    snippet: 'ABNF permits this incremental definition through the construct:'
+    cited_by:
+    - file: lint-http-rules/src/violations/mod.rs
+      line: 1249
 - label: RFC 5322
   url: https://www.rfc-editor.org/rfc/rfc5322.html
   fragments:
@@ -5317,6 +5356,27 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/alt_used_valid.rs
       line: 82
+- label: RFC 8174
+  url: https://www.rfc-editor.org/rfc/rfc8174.html
+  fragments:
+  - label: mod
+    section: § 2
+    snippet: The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here.
+    cited_by:
+    - file: lint-http-rules/src/violations/mod.rs
+      line: 1216
+  - label: mod (2)
+    section: § 2
+    snippet: The words have the meanings specified herein only when they are in all capitals.
+    cited_by:
+    - file: lint-http-rules/src/violations/mod.rs
+      line: 1193
+  - label: mod (3)
+    section: § 2
+    snippet: When these words are not capitalized, they have their normal English meanings and are not affected by this document.
+    cited_by:
+    - file: lint-http-rules/src/violations/mod.rs
+      line: 1194
 - label: RFC 8187
   url: https://www.rfc-editor.org/rfc/rfc8187.html
   fragments:
@@ -6701,58 +6761,6 @@ sources:
       line: 54
     - file: lint-http-rules/src/violations/method.rs
       line: 359
-  - label: request-target fragment
-    section: § 2.2
-    snippet: A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.
-    cited_by:
-    - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
-      line: 254
-    - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 407
-    - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 437
-    - file: lint-http-rules/src/rules/from_header_email_syntax.rs
-      line: 299
-    - file: lint-http-rules/src/rules/http_version_syntax.rs
-      line: 102
-    - file: lint-http-rules/src/rules/http_version_syntax.rs
-      line: 182
-    - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 539
-    - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 709
-    - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1255
-    - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 239
-    - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 431
-    - file: lint-http-rules/src/rules/referer_uri_valid.rs
-      line: 345
-    - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 194
-    - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 284
-    - file: lint-http-rules/src/rules/request_target_form_valid.rs
-      line: 371
-    - file: lint-http-rules/src/rules/request_target_form_valid.rs
-      line: 385
-    - file: lint-http-rules/src/rules/request_target_form_valid.rs
-      line: 523
-    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 219
-    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
-      line: 167
-    - file: lint-http-rules/src/rules/status_code_valid_range.rs
-      line: 185
-    - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 461
-    - file: lint-http-rules/src/violations/request_target.rs
-      line: 319
-    - file: lint-http-rules/src/violations/request_target.rs
-      line: 340
-    - file: lint-http-rules/src/violations/request_target.rs
-      line: 375
   - label: Allow grammar, sender-expanded
     section: § A
     snippet: Allow = [ method *( OWS "," OWS method ) ]
@@ -8181,6 +8189,62 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_version.rs
       line: 29
+  - label: request-target fragment
+    section: § 2.2
+    snippet: A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.
+    cited_by:
+    - file: lint-http-core/src/lint.rs
+      line: 330
+    - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
+      line: 254
+    - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
+      line: 407
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
+      line: 437
+    - file: lint-http-rules/src/rules/from_header_email_syntax.rs
+      line: 299
+    - file: lint-http-rules/src/rules/http_version_syntax.rs
+      line: 102
+    - file: lint-http-rules/src/rules/http_version_syntax.rs
+      line: 182
+    - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
+      line: 539
+    - file: lint-http-rules/src/rules/link_header_valid.rs
+      line: 709
+    - file: lint-http-rules/src/rules/link_header_valid.rs
+      line: 1255
+    - file: lint-http-rules/src/rules/location_header_uri_valid.rs
+      line: 239
+    - file: lint-http-rules/src/rules/prefer_header_valid.rs
+      line: 431
+    - file: lint-http-rules/src/rules/referer_uri_valid.rs
+      line: 345
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 194
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 284
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 371
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 385
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 523
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 219
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 167
+    - file: lint-http-rules/src/rules/status_code_valid_range.rs
+      line: 185
+    - file: lint-http-rules/src/rules/warning_header_syntax.rs
+      line: 461
+    - file: lint-http-rules/src/violations/mod.rs
+      line: 1236
+    - file: lint-http-rules/src/violations/request_target.rs
+      line: 319
+    - file: lint-http-rules/src/violations/request_target.rs
+      line: 340
+    - file: lint-http-rules/src/violations/request_target.rs
+      line: 375
   - label: lint-http-core/src/serde_helpers.rs
     section: § 5.5
     snippet: field-value    = *field-content

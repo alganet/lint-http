@@ -298,14 +298,18 @@ pub enum Strength {
     /// `MUST`, `MUST NOT`, `SHALL`, `SHALL NOT` or `REQUIRED`, binding the
     /// sender of the message. The message breaks a requirement, so the finding
     /// is an `error`.
+    // cite(RFC 2119 § 1): "This word, or the terms "REQUIRED" or "SHALL", mean that the definition is an absolute requirement of the specification."
+    // cite(RFC 2119 § 2): "This phrase, or the phrase "SHALL NOT", mean that the definition is an absolute prohibition of the specification."
     Must,
     /// `SHOULD`, `SHOULD NOT`, `RECOMMENDED` or `NOT RECOMMENDED`, binding the
     /// sender. Advice a specification gives in its own voice and the sender
     /// declined, so the finding is a `warn`.
+    // cite(RFC 2119 § 3): "This word, or the adjective "RECOMMENDED", mean that there may exist valid reasons in particular circumstances to ignore a particular item, but the full implications must be understood and carefully weighed before choosing a different course."
     Should,
     /// `MAY` or `OPTIONAL`: a permission the sender did not take up, or a
     /// component its own definition marks optional. Nothing is broken and the
     /// finding is worth saying anyway, so it is an `info`.
+    // cite(RFC 2119 § 5): "This word, or the adjective "OPTIONAL", mean that an item is truly optional."
     May,
     /// The defect is a value that does not derive from the ABNF production it
     /// quotes.
@@ -323,6 +327,7 @@ pub enum Strength {
     /// the two apart means the 147 defects that inherit it can be re-levelled
     /// by one line here if that judgement is ever revisited, instead of by
     /// re-reading 147 entries to find out which ones were which.
+    // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
     Grammar,
     /// The default, and the honest answer far more often than not.
     ///

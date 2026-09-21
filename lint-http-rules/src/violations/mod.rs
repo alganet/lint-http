@@ -1190,6 +1190,8 @@ mod tests {
     /// documents are full of lower-case "must" and "should" used descriptively,
     /// and 35 entries in this catalogue cite one. Treating those as
     /// requirements is exactly the mistake this vocabulary exists to prevent.
+    // cite(RFC 8174 § 2): "The words have the meanings specified herein only when they are in all capitals."
+    // cite(RFC 8174 § 2): "When these words are not capitalized, they have their normal English meanings and are not affected by this document."
     fn states_keyword(text: &str, word: &str) -> bool {
         let bytes = text.as_bytes();
         text.match_indices(word).any(|(at, _)| {
@@ -1211,6 +1213,7 @@ mod tests {
     /// permission is as readable as a requirement. Nine entries quote one and
     /// state nothing, because the permission is granted to the peer they do not
     /// report.
+    // cite(RFC 8174 § 2): "The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here."
     const KEYWORDS: &[&str] = &[
         "MUST",
         "SHALL",
@@ -1230,6 +1233,7 @@ mod tests {
     /// § 2.2 *directly*, because the request-target has forms rather than one
     /// production and no single rule name is the thing the value failed to
     /// derive from. Both spellings are the same claim, so both are accepted.
+    // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
     fn is_conformance_sentence(text: &str) -> bool {
         states_keyword(text, "MUST") && text.contains("grammar")
     }
@@ -1239,7 +1243,10 @@ mod tests {
     ///
     /// The shape RFC 5234 § 2.2 prints, and the reason a `Grammar` entry needs
     /// no keyword of its own — what obliges it is RFC 9110 § 2.2, which
-    /// obliges every production at once.
+    /// obliges every production at once. `=/` is § 3.3's incremental form, and
+    /// a quoted production that extends one is a production all the same.
+    // cite(RFC 5234 § 2.2): "The equal sign separates the name from the definition of the rule."
+    // cite(RFC 5234 § 3.3): "ABNF permits this incremental definition through the construct:"
     fn is_abnf_production(text: &str) -> bool {
         let text = text.trim_start();
         let name: String = text
