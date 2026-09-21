@@ -82,42 +82,39 @@ baseline = "specs/ratchet.txt"
 # specification, and this is where a reviewer sees the claim. `*` crosses `/`, so
 # the scope above catches the whole crate and each of these has to earn its line.
 #
-# The three `mod.rs` files hold traits, registries and re-exports. `rules/mod.rs`
-# also holds `SpecRef` itself. None can ever earn a citation, and without these
+# The two `mod.rs` files hold traits, registries and re-exports. `rules/mod.rs`
+# also holds `SpecRef` itself. Neither enforces a sentence, and without these
 # they would sit in the baseline forever — so the baseline could never empty,
 # which is the one thing the ratchet is counting down to.
 #
-# `violations/mod.rs` is the one to re-check as this campaign proceeds, because
-# it is the only exclude whose sibling files are *required* to be cited: every
-# `violations/<subject>.rs` carries the quotes its defs enforce, and the ratchet
-# holds them there. What is excluded is the registry around them — the
-# `ViolationDef` struct, the distributed slice, the sorted view — which states no
-# sentence of any specification. The day a normative fact is written into this
-# file rather than into a def, the exclude is false and the fact is in the wrong
-# place.
+# `violations/mod.rs` was excluded as "the registry around the entries", and the
+# exclusion was false by the time it was re-read: the gate that decides whether
+# an entry's stated strength is licensed by its quote transcribes RFC 8174's
+# capitals-only rule, RFC 2119's word list and RFC 5234's rule form, and it now
+# cites them. `helpers/rule_config.rs` was excluded as "configuration plumbing"
+# while carrying two RFC 9110 § 16.1.1 cites for the method registry it parses a
+# list against. Both are in scope, and both hold.
 #
 # `engine.rs` dispatches rules and `lint_protocol.rs` is the protocol-event
 # entry point: both decide *which* rule runs, never what any rule means.
 # `test_helpers.rs` builds fixtures. `lib.rs` is declarations.
 #
-# `queries/` groups stored transactions — by connection, origin, resource. The
-# one to look at twice is `by_origin.rs`, whose doc comment names RFC 6454. It
-# does not implement it: the origin arrives as a caller-supplied string and the
-# query is a URI prefix filter, so no part of `scheme + host + port` is ever
-# parsed or compared. Real origin matching lives in
-# `rules/origin_matching_for_cors.rs`, and is cited there.
+# `queries/` groups stored transactions — by connection, origin, resource,
+# client. The one to look at twice is `by_origin.rs`, whose doc comment names
+# RFC 6454. It does not implement it: it reconstructs each message's origin
+# through `helpers/request_target.rs`, where RFC 9112 § 3.3's reconstruction and
+# RFC 6454 § 5's comparison are transcribed and cited, and asks that helper
+# whether two are the same. `by_client.rs` argues its bound from RFC 6265 § 5.3,
+# but the bound is a dispatch decision — which history a rule is handed — and
+# the sentence is enforced by the cookie rules that read it.
 #
-# `helpers/rule_config.rs` parses the shared `allowed`/`headers` array shape out
-# of TOML — configuration plumbing, enforcing no sentence of any specification.
-# The one normative fact near it, that each rule's entries are matched
-# case-insensitively, is a per-registry claim and is cited in each rule's
-# `prepare` beside the call, which is exactly why the fold's justification did
-# not move here with the parser.
+# `rules/mod.rs`'s gates argue their shape from the documents too — that a list
+# walk may not stop at its first member rests on RFC 9110 § 5.6.1's list form —
+# but what they enforce is a shape of *this code*, and the sentence itself is
+# cited in every rule the shape holds. A cite here would be decorative.
 exclude = [
     "lint-http-rules/src/rules/mod.rs",
-    "lint-http-rules/src/violations/mod.rs",
     "lint-http-rules/src/helpers/mod.rs",
-    "lint-http-rules/src/helpers/rule_config.rs",
     "lint-http-rules/src/queries/*.rs",
     "lint-http-rules/src/engine.rs",
     "lint-http-rules/src/lib.rs",
