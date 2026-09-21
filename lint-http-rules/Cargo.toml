@@ -11,6 +11,9 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "../README.md"
+keywords = ["http", "lint", "rfc", "rules", "testing"]
+categories = ["development-tools", "web-programming"]
 
 [dependencies]
 lint-http-core = { workspace = true }

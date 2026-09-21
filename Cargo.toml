@@ -4,7 +4,7 @@
 
 [workspace]
 resolver = "2"
-members = ["lint-http-core", "lint-http-rules", "lint-http-proxy", "xtask"]
+members = ["lint-http-core", "lint-http-rules", "lint-http", "xtask"]
 
 [workspace.package]
 version = "0.1.0"
@@ -60,9 +60,12 @@ redundant_clone = "warn"
 unsafe_code = "deny"
 
 [workspace.dependencies]
-# Internal crates
-lint-http-core = { path = "lint-http-core" }
-lint-http-rules = { path = "lint-http-rules" }
+# Internal crates. `version` beside `path` is what makes them publishable: a
+# path-only dependency builds in the workspace and is refused by `cargo publish`,
+# because the registry copy has no path to follow. Keep it equal to
+# `workspace.package.version` above.
+lint-http-core = { path = "lint-http-core", version = "0.1.0" }
+lint-http-rules = { path = "lint-http-rules", version = "0.1.0" }
 
 # Shared third-party dependencies (versions kept in lockstep across crates).
 # tokio/hyper carry no features here so each crate adds only what it uses
@@ -85,7 +88,10 @@ anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 httpdate = "1.0"
 tracing = "0.1"
-tracing-subscriber = "0.3"
+# `env-filter` is what makes `RUST_LOG` mean anything: without it the
+# subscriber has a fixed level, and the documentation's "set RUST_LOG=debug"
+# was advice nothing read.
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 toml = "1.1"
 bytes = "1"
 base64 = "0.23"

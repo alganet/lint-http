@@ -1341,195 +1341,195 @@ sources:
   url: https://curl.se/docs/manpage.html
   type: text/html
   fragments:
-  - label: lint-http-proxy/src/client_env.rs
+  - label: lint-http/src/client_env.rs
     snippet: '"http_proxy" is an exception as it is only available in lower case.'
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 94
-  - label: lint-http-proxy/src/client_env.rs (2)
+  - label: lint-http/src/client_env.rs (2)
     snippet: Sets the proxy server to use for HTTP.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 95
-  - label: lint-http-proxy/src/client_env.rs (3)
+  - label: lint-http/src/client_env.rs (3)
     snippet: Sets the proxy server to use for HTTPS.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 106
-  - label: lint-http-proxy/src/client_env.rs (4)
+  - label: lint-http/src/client_env.rs (4)
     snippet: Sets the proxy server to use if no protocol-specific proxy is set.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 119
-  - label: lint-http-proxy/src/client_env.rs (5)
+  - label: lint-http/src/client_env.rs (5)
     snippet: The environment variables can be specified in lower case or upper case. The lower case version has precedence.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 91
-  - label: lint-http-proxy/src/client_env.rs (6)
+  - label: lint-http/src/client_env.rs (6)
     snippet: curl recognizes the environment variable named 'CURL_CA_BUNDLE' if it is set and the TLS backend is not Schannel, and uses the given path as a path to a CA cert bundle.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 159
-  - label: lint-http-proxy/src/client_env.rs (7)
+  - label: lint-http/src/client_env.rs (7)
     snippet: list of hostnames that should not go through any proxy.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 232
-  - label: lint-http-proxy/src/driver/curl.rs
+  - label: lint-http/src/driver/curl.rs
     snippet: (HTTP) Attempt HTTP/3 to the host in the URL, but fallback to earlier HTTP versions if the HTTP/3 connection establishment fails or is slow. HTTP/3 is only available for HTTPS and not for HTTP URLs.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 408
-  - label: lint-http-proxy/src/driver/curl.rs (2)
+  - label: lint-http/src/driver/curl.rs (2)
     snippet: (TLS SFTP SCP) By default, every secure connection curl makes is verified to be secure before the transfer takes place. This option makes curl skip the verification step and proceed without checking.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 368
-  - label: lint-http-proxy/src/driver/curl.rs (3)
+  - label: lint-http/src/driver/curl.rs (3)
     snippet: (TLS) Use the specified certificate file to verify the peer. The file may contain multiple CA certificates. The certificate(s) must be in PEM format. Normally curl is built to use a default file for this, so this option is typically used to alter that default file.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 155
-  - label: lint-http-proxy/src/driver/curl.rs (4)
+  - label: lint-http/src/driver/curl.rs (4)
     snippet: 1) "$CURL_HOME/.curlrc" 2) "$XDG_CONFIG_HOME/curlrc" (Added in 7.73.0) 3) "$HOME/.curlrc"
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 479
-  - label: lint-http-proxy/src/driver/curl.rs (5)
+  - label: lint-http/src/driver/curl.rs (5)
     snippet: Comma-separated list of hosts for which not to use a proxy, if one is specified. The only wildcard is a single "*" character, which matches all hosts, and effectively disables the proxy.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 388
-  - label: lint-http-proxy/src/driver/curl.rs (6)
+  - label: lint-http/src/driver/curl.rs (6)
     snippet: If provided text does not start with a dash, it is presumed to be and treated as a URL.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 350
-  - label: lint-http-proxy/src/driver/curl.rs (7)
+  - label: lint-http/src/driver/curl.rs (7)
     snippet: If the long option name ends with an equals sign ("="), the argument is the text following on its right side. (Added in 8.16.0)
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 334
-  - label: lint-http-proxy/src/driver/curl.rs (8)
+  - label: lint-http/src/driver/curl.rs (8)
     snippet: If used as the first parameter on the command line, the curlrc config file is not read or used.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 135
-  - label: lint-http-proxy/src/driver/curl.rs (9)
+  - label: lint-http/src/driver/curl.rs (9)
     snippet: Short version options that do not need any additional values can be used immediately next to each other, like for example you can specify all the options -O, -L and -v at once as -OLv.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 263
-  - label: lint-http-proxy/src/driver/curl.rs (10)
+  - label: lint-http/src/driver/curl.rs (10)
     snippet: 'The default config file is checked for in the following places in this order:'
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 478
-  - label: lint-http-proxy/src/driver/curl.rs (11)
+  - label: lint-http/src/driver/curl.rs (11)
     snippet: This option overrides the environment variables that disable the proxy ("no_proxy" and "NO_PROXY"). If there is an environment variable disabling a proxy, you can set the no proxy list to "" to override it.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 172
-  - label: lint-http-proxy/src/driver/curl.rs (12)
+  - label: lint-http/src/driver/curl.rs (12)
     snippet: Use --http3-only for similar functionality without a fallback.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 416
-  - label: lint-http-proxy/src/driver/curl.rs (13)
+  - label: lint-http/src/driver/curl.rs (13)
     snippet: Use the specified SOCKS proxy before connecting to an HTTP or HTTPS --proxy. In such a case curl first connects to the SOCKS proxy and then connects (through SOCKS) to the HTTP or HTTPS proxy. Hence pre proxy.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 398
-  - label: lint-http-proxy/src/driver/curl.rs (14)
+  - label: lint-http/src/driver/curl.rs (14)
     snippet: Use the specified proxy.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 147
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 377
-  - label: lint-http-proxy/src/driver/curl.rs (15)
+  - label: lint-http/src/driver/curl.rs (15)
     snippet: When curl is invoked, it (unless --disable is used) checks for a default config file and uses it if found, even when --config is used.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 444
-  - label: lint-http-proxy/src/driver/curl.rs (16)
+  - label: lint-http/src/driver/curl.rs (16)
     snippet: curl recognizes the environment variable named 'CURL_CA_BUNDLE' if it is set and the TLS backend is not Schannel, and uses the given path as a path to a CA cert bundle. This option overrides that variable.
     cited_by:
-    - file: lint-http-proxy/src/driver/curl.rs
+    - file: lint-http/src/driver/curl.rs
       line: 425
 - label: OpenSSL Environment
   url: https://docs.openssl.org/master/man7/openssl-env/
   type: text/html
   fragments:
-  - label: lint-http-proxy/src/client_env.rs
+  - label: lint-http/src/client_env.rs
     snippet: Specify the default directory or file containing CA certificates.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 153
 - label: Node.js CLI
   url: https://nodejs.org/api/cli.html
   type: text/html
   fragments:
-  - label: lint-http-proxy/src/client_env.rs
+  - label: lint-http/src/client_env.rs
     snippet: The file should consist of one or more trusted certificates in PEM format.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 175
-  - label: lint-http-proxy/src/client_env.rs (2)
+  - label: lint-http/src/client_env.rs (2)
     snippet: When enabled, Node.js parses the HTTP_PROXY, HTTPS_PROXY and NO_PROXY environment variables during startup, and routes requests through the specified proxy.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 143
 - label: Requests Advanced Usage
   url: https://requests.readthedocs.io/en/latest/user/advanced/
   type: text/html
   fragments:
-  - label: lint-http-proxy/src/client_env.rs
+  - label: lint-http/src/client_env.rs
     snippet: If REQUESTS_CA_BUNDLE is not set, CURL_CA_BUNDLE will be used as fallback.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 169
-  - label: lint-http-proxy/src/client_env.rs (2)
+  - label: lint-http/src/client_env.rs (2)
     snippet: This list of trusted CAs can also be specified through the REQUESTS_CA_BUNDLE environment variable.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 168
 - label: git-config
   url: https://git-scm.com/docs/git-config
   type: text/html
   fragments:
-  - label: lint-http-proxy/src/client_env.rs
+  - label: lint-http/src/client_env.rs
     snippet: File containing the certificates to verify the peer with when fetching or pushing over HTTPS. Can be overridden by the GIT_SSL_CAINFO environment variable.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 189
 - label: Cargo Environment Variables
   url: https://doc.rust-lang.org/cargo/reference/environment-variables.html
   type: text/html
   fragments:
-  - label: lint-http-proxy/src/client_env.rs
+  - label: lint-http/src/client_env.rs
     snippet: The TLS certificate Certificate Authority file
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 197
 - label: AWS CLI Environment Variables
   url: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
   type: text/html
   fragments:
-  - label: lint-http-proxy/src/client_env.rs
+  - label: lint-http/src/client_env.rs
     snippet: Specifies the path to a certificate bundle to use for HTTPS certificate validation.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 203
 - label: Deno Environment Variables
   url: https://docs.deno.com/runtime/reference/env_variables/
   type: text/html
   fragments:
-  - label: lint-http-proxy/src/client_env.rs
+  - label: lint-http/src/client_env.rs
     snippet: Load certificate authorities from a PEM encoded file. The file can contain more than one certificate, each in its own PEM block.
     cited_by:
-    - file: lint-http-proxy/src/client_env.rs
+    - file: lint-http/src/client_env.rs
       line: 181
 - label: RFC 1035
   url: https://www.rfc-editor.org/rfc/rfc1035.html
@@ -3487,80 +3487,10 @@ sources:
     cited_by:
     - file: lint-http-core/src/protocol_event.rs
       line: 73
-    - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 73
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 318
-  - label: lint-http-proxy/src/proxy/websocket/frame.rs
-    section: § 5.2
-    snippet: '%x3-7 are reserved for further non-control frames'
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket/frame.rs
-      line: 34
-    - file: lint-http-rules/src/violations/websocket_frame.rs
-      line: 253
-  - label: lint-http-proxy/src/proxy/websocket/frame.rs (2)
-    section: § 5.2
-    snippet: '%xB-F are reserved for further control frames'
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket/frame.rs
-      line: 35
-    - file: lint-http-rules/src/violations/websocket_frame.rs
-      line: 254
-  - label: lint-http-proxy/src/proxy/websocket/frame.rs (3)
-    section: § 5.2
-    snippet: 'RSV1, RSV2, RSV3:  1 bit each'
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket/frame.rs
-      line: 30
-    - file: lint-http-rules/src/violations/websocket_frame.rs
-      line: 200
-  - label: lint-http-proxy/src/proxy/websocket/frame.rs (4)
-    section: § 5.3
-    snippet: Octet i of the transformed data ("transformed-octet-i") is the XOR of octet i of the original data ("original-octet-i") with octet at index i modulo 4 of the masking key
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket/frame.rs
-      line: 234
-  - label: lint-http-proxy/src/proxy/websocket/frame.rs (5)
-    section: § 5.5
-    snippet: All control frames MUST have a payload length of 125 bytes or less and MUST NOT be fragmented.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket/frame.rs
-      line: 64
-    - file: lint-http-rules/src/violations/websocket_frame.rs
-      line: 278
-  - label: lint-http-proxy/src/proxy/websocket/frame.rs (6)
-    section: § 5.5
-    snippet: Control frames are identified by opcodes where the most significant bit of the opcode is 1.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket/frame.rs
-      line: 187
-    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 204
-  - label: lint-http-proxy/src/proxy/websocket/mod.rs
-    section: § 4.1
-    snippet: The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 38
-    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 129
-  - label: lint-http-proxy/src/proxy/websocket/mod.rs (2)
-    section: § 4.1
-    snippet: The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 37
-    - file: lint-http-rules/src/helpers/websocket.rs
-      line: 149
-  - label: lint-http-proxy/src/proxy/websocket/observer.rs
-    section: § 5.5.1
-    snippet: If there is a body, the first two bytes of the body MUST be a 2-byte unsigned integer (in network byte order) representing a status code with value /code/ defined in Section 7.4.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket/observer.rs
-      line: 98
-    - file: lint-http-rules/src/violations/websocket_frame.rs
-      line: 314
+    - file: lint-http/src/proxy/websocket/mod.rs
+      line: 73
   - label: lint-http-rules/src/helpers/websocket.rs
     section: § 4.1
     snippet: (as a string, not base64-decoded) with the string
@@ -3573,37 +3503,45 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 148
+  - label: lint-http-rules/src/helpers/websocket.rs (3)
+    section: § 4.1
+    snippet: The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword.
+    cited_by:
+    - file: lint-http-rules/src/helpers/websocket.rs
+      line: 149
+    - file: lint-http/src/proxy/websocket/mod.rs
+      line: 37
   - label: Sec-WebSocket-Key nonce
     section: § 4.1
     snippet: The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 251
-  - label: lint-http-rules/src/helpers/websocket.rs (3)
+  - label: lint-http-rules/src/helpers/websocket.rs (4)
     section: § 4.1
     snippet: but ignoring any leading and trailing whitespace
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 332
-  - label: lint-http-rules/src/helpers/websocket.rs (4)
+  - label: lint-http-rules/src/helpers/websocket.rs (5)
     section: § 4.2.1
     snippet: An |Upgrade| header field containing the value "websocket", treated as an ASCII case-insensitive value.
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 150
-  - label: lint-http-rules/src/helpers/websocket.rs (5)
+  - label: lint-http-rules/src/helpers/websocket.rs (6)
     section: § 4.2.2
     snippet: It is not necessary for the server to base64-decode the |Sec-WebSocket-Key| value.
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 331
-  - label: lint-http-rules/src/helpers/websocket.rs (6)
+  - label: lint-http-rules/src/helpers/websocket.rs (7)
     section: § 4.2.2
     snippet: server would append the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" to form the string
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 311
-  - label: lint-http-rules/src/helpers/websocket.rs (7)
+  - label: lint-http-rules/src/helpers/websocket.rs (8)
     section: § 4.2.2
     snippet: taking the SHA-1 hash of this concatenated value to obtain a 20-byte value
     cited_by:
@@ -3631,6 +3569,12 @@ sources:
       line: 79
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
       line: 104
+  - label: lint-http/src/proxy/websocket/frame.rs
+    section: § 5.3
+    snippet: Octet i of the transformed data ("transformed-octet-i") is the XOR of octet i of the original data ("original-octet-i") with octet at index i modulo 4 of the masking key
+    cited_by:
+    - file: lint-http/src/proxy/websocket/frame.rs
+      line: 234
   - label: sec_websocket_extensions
     section: § 4.2.2
     snippet: Extensions not listed by the client MUST NOT be listed.
@@ -3705,13 +3649,21 @@ sources:
       line: 72
   - label: sec_websocket_headers_consistent (3)
     section: § 4.1
+    snippet: The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token.
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 129
+    - file: lint-http/src/proxy/websocket/mod.rs
+      line: 38
+  - label: sec_websocket_headers_consistent (4)
+    section: § 4.1
     snippet: The request MUST include a header field with the name |Sec-WebSocket-Key|.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 219
     - file: lint-http-rules/src/violations/sec_websocket_key.rs
       line: 64
-  - label: sec_websocket_headers_consistent (4)
+  - label: sec_websocket_headers_consistent (5)
     section: § 4.1
     snippet: The request MUST include a header field with the name |Sec-WebSocket-Version|.  The value of this header field MUST be 13.
     cited_by:
@@ -3721,19 +3673,19 @@ sources:
       line: 122
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
       line: 156
-  - label: sec_websocket_headers_consistent (5)
+  - label: sec_websocket_headers_consistent (6)
     section: § 4.2.1
     snippet: A |Connection| header field that includes the token "Upgrade", treated as an ASCII case-insensitive value.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 130
-  - label: sec_websocket_headers_consistent (6)
+  - label: sec_websocket_headers_consistent (7)
     section: § 4.2.1
     snippet: An HTTP/1.1 or higher GET request
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 449
-  - label: sec_websocket_headers_consistent (7)
+  - label: sec_websocket_headers_consistent (8)
     section: § 4.2.1
     snippet: the server MUST stop processing the client's handshake and return an HTTP response with an appropriate error code (such as 400 Bad Request)
     cited_by:
@@ -3757,7 +3709,7 @@ sources:
       line: 165
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 78
-  - label: sec_websocket_headers_consistent (8)
+  - label: sec_websocket_headers_consistent (9)
     section: § 4.4
     snippet: If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field (or multiple |Sec-WebSocket-Version| header fields) containing all versions it is willing to use.
     cited_by:
@@ -3765,7 +3717,7 @@ sources:
       line: 196
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 79
-  - label: sec_websocket_headers_consistent (9)
+  - label: sec_websocket_headers_consistent (10)
     section: § 4.4
     snippet: a client can initially request the version of the WebSocket Protocol that it prefers (which doesn't necessarily have to be the latest supported by the client)
     cited_by:
@@ -3827,6 +3779,22 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/websocket_frame.rs
       line: 128
+  - label: websocket_frame (3)
+    section: § 5.2
+    snippet: '%x3-7 are reserved for further non-control frames'
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 253
+    - file: lint-http/src/proxy/websocket/frame.rs
+      line: 34
+  - label: websocket_frame (4)
+    section: § 5.2
+    snippet: '%xB-F are reserved for further control frames'
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 254
+    - file: lint-http/src/proxy/websocket/frame.rs
+      line: 35
   - label: the recipient's answer to a bit nothing defines
     section: § 5.2
     snippet: If a nonzero value is received and none of the negotiated extensions defines the meaning of such a nonzero value, the receiving endpoint MUST _Fail the WebSocket Connection_.
@@ -3839,31 +3807,55 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/websocket_frame.rs
       line: 255
-  - label: websocket_frame (3)
+  - label: websocket_frame (5)
     section: § 5.2
     snippet: MUST be 0 unless an extension is negotiated that defines meanings for non-zero values.
     cited_by:
     - file: lint-http-rules/src/violations/websocket_frame.rs
       line: 176
-  - label: websocket_frame (4)
+  - label: websocket_frame (6)
+    section: § 5.2
+    snippet: 'RSV1, RSV2, RSV3:  1 bit each'
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 200
+    - file: lint-http/src/proxy/websocket/frame.rs
+      line: 30
+  - label: websocket_frame (7)
     section: § 5.4
     snippet: A fragmented message consists of a single frame with the FIN bit clear and an opcode other than 0, followed by zero or more frames with the FIN bit clear and the opcode set to 0, and terminated by a single frame with the FIN bit set and an opcode of 0.
     cited_by:
     - file: lint-http-rules/src/violations/websocket_frame.rs
       line: 350
-  - label: websocket_frame (5)
+  - label: websocket_frame (8)
     section: § 5.4
     snippet: Control frames themselves MUST NOT be fragmented.
     cited_by:
     - file: lint-http-rules/src/violations/websocket_frame.rs
       line: 295
-  - label: websocket_frame (6)
+  - label: websocket_frame (9)
     section: § 5.4
     snippet: The fragments of one message MUST NOT be interleaved between the fragments of another message unless an extension has been negotiated that can interpret the interleaving.
     cited_by:
     - file: lint-http-rules/src/violations/websocket_frame.rs
       line: 368
-  - label: websocket_frame (7)
+  - label: websocket_frame (10)
+    section: § 5.5
+    snippet: All control frames MUST have a payload length of 125 bytes or less and MUST NOT be fragmented.
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 278
+    - file: lint-http/src/proxy/websocket/frame.rs
+      line: 64
+  - label: websocket_frame (11)
+    section: § 5.5.1
+    snippet: If there is a body, the first two bytes of the body MUST be a 2-byte unsigned integer (in network byte order) representing a status code with value /code/ defined in Section 7.4.
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 314
+    - file: lint-http/src/proxy/websocket/observer.rs
+      line: 98
+  - label: websocket_frame (12)
     section: § 5.5.1
     snippet: The application MUST NOT send any more data frames after sending a Close frame.
     cited_by:
@@ -3924,12 +3916,20 @@ sources:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 306
   - label: websocket_frame_opcode_sequence (7)
+    section: § 5.5
+    snippet: Control frames are identified by opcodes where the most significant bit of the opcode is 1.
+    cited_by:
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
+      line: 204
+    - file: lint-http/src/proxy/websocket/frame.rs
+      line: 187
+  - label: websocket_frame_opcode_sequence (8)
     section: § 5.5.1
     snippet: The Close frame MAY contain a body (the "Application data" portion of the frame) that indicates a reason for closing
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 235
-  - label: websocket_frame_opcode_sequence (8)
+  - label: websocket_frame_opcode_sequence (9)
     section: § 5.5.1
     snippet: The Close frame contains an opcode of 0x8.
     cited_by:
@@ -3937,13 +3937,13 @@ sources:
       line: 234
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 299
-  - label: websocket_frame_opcode_sequence (9)
+  - label: websocket_frame_opcode_sequence (10)
     section: § 5.6
     snippet: Data frames (e.g., non-control frames) are identified by opcodes where the most significant bit of the opcode is 0.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 278
-  - label: websocket_frame_opcode_sequence (10)
+  - label: websocket_frame_opcode_sequence (11)
     section: § 5.8
     snippet: This specification provides opcodes 0x3 through 0x7 and 0xB through 0xF, the "Extension data" field, and the frame-rsv1, frame-rsv2, and frame-rsv3 bits of the frame header for use by extensions.
     cited_by:
@@ -5966,23 +5966,23 @@ sources:
 - label: RFC 9000
   url: https://www.rfc-editor.org/rfc/rfc9000.html
   fragments:
-  - label: lint-http-proxy/src/h3_instrument.rs
+  - label: lint-http/src/h3_instrument.rs
     section: § 16
     snippet: The QUIC variable-length integer encoding reserves the two most significant bits of the first byte to encode the base-2 logarithm of the integer encoding length in bytes.  The integer value is encoded on the remaining bits, in network byte order.
     cited_by:
-    - file: lint-http-proxy/src/h3_instrument.rs
+    - file: lint-http/src/h3_instrument.rs
       line: 40
-  - label: lint-http-proxy/src/h3_instrument.rs (2)
+  - label: lint-http/src/h3_instrument.rs (2)
     section: § 16
     snippet: This means that integers are encoded on 1, 2, 4, or 8 bytes and can encode 6-, 14-, 30-, or 62-bit values, respectively.
     cited_by:
-    - file: lint-http-proxy/src/h3_instrument.rs
+    - file: lint-http/src/h3_instrument.rs
       line: 41
-  - label: lint-http-proxy/src/h3_instrument.rs (3)
+  - label: lint-http/src/h3_instrument.rs (3)
     section: § A.1
     snippet: For example, the eight-byte sequence 0xc2197c5eff14e88c decodes to the decimal value 151,288,809,941,952,652; the four-byte sequence 0x9d7f3e7d decodes to 494,878,333; the two-byte sequence 0x7bbd decodes to 15,293; and the single byte 0x25 decodes to 37 (as does the two-byte sequence 0x4025).
     cited_by:
-    - file: lint-http-proxy/src/h3_instrument.rs
+    - file: lint-http/src/h3_instrument.rs
       line: 519
   - label: quic_transport_parameters_valid
     section: § 18
@@ -7281,6 +7281,14 @@ sources:
       line: 184
   - label: connection_header_tokens_valid (3)
     section: § 7.6.1
+    snippet: Connection options are case-insensitive.
+    cited_by:
+    - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
+      line: 130
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 108
+  - label: connection_header_tokens_valid (4)
+    section: § 7.6.1
     snippet: The "Connection" header field allows the sender to list desired control options for the current connection.
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
@@ -8185,88 +8193,6 @@ sources:
     cited_by:
     - file: lint-http-core/src/serde_helpers.rs
       line: 126
-  - label: lint-http-proxy/src/proxy/exchange.rs
-    section: § 15.2.2
-    snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
-    cited_by:
-    - file: lint-http-proxy/src/proxy/exchange.rs
-      line: 411
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs
-    section: § 11.7.1
-    snippet: Unlike WWW-Authenticate, the Proxy-Authenticate header field applies only to the next outbound client on the response chain.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 42
-    - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 244
-    - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 279
-    - file: lint-http-rules/src/violations/proxy_authenticate.rs
-      line: 53
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (2)
-    section: § 11.7.2
-    snippet: Unlike Authorization, the Proxy-Authorization header field applies only to the next inbound proxy that demanded authentication using the Proxy-Authenticate header field.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 44
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (3)
-    section: § 2.5
-    snippet: The "0" is used when referring to that protocol within elements that require a minor version identifier.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 65
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (4)
-    section: § 2.5
-    snippet: When a major version of HTTP does not define any minor versions, the minor version "0" is implied.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 64
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (5)
-    section: § 7.6.1
-    snippet: 'Connection = #connection-option connection-option = token'
-    cited_by:
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 105
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (6)
-    section: § 7.6.1
-    snippet: Connection options are case-insensitive.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 108
-    - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 130
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (7)
-    section: § 7.6.1
-    snippet: Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 22
-    - file: lint-http-rules/src/helpers/field_placement.rs
-      line: 142
-    - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 50
-    - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
-      line: 76
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (8)
-    section: § 7.6.1
-    snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
-    cited_by:
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 125
-    - file: lint-http-rules/src/helpers/field_placement.rs
-      line: 177
-    - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 143
-  - label: lint-http-proxy/src/proxy/websocket/handshake.rs
-    section: § 15.2
-    snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket/handshake.rs
-      line: 167
-    - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
-      line: 170
-    - file: lint-http-rules/src/violations/status.rs
-      line: 1137
   - label: lint-http-rules/src/helpers/accept_ranges.rs
     section: § 14.1
     snippet: All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1.
@@ -8937,6 +8863,28 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/field_placement.rs
       line: 45
+  - label: lint-http-rules/src/helpers/field_placement.rs (7)
+    section: § 7.6.1
+    snippet: Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics.
+    cited_by:
+    - file: lint-http-rules/src/helpers/field_placement.rs
+      line: 142
+    - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
+      line: 50
+    - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
+      line: 76
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 22
+  - label: lint-http-rules/src/helpers/field_placement.rs (8)
+    section: § 7.6.1
+    snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
+    cited_by:
+    - file: lint-http-rules/src/helpers/field_placement.rs
+      line: 177
+    - file: lint-http-rules/src/rules/trailer_header_valid.rs
+      line: 143
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 125
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 5
     snippet: Fields are sent and received within the header and trailer sections of messages
@@ -9721,6 +9669,36 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/word.rs
       line: 207
+  - label: lint-http/src/proxy/exchange.rs
+    section: § 15.2.2
+    snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
+    cited_by:
+    - file: lint-http/src/proxy/exchange.rs
+      line: 411
+  - label: lint-http/src/proxy/hop_by_hop.rs
+    section: § 11.7.2
+    snippet: Unlike Authorization, the Proxy-Authorization header field applies only to the next inbound proxy that demanded authentication using the Proxy-Authenticate header field.
+    cited_by:
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 44
+  - label: lint-http/src/proxy/hop_by_hop.rs (2)
+    section: § 2.5
+    snippet: The "0" is used when referring to that protocol within elements that require a minor version identifier.
+    cited_by:
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 65
+  - label: lint-http/src/proxy/hop_by_hop.rs (3)
+    section: § 2.5
+    snippet: When a major version of HTTP does not define any minor versions, the minor version "0" is implied.
+    cited_by:
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 64
+  - label: lint-http/src/proxy/hop_by_hop.rs (4)
+    section: § 7.6.1
+    snippet: 'Connection = #connection-option connection-option = token'
+    cited_by:
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 105
   - label: location
     section: § 15.4
     snippet: A client SHOULD detect and intervene in cyclical redirections (i.e., "infinite" redirection loops).
@@ -9990,6 +9968,16 @@ sources:
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 733
   - label: no_body_for_1xx_204_304
+    section: § 15.2
+    snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
+    cited_by:
+    - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
+      line: 170
+    - file: lint-http-rules/src/violations/status.rs
+      line: 1137
+    - file: lint-http/src/proxy/websocket/handshake.rs
+      line: 167
+  - label: no_body_for_1xx_204_304 (2)
     section: § 15.3.5
     snippet: A 204 response is terminated by the end of the header section; it cannot contain content or trailers.
     cited_by:
@@ -9997,13 +9985,13 @@ sources:
       line: 171
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 33
-  - label: no_body_for_1xx_204_304 (2)
+  - label: no_body_for_1xx_204_304 (3)
     section: § 15.4.5
     snippet: A 304 response is terminated by the end of the header section; it cannot contain content or trailers.
     cited_by:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 172
-  - label: no_body_for_1xx_204_304 (3)
+  - label: no_body_for_1xx_204_304 (4)
     section: § 6.4
     snippet: This abstract definition of content reflects the data after it has been extracted from the message framing.
     cited_by:
@@ -10013,7 +10001,7 @@ sources:
       line: 270
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 234
-  - label: no_body_for_1xx_204_304 (4)
+  - label: no_body_for_1xx_204_304 (5)
     section: § 6.4.1
     snippet: All 1xx (Informational), 204 (No Content), and 304 (Not Modified) responses do not include content.
     cited_by:
@@ -10021,7 +10009,7 @@ sources:
       line: 165
     - file: lint-http-rules/src/violations/status.rs
       line: 1113
-  - label: no_body_for_1xx_204_304 (5)
+  - label: no_body_for_1xx_204_304 (6)
     section: § 8.6
     snippet: A server MAY send a Content-Length header field in a 304 (Not Modified) response to a conditional GET request (Section 15.4.5); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a 200 (OK) response to the same request.
     cited_by:
@@ -10031,7 +10019,7 @@ sources:
       line: 186
     - file: lint-http-rules/src/rules/status_304_representation_metadata.rs
       line: 154
-  - label: no_body_for_1xx_204_304 (6)
+  - label: no_body_for_1xx_204_304 (7)
     section: § 8.6
     snippet: A server MUST NOT send a Content-Length header field in any response with a status code of 1xx (Informational) or 204 (No Content).
     cited_by:
@@ -11146,12 +11134,24 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 50
   - label: status_code_semantics (6)
+    section: § 11.7.1
+    snippet: Unlike WWW-Authenticate, the Proxy-Authenticate header field applies only to the next outbound client on the response chain.
+    cited_by:
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 244
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 279
+    - file: lint-http-rules/src/violations/proxy_authenticate.rs
+      line: 53
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 42
+  - label: status_code_semantics (7)
     section: § 15.5.8
     snippet: The 407 (Proxy Authentication Required) status code is similar to 401 (Unauthorized), but it indicates that the client needs to authenticate itself in order to use a proxy for this request.
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 237
-  - label: status_code_semantics (7)
+  - label: status_code_semantics (8)
     section: § 15.5.8
     snippet: The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request.
     cited_by:
@@ -11161,13 +11161,13 @@ sources:
       line: 258
     - file: lint-http-rules/src/violations/status.rs
       line: 931
-  - label: status_code_semantics (8)
+  - label: status_code_semantics (9)
     section: § A
     snippet: Proxy-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 257
-  - label: status_code_semantics (9)
+  - label: status_code_semantics (10)
     section: § A
     snippet: WWW-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
     cited_by:
@@ -12569,78 +12569,18 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_version.rs
       line: 18
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 63
     - file: lint-http-rules/src/rules/http_version_syntax.rs
       line: 174
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 334
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 63
   - label: HTTP-name
     section: § A
     snippet: HTTP-name = %x48.54.54.50 ; HTTP
     cited_by:
     - file: lint-http-core/src/http_version.rs
       line: 104
-  - label: lint-http-proxy/src/proxy/http.rs
-    section: § 3.2
-    snippet: A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/http.rs
-      line: 208
-    - file: lint-http-proxy/src/proxy/http.rs
-      line: 363
-    - file: lint-http-rules/src/helpers/request_target.rs
-      line: 58
-    - file: lint-http-rules/src/rules/host_header.rs
-      line: 196
-  - label: asterisk-form target
-    section: § 3.2.4
-    snippet: The "asterisk-form" of request-target is only used for a server-wide OPTIONS request
-    cited_by:
-    - file: lint-http-proxy/src/proxy/http.rs
-      line: 223
-    - file: lint-http-rules/src/rules/request_target_form_valid.rs
-      line: 469
-  - label: lint-http-proxy/src/proxy/http.rs (2)
-    section: § 3.2.4
-    snippet: When a client wishes to request OPTIONS for the server as a whole
-    cited_by:
-    - file: lint-http-proxy/src/proxy/http.rs
-      line: 364
-  - label: lint-http-proxy/src/proxy/http.rs (3)
-    section: § 3.3
-    snippet: If the request-target is in authority-form, the target URI's authority component is the request-target.  Otherwise, the target URI's authority component is the field value of the Host header field.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/http.rs
-      line: 187
-    - file: lint-http-rules/src/helpers/request_target.rs
-      line: 56
-    - file: lint-http-rules/src/helpers/request_target.rs
-      line: 132
-  - label: lint-http-proxy/src/proxy/http.rs (4)
-    section: § 3.3
-    snippet: If there is no Host header field or if its field value is empty or invalid, the target URI's authority component is empty.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/http.rs
-      line: 188
-    - file: lint-http-rules/src/helpers/request_target.rs
-      line: 57
-  - label: lint-http-proxy/src/proxy/http.rs (5)
-    section: § 3.3
-    snippet: The target URI is the request-target when the request-target is in absolute-form.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/http.rs
-      line: 186
-    - file: lint-http-proxy/src/proxy/http.rs
-      line: 292
-    - file: lint-http-rules/src/helpers/request_target.rs
-      line: 55
-    - file: lint-http-rules/src/helpers/request_target.rs
-      line: 253
-    - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 168
-    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 342
   - label: lint-http-rules/src/helpers/content_length.rs
     section: § 6.3
     snippet: If a message is received without Transfer-Encoding and with an invalid Content-Length header field, then the message framing is invalid and the recipient MUST treat it as an unrecoverable error, unless the field value can be successfully parsed as a comma-separated list (Section 5.6.1 of [HTTP]), all values in the list are valid, and all values in the list are the same (in which case, the message is processed with that single value used as the Content-Length field value).
@@ -12651,6 +12591,18 @@ sources:
       line: 122
     - file: lint-http-rules/src/violations/content_length.rs
       line: 177
+  - label: lint-http-rules/src/helpers/request_target.rs
+    section: § 3.2
+    snippet: A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value.
+    cited_by:
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 58
+    - file: lint-http-rules/src/rules/host_header.rs
+      line: 196
+    - file: lint-http/src/proxy/http.rs
+      line: 208
+    - file: lint-http/src/proxy/http.rs
+      line: 363
   - label: request-target forms
     section: § 3.2
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
@@ -12663,6 +12615,24 @@ sources:
       line: 84
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
       line: 290
+  - label: lint-http-rules/src/helpers/request_target.rs (2)
+    section: § 3.3
+    snippet: If the request-target is in authority-form, the target URI's authority component is the request-target.  Otherwise, the target URI's authority component is the field value of the Host header field.
+    cited_by:
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 56
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 132
+    - file: lint-http/src/proxy/http.rs
+      line: 187
+  - label: lint-http-rules/src/helpers/request_target.rs (3)
+    section: § 3.3
+    snippet: If there is no Host header field or if its field value is empty or invalid, the target URI's authority component is empty.
+    cited_by:
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 57
+    - file: lint-http/src/proxy/http.rs
+      line: 188
   - label: the scheme comes from the connection
     section: § 3.3
     snippet: Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http".
@@ -12671,6 +12641,28 @@ sources:
       line: 254
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 343
+  - label: lint-http-rules/src/helpers/request_target.rs (4)
+    section: § 3.3
+    snippet: The target URI is the request-target when the request-target is in absolute-form.
+    cited_by:
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 55
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 253
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
+      line: 168
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 342
+    - file: lint-http/src/proxy/http.rs
+      line: 186
+    - file: lint-http/src/proxy/http.rs
+      line: 292
+  - label: lint-http/src/proxy/http.rs
+    section: § 3.2.4
+    snippet: When a client wishes to request OPTIONS for the server as a whole
+    cited_by:
+    - file: lint-http/src/proxy/http.rs
+      line: 364
   - label: no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -12849,6 +12841,14 @@ sources:
       line: 439
     - file: lint-http-rules/src/violations/request_target.rs
       line: 231
+  - label: asterisk-form target
+    section: § 3.2.4
+    snippet: The "asterisk-form" of request-target is only used for a server-wide OPTIONS request
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 469
+    - file: lint-http/src/proxy/http.rs
+      line: 223
   - label: request_target_form_valid (12)
     section: § 3.2.4
     snippet: When a client wishes to request OPTIONS for the server as a whole, as opposed to a specific named resource of that server, the client MUST send only "*" (%x2A) as the request-target.
@@ -13142,26 +13142,20 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_version.rs
       line: 141
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 72
     - file: lint-http-rules/src/published_examples.rs
       line: 189
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 72
   - label: lint-http-core/src/http_version.rs (2)
     section: § 8.3.1
     snippet: Individual HTTP/2 requests do not carry an explicit indicator of protocol version.
     cited_by:
     - file: lint-http-core/src/http_version.rs
       line: 19
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 71
     - file: lint-http-rules/src/rules/http_version_syntax.rs
       line: 175
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs
-    section: § 8.3.2
-    snippet: HTTP/2 responses implicitly have a protocol version of "2.0".
-    cited_by:
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 73
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 71
   - label: lint-http-rules/src/helpers/field_placement.rs
     section: § 8.2.2
     snippet: This includes the Connection header field and those listed as having connection-specific semantics in Section 7.6.1 of [HTTP] (that is, Proxy-Connection, Keep-Alive, Transfer-Encoding, and Upgrade).
@@ -13172,6 +13166,12 @@ sources:
       line: 49
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 78
+  - label: lint-http/src/proxy/hop_by_hop.rs
+    section: § 8.3.2
+    snippet: HTTP/2 responses implicitly have a protocol version of "2.0".
+    cited_by:
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 73
   - label: no_body_for_1xx_204_304
     section: § 8.2.2
     snippet: An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields.
@@ -13341,6 +13341,14 @@ sources:
       line: 118
     - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
       line: 157
+  - label: http3_goaway_semantics (2)
+    section: § 7.2.6
+    snippet: The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint.
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
+      line: 101
+    - file: lint-http/src/h3_instrument.rs
+      line: 131
   - label: http3_max_push_id
     section: § 7.2.7
     snippet: A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR
@@ -13354,6 +13362,14 @@ sources:
     - file: lint-http-rules/src/violations/http3_max_push_id.rs
       line: 53
   - label: http3_max_push_id (3)
+    section: § 7.2.7
+    snippet: The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate.
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_max_push_id.rs
+      line: 107
+    - file: lint-http/src/h3_instrument.rs
+      line: 128
+  - label: http3_max_push_id (4)
     section: § 7.2.7
     snippet: The maximum push ID is unset when an HTTP/3 connection is created, meaning that a server cannot push until it receives a MAX_PUSH_ID frame
     cited_by:
@@ -13441,69 +13457,53 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/http3_settings_frame.rs
       line: 143
+  - label: http3_settings_frame (4)
+    section: § 7.2.4
+    snippet: The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_settings_frame.rs
+      line: 132
+    - file: lint-http/src/h3_instrument.rs
+      line: 125
   - label: lint-http-core/src/http_version.rs
     section: § 4.3.1
     snippet: HTTP/3 does not define a way to carry the version identifier that is included in the HTTP/1.1 request line.
     cited_by:
     - file: lint-http-core/src/http_version.rs
       line: 20
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 76
     - file: lint-http-rules/src/rules/http_version_syntax.rs
       line: 176
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 76
   - label: lint-http-core/src/http_version.rs (2)
     section: § 4.3.1
     snippet: HTTP/3 requests implicitly have a protocol version of "3.0".
     cited_by:
     - file: lint-http-core/src/http_version.rs
       line: 140
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 77
-    - file: lint-http-proxy/src/proxy/http3.rs
-      line: 399
     - file: lint-http-rules/src/published_examples.rs
       line: 190
-  - label: lint-http-proxy/src/h3_instrument.rs
+    - file: lint-http/src/proxy/hop_by_hop.rs
+      line: 77
+    - file: lint-http/src/proxy/http3.rs
+      line: 399
+  - label: lint-http/src/h3_instrument.rs
     section: § 6.2.1
     snippet: A control stream is indicated by a stream type of 0x00.
     cited_by:
-    - file: lint-http-proxy/src/h3_instrument.rs
+    - file: lint-http/src/h3_instrument.rs
       line: 134
-  - label: lint-http-proxy/src/h3_instrument.rs (2)
-    section: § 7.2.4
-    snippet: The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate
-    cited_by:
-    - file: lint-http-proxy/src/h3_instrument.rs
-      line: 125
-    - file: lint-http-rules/src/rules/http3_settings_frame.rs
-      line: 132
-  - label: lint-http-proxy/src/h3_instrument.rs (3)
-    section: § 7.2.6
-    snippet: The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint.
-    cited_by:
-    - file: lint-http-proxy/src/h3_instrument.rs
-      line: 131
-    - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
-      line: 101
-  - label: lint-http-proxy/src/h3_instrument.rs (4)
-    section: § 7.2.7
-    snippet: The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate.
-    cited_by:
-    - file: lint-http-proxy/src/h3_instrument.rs
-      line: 128
-    - file: lint-http-rules/src/rules/http3_max_push_id.rs
-      line: 107
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs
+  - label: lint-http/src/proxy/hop_by_hop.rs
     section: § 4.3.2
     snippet: HTTP/3 does not define a way to carry the version or reason phrase that is included in an HTTP/1.1 status line.
     cited_by:
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+    - file: lint-http/src/proxy/hop_by_hop.rs
       line: 78
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (2)
+  - label: lint-http/src/proxy/hop_by_hop.rs (2)
     section: § 4.3.2
     snippet: HTTP/3 responses implicitly have a protocol version of "3.0".
     cited_by:
-    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+    - file: lint-http/src/proxy/hop_by_hop.rs
       line: 79
   - label: no_body_for_1xx_204_304
     section: § 4.1

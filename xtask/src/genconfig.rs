@@ -14,7 +14,7 @@
 //! is that statement, and this renders it.
 //!
 //! Everything above the first `[rules.*]` section is [`PREAMBLE`]: transport
-//! policy belonging to `lint-http-proxy`, which no rule knows about and no rule
+//! policy belonging to `lint-http`, which no rule knows about and no rule
 //! can therefore generate.
 //!
 //! [`render`] is pure and deterministic, so the `config_example_matches_generated`
@@ -27,7 +27,7 @@ use std::path::Path;
 
 /// Everything above the first `[rules.*]` section, verbatim.
 ///
-/// The `[general]` and `[tls]` tables are `lint-http-proxy`'s
+/// The `[general]` and `[tls]` tables are `lint-http`'s
 /// `GeneralConfig`/`TlsConfig`, and their prose is the only documentation of
 /// several keys that appear nowhere else. Generating it would mean reading
 /// doc comments off a struct in a crate this one does not depend on; keeping

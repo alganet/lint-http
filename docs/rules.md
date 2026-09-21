@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # Lint Rules
 
-Generated index of every rule in the catalogue. Each entry links to the per-rule documentation under `rules/`. Rules are disabled by default and enabled via configuration.
+Generated index of every rule in the catalogue. Each entry links to the per-rule documentation under `rules/`. A rule is off unless a configuration names it; the built-in configuration names every one.
 
 The sections group rules by **who is answerable for what they report** — the peer that wrote the message the evidence was found in — and not by which half of a transaction the rule reads. A rule that reports defects in both halves answers one finding at a time and is listed under *Rules Whose Findings Name Their Own Peer*; `lint-http --about client|server|any` narrows a report the same way.
 

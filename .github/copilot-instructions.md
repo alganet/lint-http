@@ -23,7 +23,7 @@ Send the reader there rather than copying it here.
 |---|---|---|
 | `lint-http-core` | The data types, and nothing that knows about rules or transport: `HttpTransaction`, `TransactionHistory`, `ProtocolEvent` + its store, the bounded `StateStore`, `Config`, `Violation`/`Severity` | nothing in-workspace |
 | `lint-http-rules` | The rule catalogue (`src/rules/`), the defect catalogue (`src/violations/`), the helper library (`src/helpers/`), the state-query layer (`src/queries/`), and dispatch (`engine`, `lint_protocol`) | core |
-| `lint-http-proxy` | Transport, TLS/CA, capture, WebSocket, the tool drivers (`src/driver/`) — and the `lint-http` binary | core + rules |
+| `lint-http` | Transport, TLS/CA, capture, WebSocket, the tool drivers (`src/driver/`) — and the `lint-http` binary | core + rules |
 | `xtask` | The docs and config generators, unpublished so the shipped binary carries neither | rules |
 
 Both downstream crates re-export core's modules under their original names, so a path like
@@ -32,8 +32,8 @@ type lives in that crate.
 
 ## Runtime flow
 
-Startup is `lint-http-proxy/src/main.rs`: clap subcommands — `run` wraps a child command,
-`browse` wraps a browser, `proxy-start` runs the proxy, `lint-captures` replays a capture file,
+Startup is `lint-http/src/main.rs`: clap subcommands — `run` wraps a child command,
+`use` drives a tool it knows (curl, a Chromium-family browser), `proxy-start` runs the proxy, `lint-captures` replays a capture file,
 `rules`/`config` inspect.
 `--config`, `--format`, `--min-severity` and `--captures` are `GlobalArgs` (clap `global = true`),
 so they parse on either side of the subcommand and are declared once rather than per command;
@@ -128,4 +128,4 @@ than anything reconstructed from the tree. Four things that are easy to get wron
 - **Protocol events are not file-observable.** They live only in the in-memory store, so an
   end-to-end assertion about one must be an in-crate test reaching the store directly.
 - CONNECT, TLS passthrough and interception behaviour is covered by the integration tests in
-  `lint-http-proxy/tests/`.
+  `lint-http/tests/`.

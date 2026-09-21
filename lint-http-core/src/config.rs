@@ -8,7 +8,7 @@
 //! `[rules.*]` and `[violations.*]` tables. Transport configuration (listen
 //! addresses, TLS,
 //! captures, HTTP/3 upstream policy) belongs to the proxy binary and lives in
-//! `lint-http-proxy`, which flattens this struct into its own `Config` — so
+//! `lint-http`, which flattens this struct into its own `Config` — so
 //! the rule layer depends only on what it actually reads, and this crate can
 //! be reused outside the proxy (HAR/PCAP analyzers, CI fixture linting,
 //! replay harnesses) without inventing a listen address.

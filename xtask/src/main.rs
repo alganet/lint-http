@@ -133,7 +133,7 @@ mod tests {
     /// rules, because `docs/violations/` is 537 byte comparisons that an empty
     /// `VIOLATIONS` would satisfy in silence. The
     /// shipped binary has the same guard in
-    /// `lint-http-proxy/tests/linkme_catalogue.rs`.
+    /// `lint-http/tests/linkme_catalogue.rs`.
     #[test]
     fn catalogue_collected_in_xtask_link_config() {
         assert!(

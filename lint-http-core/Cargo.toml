@@ -11,10 +11,13 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "../README.md"
+keywords = ["http", "lint", "rfc", "testing"]
+categories = ["development-tools", "web-programming"]
 
 [features]
 # Exposes `test_helpers` as public (non-#[cfg(test)]) code so downstream
-# crates (lint-http-rules, lint-http-proxy) can build their own test fixtures
+# crates (lint-http-rules, lint-http) can build their own test fixtures
 # on top of these. Enabled via dev-dependencies, so release builds exclude it.
 test-utils = []
 

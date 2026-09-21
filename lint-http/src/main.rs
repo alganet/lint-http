@@ -481,9 +481,21 @@ enum OutputFormat {
 ///
 /// `try_init` rather than `init`: it is called from every dispatch arm and from
 /// tests that may already have a subscriber, and a second initialization is a
-/// no-op rather than a panic. `RUST_LOG` still selects the level.
-fn init_diagnostics() {
+/// no-op rather than a panic.
+///
+/// **`RUST_LOG` selects the level, and `default_level` is what applies when it
+/// is unset.** The comment here used to say the first half while the second
+/// was a fixed `INFO`: the subscriber was built without an environment filter,
+/// so `RUST_LOG=debug` showed nothing more and `RUST_LOG=error` silenced
+/// nothing, while the configuration guide told operators to "enable debug-level
+/// logging" to watch HTTP/3 selection. The default is the command's to choose
+/// (see [`diagnostics_default_level`]), because a wrapped run's report is the
+/// product and two `INFO` lines about a temporary CA and an ephemeral port
+/// were the first thing every user read above it.
+fn init_diagnostics(default_level: &str) {
     use std::io::IsTerminal;
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(default_level));
     // **To stderr, explicitly.** `fmt`'s default writer is *stdout*, which for
     // `run` and `use` belongs to the wrapped command — so the default would
     // interleave log lines with a response body and break the one contract
@@ -494,6 +506,7 @@ fn init_diagnostics() {
     // ANSI only when stderr is a terminal, or the escapes end up in whatever
     // file a redirect pointed at.
     let _ = tracing_subscriber::fmt()
+        .with_env_filter(filter)
         .with_writer(std::io::stderr)
         .with_ansi(std::io::stderr().is_terminal())
         .try_init();
@@ -1716,9 +1729,9 @@ fn render_violation_detail(v: &lint::Violation, indent: usize, opts: RenderOpts,
 
     if let Some(def) = def {
         out.push_str(&format!(
-            "{pad}{}  docs/violations/{}.md\n",
+            "{pad}{}  {}\n",
             label("docs"),
-            def.id
+            violation_docs_url(def.id)
         ));
         out.push_str(&format!(
             "{pad}{}  [violations.{}]\n{pad}      enabled = false\n",
@@ -2937,6 +2950,20 @@ async fn live_reporter(
     }
 }
 
+/// Where a defect's documentation page can be opened from wherever this binary
+/// is installed.
+///
+/// It was `docs/violations/<id>.md`, a path into a checkout that means nothing
+/// next to an installed binary. The repository URL comes off the manifest, so a
+/// fork prints its own; `blob/main` is the interim rendering until the docs are
+/// published as a site, and this is the one place to change when they are.
+fn violation_docs_url(id: &str) -> String {
+    format!(
+        "{}/blob/main/docs/violations/{id}.md",
+        env!("CARGO_PKG_REPOSITORY")
+    )
+}
+
 /// Whether a command has diagnostics worth hearing, and so installs the
 /// subscriber [`init_diagnostics`] provides.
 ///
@@ -2962,14 +2989,31 @@ fn wants_diagnostics(command: &Command) -> bool {
     }
 }
 
+/// The level a command's diagnostics default to when `RUST_LOG` says nothing.
+///
+/// `proxy-start` keeps `info`: it is a session someone leaves running, and
+/// "listening on" and "generating a CA at" are the two facts they came for. A
+/// wrapped run is the opposite shape — the report is what was asked for, its
+/// proxy lives on an ephemeral port nobody will type, and its CA is deleted
+/// with it — so the same two lines were noise printed above every report.
+/// `lint-captures` is `warn` for the reason it installs a subscriber at all:
+/// the line-by-line reasons a record could not be read are warnings.
+fn diagnostics_default_level(command: &Command) -> &'static str {
+    match command {
+        Command::ProxyStart => "info",
+        Command::Run(_) | Command::Use(_) | Command::LintCaptures(_) => "warn",
+        Command::Rules(_) | Command::Config(_) => "off",
+    }
+}
+
 /// Run the selected subcommand and return the process exit code (`0` success,
 /// `1` lint findings). Real errors propagate as `Err` (anyhow maps them to exit
 /// 1 with a message). Split from `main` so the dispatch is unit-testable without
 /// spawning the process.
 async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
     let global = cli.global;
-    if cli.command.as_ref().is_some_and(wants_diagnostics) {
-        init_diagnostics();
+    if let Some(command) = cli.command.as_ref().filter(|c| wants_diagnostics(c)) {
+        init_diagnostics(diagnostics_default_level(command));
     }
     match cli.command {
         Some(Command::Run(args)) => run_wrapped(args, &global).await,
@@ -3100,6 +3144,22 @@ mod tests {
             "{argv:?} should {}install the subscriber",
             if expected { "" } else { "not " }
         );
+    }
+
+    /// A wrapped run reports at `warn` so its report is the first thing
+    /// printed; a proxy left listening says where it is listening.
+    #[rstest]
+    #[case(&["lint-http", "run", "--", "true"], "warn")]
+    #[case(&["lint-http", "use", "curl", "--", "http://x"], "warn")]
+    #[case(&["lint-http", "lint-captures", "caps.jsonl"], "warn")]
+    #[case(&["lint-http", "proxy-start"], "info")]
+    fn diagnostics_default_to_the_level_the_command_is_read_at(
+        #[case] argv: &[&str],
+        #[case] expected: &str,
+    ) {
+        let cli = Cli::parse_from(argv);
+        let command = cli.command.expect("argv names a command");
+        assert_eq!(diagnostics_default_level(&command), expected, "{argv:?}");
     }
 
     #[test]
@@ -4287,7 +4347,14 @@ enabled = false
         )?;
         assert!(out.contains("rule  cache_control_present"), "{out}");
         assert!(
-            out.contains("docs  docs/violations/cache_control_missing.md"),
+            out.contains(&format!(
+                "docs  {}",
+                violation_docs_url("cache_control_missing")
+            )),
+            "{out}"
+        );
+        assert!(
+            out.contains("docs  https://github.com/alganet/lint-http/blob/main/docs/violations/cache_control_missing.md"),
             "{out}"
         );
         assert!(
