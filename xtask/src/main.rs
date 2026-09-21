@@ -23,9 +23,9 @@ use std::path::{Path, PathBuf};
 mod genconfig;
 mod gendocs;
 
-/// The workspace root, derived from this crate's manifest dir. `config_example.toml`
-/// and the `docs/` tree live there, so reads and writes are anchored here rather
-/// than to the process CWD (which varies between `cargo run` at the root and
+/// The workspace root, derived from this crate's manifest dir. The `docs/` tree
+/// and `lint-http/config_example.toml` live under it, so reads and writes are
+/// anchored here rather than to the process CWD (which varies between `cargo run` at the root and
 /// `cargo test -p`).
 pub fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -60,7 +60,9 @@ struct GendocsArgs {
 
 #[derive(clap::Args, Debug)]
 struct GenconfigArgs {
-    /// Output file. Defaults to `config_example.toml` at the workspace root.
+    /// Output file. Defaults to `lint-http/config_example.toml`, inside the crate
+    /// that compiles it in: `cargo publish` packages nothing above a crate's own
+    /// directory.
     #[arg(long)]
     out: Option<PathBuf>,
 }
@@ -79,10 +81,10 @@ fn resolve_out(out: Option<PathBuf>) -> PathBuf {
 }
 
 /// Where the example config goes when `--out` is not given, for the same reason
-/// [`resolve_out`] gives: the gate reads the workspace root's copy, so the fix
-/// it suggests has to write there from wherever it is run.
+/// [`resolve_out`] gives: the gate reads `lint-http/config_example.toml`, so the
+/// fix it suggests has to write there from wherever it is run.
 fn resolve_config_out(out: Option<PathBuf>) -> PathBuf {
-    out.unwrap_or_else(|| repo_root().join("config_example.toml"))
+    out.unwrap_or_else(|| repo_root().join("lint-http/config_example.toml"))
 }
 
 /// The whole tool, minus argument parsing, so the work is reachable from a test
@@ -208,7 +210,7 @@ mod tests {
     fn config_out_defaults_to_the_workspace_file() {
         let out = resolve_config_out(genconfig_args(&["xtask", "genconfig"]));
         assert!(out.is_absolute());
-        assert_eq!(out, repo_root().join("config_example.toml"));
+        assert_eq!(out, repo_root().join("lint-http/config_example.toml"));
     }
 
     #[test]

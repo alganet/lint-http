@@ -576,7 +576,8 @@ mod tests {
     fn config_example_ships_the_array() {
         let rule = RequestMethodTokenValid;
         let toml_src = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../lint-http/config_example.toml"),
         )
         .expect("config_example.toml must be readable");
         let parsed: toml::Value =

@@ -9,8 +9,9 @@ SPDX-License-Identifier: ISC
 `lint-http` is configured by a TOML file, and every command may be given none.
 Without `--config`, it runs the configuration compiled into the binary: the
 whole rule catalogue enabled, with `[general]` and `[tls]` set to values that
-work unattended. That built-in is `config_example.toml` in the repository, byte
-for byte, and `lint-http config export` prints it:
+work unattended. That built-in is
+[`lint-http/config_example.toml`](../lint-http/config_example.toml) in the
+repository, byte for byte, and `lint-http config export` prints it:
 
 ```bash
 lint-http config export > lint-http.toml

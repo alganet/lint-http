@@ -748,7 +748,8 @@ mod tests {
         // The example config is the one the docs describe, so the allowlist the
         // examples are judged against is the one a reader would have.
         let toml_src = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../lint-http/config_example.toml"),
         )
         .expect("config_example.toml must be readable");
         let cfg: crate::config::Config =

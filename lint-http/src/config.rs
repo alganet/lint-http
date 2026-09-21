@@ -360,7 +360,7 @@ impl std::ops::DerefMut for Config {
 /// so a config listing three rules enables three rules. `is_enabled` answers
 /// false for anything a config does not name, and that is unchanged — what
 /// changes is only that there is now a config when the user supplied none.
-pub const DEFAULT_CONFIG_TOML: &str = include_str!("../../config_example.toml");
+pub const DEFAULT_CONFIG_TOML: &str = include_str!("../config_example.toml");
 
 impl Config {
     /// Load configuration from a TOML file.
@@ -506,7 +506,7 @@ enabled = false
     /// narrowed core config sees on its own.
     #[tokio::test]
     async fn example_config_round_trips_both_layers() -> anyhow::Result<()> {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config_example.toml");
         let cfg = Config::load_from_path(&path).await?;
         assert!(!cfg.lint.rules.is_empty());
         assert!(!cfg.general.listen.is_empty());

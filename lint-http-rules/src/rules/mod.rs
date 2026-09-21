@@ -2914,7 +2914,8 @@ enabled = "true"
     #[test]
     fn config_example_includes_all_rules() -> anyhow::Result<()> {
         let s = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../lint-http/config_example.toml"),
         )?;
 
         for rule in all_rules() {
@@ -3047,7 +3048,8 @@ enabled = "true"
     #[test]
     fn every_rule_prepares_under_the_example_config() -> anyhow::Result<()> {
         let toml_src = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../lint-http/config_example.toml"),
         )?;
         let cfg: crate::config::Config = toml::from_str(&toml_src)?;
         for rule in all_rules() {

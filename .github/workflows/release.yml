@@ -1,0 +1,176 @@
+# SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+
+# Pushing a `v<version>` tag publishes that version: the three crates to
+# crates.io, then a GitHub Release carrying prebuilt `lint-http` binaries.
+#
+# Nothing is published until every step before it has passed, and crates.io is
+# the step that cannot be taken back (a version can be yanked, never reused),
+# so the order is: check the tag, test, build every binary, publish the crates,
+# and only then open the Release.
+
+name: Release
+
+on:
+  push:
+    tags: [ 'v[0-9]*' ]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+# Two pushes of the same tag must not race each other to crates.io.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # The tag names the version and the manifest states it; a release where
+      # they disagree publishes a crate whose version nobody asked for. The
+      # internal path dependencies carry the same number by hand (see the
+      # comment on them in Cargo.toml), so they are checked here too.
+      - name: Tag matches the workspace version
+        id: version
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "lint-http") | .version')"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match workspace version $version"
+            exit 1
+          fi
+          for dep in lint-http-core lint-http-rules; do
+            req="$(cargo metadata --no-deps --format-version 1 \
+              | jq -r --arg d "$dep" '[.packages[].dependencies[] | select(.name == $d) | .req] | unique | join(" ")')"
+            if [ "$req" != "^$version" ]; then
+              echo "::error::internal dependency $dep is required as '$req', expected '^$version'"
+              exit 1
+            fi
+          done
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: cargo test --workspace --all-features --locked
+
+      # Builds each crate from the tarball crates.io would receive, against the
+      # others as they would be published — the check that catches a file the
+      # package leaves out (an `include_str!` reaching above its crate did).
+      - name: Package dry run
+        run: cargo publish --workspace --locked --dry-run
+
+  binaries:
+    name: Binary (${{ matrix.target }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+          - { target: aarch64-apple-darwin, os: macos-latest }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest }
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --locked -p lint-http --target ${{ matrix.target }}
+
+      - name: Archive
+        shell: bash
+        run: |
+          name="lint-http-${{ needs.verify.outputs.version }}-${{ matrix.target }}"
+          mkdir "$name"
+          cp README.md LICENSE "$name/"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/${{ matrix.target }}/release/lint-http.exe" "$name/"
+            7z a "$name.zip" "$name" > /dev/null
+          else
+            cp "target/${{ matrix.target }}/release/lint-http" "$name/"
+            tar czf "$name.tar.gz" "$name"
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.target }}
+          # By extension: the staging directory beside each archive is also
+          # `lint-http-<version>-<target>`, and a version has dots in it.
+          path: |
+            lint-http-*.tar.gz
+            lint-http-*.zip
+          if-no-files-found: error
+
+  crates-io:
+    name: Publish to crates.io
+    needs: [ verify, binaries ]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # trusted publishing exchanges this for a crates.io token
+    env:
+      HAS_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # Trusted publishing only works for a crate that already exists, so the
+      # very first release authenticates with a `CARGO_REGISTRY_TOKEN` secret
+      # instead. Once all three crates trust this workflow, delete the secret
+      # and this step takes over: a token that expires with the job.
+      - name: Authenticate (trusted publishing)
+        id: auth
+        if: env.HAS_TOKEN != 'true'
+        uses: rust-lang/crates-io-auth-action@v1
+
+      # Publishes in dependency order and waits for each crate to reach the
+      # index before publishing the next that depends on it.
+      - name: Publish
+        run: cargo publish --workspace --locked
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
+
+  github-release:
+    name: GitHub Release
+    needs: [ verify, crates-io ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum lint-http-*.tar.gz lint-http-*.zip > SHA256SUMS
+
+      - name: Create release
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "lint-http $GITHUB_REF_NAME" --generate-notes --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}

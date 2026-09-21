@@ -434,7 +434,8 @@ mod tests {
     #[test]
     fn every_registered_rule_dispatches_cleanly() -> anyhow::Result<()> {
         let toml_src = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../lint-http/config_example.toml"),
         )?;
         let mut cfg: Config = toml::from_str(&toml_src)?;
         for val in cfg.rules.values_mut() {

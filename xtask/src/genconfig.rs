@@ -337,7 +337,7 @@ mod tests {
             "catalogue did not collect in the xtask link config — this gate would compare \
              against a file with no rules in it",
         );
-        let path = crate::repo_root().join("config_example.toml");
+        let path = crate::repo_root().join("lint-http/config_example.toml");
         let on_disk = std::fs::read_to_string(&path).expect("config_example.toml");
         assert!(
             on_disk == render(),
