@@ -121,7 +121,7 @@ jobs:
       # the real floor above the declared one — this job is the only thing that
       # makes the number in Cargo.toml a fact.
       - name: Install the declared minimum toolchain
-        uses: dtolnay/rust-toolchain@1.94
+        uses: dtolnay/rust-toolchain@1.120
 
       - name: Build on the declared minimum
         run: cargo check --workspace --all-targets --all-features
