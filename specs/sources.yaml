@@ -336,7 +336,7 @@ sources:
   #
   # Not specifications of HTTP, and normative anyway — for one file. `run` puts
   # variables into a child process's environment, and what each one does is
-  # decided by the client that reads it, not by any RFC. `lint-http-proxy/src/client_env.rs`
+  # decided by the client that reads it, not by any RFC. `lint-http/src/client_env.rs`
   # is the whole of that claim, one row per variable, and each row quotes the
   # document that defines it.
   #

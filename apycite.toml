@@ -17,7 +17,7 @@
 roots = [
     "lint-http-rules/src",
     "lint-http-core/src",
-    "lint-http-proxy/src",
+    "lint-http/src",
 ]
 output = "specs/specs_generated.yaml"
 
@@ -66,7 +66,7 @@ label = "{path}"
 # cited, 0 to migrate. (The previous count subtracted the excludes twice: the
 # number `apycite ratchet` prints is already net of them.)
 #
-# `lint-http-core` and `lint-http-proxy` are deliberately still out of scope, and
+# `lint-http-core` and `lint-http` are deliberately still out of scope, and
 # not because their cites do not work — they do, and both crates carry some. It is
 # that 9 of 12 core files and 18 of 23 proxy files are uncited, and excluding
 # them would mean making 27 claims of "no normative content" about files nobody

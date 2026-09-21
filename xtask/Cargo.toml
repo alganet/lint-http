@@ -12,7 +12,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 # The point of this crate: the dev tooling cannot reach a user. Nothing here is
-# built by `cargo install --path lint-http-proxy`, and `publish = false` makes
+# built by `cargo install --path lint-http`, and `publish = false` makes
 # that a fact about the manifest rather than a convention.
 publish = false
 

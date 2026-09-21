@@ -239,8 +239,8 @@ pub fn render_index(rules: &[&dyn Rule], protocol_rules: &[&dyn ProtocolRule]) -
     out.push_str(SPDX_HEADER);
     out.push_str(
         "\n# Lint Rules\n\nGenerated index of every rule in the catalogue. Each entry links to \
-the per-rule documentation under `rules/`. Rules are disabled by default and \
-enabled via configuration.\n\nThe sections group rules by **who is answerable for what they \
+the per-rule documentation under `rules/`. A rule is off unless a configuration \
+names it; the built-in configuration names every one.\n\nThe sections group rules by **who is answerable for what they \
 report** — the peer that wrote the message the evidence was found in — and not by which half \
 of a transaction the rule reads. A rule that reports defects in both halves answers one \
 finding at a time and is listed under *Rules Whose Findings Name Their Own Peer*; `lint-http \

@@ -1,7 +1,14 @@
-# Checklist:
+## What this changes, and why
 
-- [ ] My code follows the style guidelines of this project
-- [ ] I have performed a self-review of my own code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] I have added tests that prove my fix is effective or that my feature works
+<!-- A sentence or two. If it changes what a finding says or when it fires,
+     quote the specification sentence it rests on. -->
+
+## Checklist
+
+- [ ] `just check` passes (formatting, citations, clippy, rustdoc, tests, quotes).
+- [ ] `just check-all` passes when the change touches dependencies, MSRV-sensitive code, or the proxy's transport.
+- [ ] Generated files were regenerated where rule or defect metadata changed (`just gendocs`, `just genconfig`), not edited by hand.
+- [ ] Every new or moved `// cite(…)` quote was copied from the document, not recalled.
+- [ ] New files carry the SPDX header.
+- [ ] Tests cover the case that fires and the case that stays quiet.
+- [ ] Each commit builds green on its own.

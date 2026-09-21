@@ -6,14 +6,9 @@ SPDX-License-Identifier: ISC
 
 # Development Guidelines
 
-This document outlines the standards and workflows for contributing to `lint-http`.
-
-## Workflow
-
-1. **Fork & Branch**: Create a feature branch from `main`.
-2. **Implement**: Write code and tests.
-3. **Verify**: Run the full QA suite.
-4. **PR**: Submit a Pull Request with a clear description.
+How the tree is kept honest, and how a rule is written. The contribution
+process itself (forking, branching, what a pull request is held to) is in
+[CONTRIBUTING.md](../.github/CONTRIBUTING.md).
 
 ## Quality Assurance
 
@@ -345,19 +340,40 @@ no longer needed, so the list shrinks rather than merely not growing.
 
 ### 2. Implementation
 
-Create a new file in `src/rules/<rule_name>.rs`. Every rule implements two
-traits: `RuleMeta`, which is everything the rule says about itself and is shared
-with `ProtocolRule`, and `Rule`, which is the transaction it reads.
+Create a new file in `lint-http-rules/src/rules/<rule_name>.rs`. Every rule
+implements two traits: `RuleMeta`, which is everything the rule says about
+itself and is shared with `ProtocolRule`, and `Rule`, which is the transaction
+it reads. Four members of `RuleMeta` have no default; the prose members
+(`title`, `description`, `specifications`, `examples`) do, but a rule that
+leaves them out gets an empty documentation page.
 
 ```rust
-use crate::lint::Violation;
-use crate::rules::{Rule, RuleMeta};
+use crate::lint::{Party, Violation};
+use crate::rules::{Rule, RuleMeta, RuleParty};
+use crate::violations::ViolationDef;
+
+/// The defects this rule can report; see "Violation ids" above.
+static DECLARED: &[&ViolationDef] = &[&MY_SUBJECT_MISSING];
 
 pub struct MyRule;
 
 impl RuleMeta for MyRule {
     fn id(&self) -> &'static str {
         "my_rule_name"
+    }
+
+    /// Everything under `[rules.my_rule_name]` in `config_example.toml`.
+    fn config_example(&self) -> &'static str {
+        "enabled = true\n"
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
+    /// Who is answerable for the findings; see "Two questions" below.
+    fn party(&self) -> RuleParty {
+        RuleParty::Presumed(Party::Server)
     }
 }
 
@@ -620,7 +636,7 @@ is what keeps the two agreeing.
 
 The `docs_match_generated` test diffs both checked-in trees against freshly
 rendered output, so a rule or a def whose metadata changed without a
-regeneration fails CI. The index places a rule by its `scope()` and a defect by
+regeneration fails CI. The index places a rule by its `party()` and a defect by
 its id, so there is no link to add in either.
 
 That test lives in `xtask` alongside the generator, so `cargo test -p

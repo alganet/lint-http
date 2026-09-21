@@ -175,10 +175,16 @@ msrv:
 #
 # Needs three tools CI installs for itself. To match it locally:
 #   pipx install reuse && cargo install cargo-deny cargo-machete
+# `reuse` is looked for in the project .venv first, the way `citations` and
+# `quotes` look for apycite, so `.venv/bin/pip install reuse` is enough and
+# `check-all` does not stop here on a machine with nothing on PATH.
 #
 # Slow gate: SPDX metadata, dependency licences and advisories, unused deps.
 supply-chain:
-    reuse lint
+    #!/usr/bin/env bash
+    set -euo pipefail
+    reuse=.venv/bin/reuse; [ -x "$reuse" ] || reuse=reuse
+    "$reuse" lint
     cargo deny check advisories licenses
     cargo machete
 

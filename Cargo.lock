@@ -234,9 +234,9 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "chacha20"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d524456ba66e72eb8b115ff89e01e497f8e6d11d78b70b1aa13c0fbd97540a81"
+checksum = "65c35e4b699c7e15ccbe7ee35c005e4fc0a278d22238a2857e6ce2dadeda1b06"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -1015,26 +1015,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lint-http-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.23.1",
- "bytes",
- "chrono",
- "httpdate",
- "hyper",
- "parking_lot",
- "rstest",
- "serde",
- "serde_json",
- "tokio",
- "toml",
- "uuid",
-]
-
-[[package]]
-name = "lint-http-proxy"
+name = "lint-http"
 version = "0.1.0"
 dependencies = [
  "anstyle",
@@ -1072,6 +1053,25 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "wiremock",
+]
+
+[[package]]
+name = "lint-http-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.23.1",
+ "bytes",
+ "chrono",
+ "httpdate",
+ "hyper",
+ "parking_lot",
+ "rstest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "toml",
+ "uuid",
 ]
 
 [[package]]
@@ -1121,6 +1121,15 @@ name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
+
+[[package]]
+name = "matchers"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9"
+dependencies = [
+ "regex-automata",
+]
 
 [[package]]
 name = "memchr"
@@ -2116,10 +2125,14 @@ version = "0.3.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
 dependencies = [
+ "matchers",
  "nu-ansi-term",
+ "once_cell",
+ "regex-automata",
  "sharded-slab",
  "smallvec",
  "thread_local",
+ "tracing",
  "tracing-core",
  "tracing-log",
 ]

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: ISC
 
 [package]
-name = "lint-http-proxy"
+name = "lint-http"
 description = "HTTP forward proxy that captures request/response metadata and runs lint rules"
 version.workspace = true
 edition.workspace = true
@@ -15,8 +15,8 @@ readme = "../README.md"
 keywords = ["proxy", "http", "lint", "testing", "debugging"]
 categories = ["network-programming", "development-tools"]
 
-# Preserve the public library name so consumers (and integration tests) keep
-# using `lint_http::...` after the workspace split.
+# The library is `lint_http` and the binary `lint-http`: cargo's defaults for a
+# package of this name, spelled out so a rename of either is a visible diff.
 [lib]
 name = "lint_http"
 path = "src/lib.rs"

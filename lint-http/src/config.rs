@@ -121,7 +121,8 @@ pub struct GeneralConfig {
     pub h3_upstream_trust_alt_svc: bool,
 
     /// UDP socket address the HTTP/3 upstream client binds for its QUIC
-    /// endpoint. Defaults to "0.0.0.0:0" (ephemeral) when omitted.
+    /// endpoint. Defaults to the IPv6 wildcard `[::]:0` (ephemeral, dual-stack)
+    /// when omitted, falling back to `0.0.0.0:0` on a host without IPv6.
     #[serde(default)]
     pub h3_upstream_bind: Option<String>,
 

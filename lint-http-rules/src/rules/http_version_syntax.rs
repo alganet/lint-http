@@ -257,7 +257,7 @@ mod tests {
     }
 
     /// Every string this proxy can record. `format_http_version` in
-    /// `lint-http-proxy/src/proxy/hop_by_hop.rs` is a total function over an
+    /// `lint-http/src/proxy/hop_by_hop.rs` is a total function over an
     /// enumerated protocol version, and each of its arms names a pair of digits
     /// rendered by `HttpVersion`'s `Display` -- so the conformance is now
     /// structural rather than a promise, and `HTTP/1.1` appears twice because a

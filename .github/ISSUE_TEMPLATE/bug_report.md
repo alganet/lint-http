@@ -1,31 +1,31 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Something crashed, hung, misbehaved, or reported the wrong thing about a run
 title: ''
 labels: bug
 assignees: ''
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+**What happened**
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '...'
-3. Scroll down to '...'
-4. See error
+<!-- What you saw. Paste the report or the error, ideally with `-v` or
+     `RUST_LOG=debug` if that adds anything. -->
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+**What you expected**
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+**How to reproduce**
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+```bash
+lint-http run -- curl https://example.com   # the exact command line
+```
 
-**Additional context**
-Add any other context about the problem here.
+<!-- If it involves a capture file, attach the smallest capture that shows
+     it. If it involves a config, attach the `[general]` and `[tls]` sections
+     and the rule tables that matter. -->
+
+**Environment**
+
+- `lint-http --version`:
+- OS and version:
+- The client or tool being proxied, and its version (`curl --version`, browser build, …):
+- How lint-http was installed (source checkout, `cargo install`, …):

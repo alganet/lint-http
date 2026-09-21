@@ -911,8 +911,9 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
             // same words — breaking by decision, never aliased.
             if table.contains_key("severity") {
                 return Err(anyhow::anyhow!(
-                    "Rule '{}' carries a 'severity' key, which no longer exists: severity is configured per violation. Remove the key, and use [violations.<id>] severity = \"...\" for the defects this rule reports — `docs/rules/{}.md` lists them",
+                    "Rule '{}' carries a 'severity' key, which no longer exists: severity is configured per violation. Remove the key, and use [violations.<id>] severity = \"...\" for the defects this rule reports — {}/blob/main/docs/rules/{}.md lists them",
                     rule_name,
+                    env!("CARGO_PKG_REPOSITORY"),
                     rule_name
                 ));
             }
@@ -936,8 +937,9 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
         if !all_rules().any(|r| r.id() == rule_name) {
             return Err(anyhow::anyhow!(
                 "Configuration names a rule '{}' that does not exist. Every rule id is listed \
-                 in docs/rules.md",
-                rule_name
+                 in {}/blob/main/docs/rules.md",
+                rule_name,
+                env!("CARGO_PKG_REPOSITORY")
             ));
         }
     }
@@ -3571,11 +3573,7 @@ enabled = "true"
             .parent()
             .expect("the workspace root");
         let mut seen = 0;
-        for crate_dir in [
-            "lint-http-rules/src",
-            "lint-http-proxy/src",
-            "lint-http-core/src",
-        ] {
+        for crate_dir in ["lint-http-rules/src", "lint-http/src", "lint-http-core/src"] {
             let dir = root.join(crate_dir);
             let mut stack = vec![dir];
             while let Some(dir) = stack.pop() {
