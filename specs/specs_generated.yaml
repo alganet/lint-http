@@ -11894,33 +11894,57 @@ sources:
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 859
   - label: cache_validation_chain
+    section: § 4
+    snippet: request header fields nominated by the stored response (if any) match those presented (see Section 4.1)
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_validation_chain.rs
+      line: 156
+    - file: lint-http-rules/src/rules/cached_validators_reused.rs
+      line: 137
+    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
+      line: 129
+    - file: lint-http-rules/src/rules/max_age_directive_valid.rs
+      line: 137
+    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
+      line: 221
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 198
+    - file: lint-http-rules/src/rules/s_max_age_enforced.rs
+      line: 107
+  - label: cache_validation_chain (2)
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 168
+      line: 194
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 204
-  - label: cache_validation_chain (2)
+      line: 230
+  - label: cache_validation_chain (3)
     section: § 4.3.1
     snippet: MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated.
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 159
+      line: 185
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 171
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 374
     - file: lint-http-rules/src/violations/conditional.rs
       line: 193
-  - label: cache_validation_chain (3)
+  - label: cache_validation_chain (4)
     section: § 4.3.1
     snippet: SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value.
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 160
+      line: 186
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 269
+  - label: cache_validation_chain (5)
+    section: § 4.3.4
+    snippet: When a cache receives a 304 (Not Modified) response, it needs to identify stored responses that are suitable for updating with the new information provided, and then do so.
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_validation_chain.rs
+      line: 157
   - label: cached_validators_reused
     section: § 3
     snippet: 'A cache MUST NOT store a response to a request unless:'
@@ -11937,22 +11961,6 @@ sources:
       line: 179
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 108
-  - label: cached_validators_reused (2)
-    section: § 4
-    snippet: request header fields nominated by the stored response (if any) match those presented (see Section 4.1)
-    cited_by:
-    - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 137
-    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 129
-    - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 137
-    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 221
-    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 198
-    - file: lint-http-rules/src/rules/s_max_age_enforced.rs
-      line: 107
   - label: caching_directive_interaction
     section: § 4.2.1
     snippet: 'When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale.'

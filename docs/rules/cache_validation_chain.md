@@ -12,7 +12,9 @@ Caches must validate stored responses using up-to-date validators.  When a serve
 
 This rule applies weak comparison semantics for entity-tags, meaning a weak ETag (`W/"tag"`) is considered equivalent to its strong counterpart when the opaque tag matches.
 
-This rule examines the recorded history for the same client+resource and recomputes the current validator, taking into account updates that may arrive in `304 Not Modified` responses.  If the current request contains a conditional header whose value does not match the known validator, a violation is raised.  The rule ignores requests that are not conditional and situations where no validator was ever seen.
+This rule examines the recorded history for the same client+resource and recomputes the current validator, taking into account updates that may arrive in `304 Not Modified` responses.
+
+**The validator is the one of an entry this request could be revalidating**, not the newest one seen. RFC 9111 §4 lets a stored response answer a request only where the method allows it and the request presents the fields the response's `Vary` nominates, and §3 decides whether there was an entry at all. So a resource varied on `Accept-Encoding` with a tag per coding has one current validator per variant, and a request asking for gzip is compared against the gzip response's tag however recently the identity one arrived; a `no-store` answer, an `OPTIONS` answer, or a response no cache was licensed to keep does not replace the entry before it. A `304` does renew it: it is never stored itself, but it freshens the stored response it validated (§4.3.4).  If the current request contains a conditional header whose value does not match the known validator, a violation is raised.  The rule ignores requests that are not conditional and situations where no validator was ever seen.
 
 ## Violations
 
