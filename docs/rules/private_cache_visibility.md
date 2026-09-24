@@ -12,6 +12,8 @@ Responses with `Cache-Control: private` are intended for a single user agent's p
 
 This stateful rule examines a sequence of transactions for the same resource across **all clients**.  When a request includes a conditional validator (ETag or Last-Modified) that matches a value previously seen in a response carrying the `private` directive **and** that earlier response was sent to a **different** client, we infer that some intermediate cache reused the private entry.  A warning is emitted in that case.
 
+**A validator the requesting client was handed itself is not a leak.** An entity tag names a representation, not a user, so two clients that each fetched the private resource from the origin are handed the same tag, and each revalidating with it is its own private cache doing its job. The finding needs the validator to have reached this client from nowhere it could see: only a tag or date that some other client was handed under `private`, and that no response to this client carried, is reported.
+
 The rule relies on a cross-client history; the engine handles this by scoping the query to all clients for the resource rather than the default per-client history.  Only conditional requests trigger the check, since they provide tangible evidence that a particular validator value was reused.
 
 ## Violations
