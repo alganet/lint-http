@@ -41,7 +41,7 @@ impl RuleMeta for PrivateCacheVisibility {
     }
 
     fn description(&self) -> &'static str {
-        "Responses with `Cache-Control: private` are intended for a single user agent's private cache and **must not be stored or served** by shared caches (RFC 9111 §5.2.2.7).  If a shared cache accidentally retains such a response, other clients may later receive the representation, violating privacy and correctness expectations.\n\nThis stateful rule examines a sequence of transactions for the same resource across **all clients**.  When a request includes a conditional validator (ETag or Last-Modified) that matches a value previously seen in a response carrying the `private` directive **and** that earlier response was sent to a **different** client, we infer that some intermediate cache reused the private entry.  A warning is emitted in that case.\n\nThe rule relies on a cross-client history; the engine handles this by scoping the query to all clients for the resource rather than the default per-client history.  Only conditional requests trigger the check, since they provide tangible evidence that a particular validator value was reused."
+        "Responses with `Cache-Control: private` are intended for a single user agent's private cache and **must not be stored or served** by shared caches (RFC 9111 §5.2.2.7).  If a shared cache accidentally retains such a response, other clients may later receive the representation, violating privacy and correctness expectations.\n\nThis stateful rule examines a sequence of transactions for the same resource across **all clients**.  When a request includes a conditional validator (ETag or Last-Modified) that matches a value previously seen in a response carrying the `private` directive **and** that earlier response was sent to a **different** client, we infer that some intermediate cache reused the private entry.  A warning is emitted in that case.\n\n**A validator the requesting client was handed itself is not a leak.** An entity tag names a representation, not a user, so two clients that each fetched the private resource from the origin are handed the same tag, and each revalidating with it is its own private cache doing its job. The finding needs the validator to have reached this client from nowhere it could see: only a tag or date that some other client was handed under `private`, and that no response to this client carried, is reported.\n\nThe rule relies on a cross-client history; the engine handles this by scoping the query to all clients for the resource rather than the default per-client history.  Only conditional requests trigger the check, since they provide tangible evidence that a particular validator value was reused."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -145,6 +145,37 @@ impl Rule for PrivateCacheVisibility {
                 })
                 .collect();
 
+            // The validators *this* client was handed, by any response. An entity
+            // tag names a representation and not a user, so a client that
+            // fetched the private resource itself holds the same tag every other
+            // client was given, and revalidating with it is its own cache doing
+            // its job. What the entry rests on is a validator arriving at a
+            // client that was never handed it; one this client was handed is
+            // accounted for, whoever else was handed it too.
+            let own = || {
+                history
+                    .responses()
+                    .filter(|(past, _)| past.client == tx.client)
+            };
+            let own_etags: Vec<String> = own()
+                .filter_map(|(_, resp)| {
+                    crate::helpers::headers::get_header_str(&resp.headers, "etag")
+                })
+                .map(crate::helpers::validator::normalize_etag)
+                .collect();
+            let own_last_modified: Vec<chrono::DateTime<chrono::Utc>> = own()
+                .filter_map(|(_, resp)| {
+                    crate::http_date::header_timestamp(&resp.headers, "last-modified")
+                })
+                .collect();
+            let leaked_etag = |member: &str| {
+                let tag = crate::helpers::validator::normalize_etag(member);
+                private_etags.contains(&tag) && !own_etags.contains(&tag)
+            };
+            let leaked_date = |dt: &chrono::DateTime<chrono::Utc>| {
+                private_last_modified.contains(dt) && !own_last_modified.contains(dt)
+            };
+
             // Heuristic: a validator from a `private` response turning up in a
             // *different* client's request suggests a shared cache stored what only
             // one user was to hold. The cite grounds *why that is forbidden*; the
@@ -160,7 +191,7 @@ impl Rule for PrivateCacheVisibility {
                 .filter_map(|hv| hv.to_str().ok())
                 .flat_map(crate::helpers::list::list_members)
             {
-                if private_etags.contains(&crate::helpers::validator::normalize_etag(member)) {
+                if leaked_etag(member) {
                     return Some(ctx.report_with(
                         &CACHE_CONTROL_PRIVATE_IGNORED,
                         format!(
@@ -186,7 +217,7 @@ impl Rule for PrivateCacheVisibility {
                 else {
                     continue;
                 };
-                if private_last_modified.contains(&candidate_dt) {
+                if leaked_date(&candidate_dt) {
                     return Some(ctx.report_with(
                         &CACHE_CONTROL_PRIVATE_IGNORED,
                         format!(
@@ -217,11 +248,10 @@ impl Rule for PrivateCacheVisibility {
                 .filter_map(|hv| hv.to_str().ok())
                 .map(str::trim)
             {
-                let leaked_tag =
-                    private_etags.contains(&crate::helpers::validator::normalize_etag(candidate));
-                let leaked_date = crate::http_date::parse_http_date_to_datetime(candidate)
-                    .is_ok_and(|dt| private_last_modified.contains(&dt));
-                if leaked_tag || leaked_date {
+                let tag = leaked_etag(candidate);
+                let date = crate::http_date::parse_http_date_to_datetime(candidate)
+                    .is_ok_and(|dt| leaked_date(&dt));
+                if tag || date {
                     return Some(ctx.report_with(
                         &CACHE_CONTROL_PRIVATE_IGNORED,
                         format!(
@@ -409,6 +439,61 @@ mod tests {
         assert_eq!(v.violation, "cache_control_private_ignored");
         assert_eq!(v.severity, crate::lint::Severity::Warn);
         assert!(v.message.contains("Validator '"));
+    }
+
+    /// A validator this client was handed too is its own, whoever else holds
+    /// it: an entity tag names a representation, and two clients that each
+    /// fetched the private resource are handed the same one. Every field the
+    /// rule reads, each with the value both clients were given.
+    #[rstest::rstest]
+    #[case::if_none_match("if-none-match", "\"a\"")]
+    #[case::if_modified_since("if-modified-since", "Mon, 01 Jan 2024 00:00:00 GMT")]
+    #[case::if_range_tag("if-range", "\"a\"")]
+    #[case::if_range_date("if-range", "Mon, 01 Jan 2024 00:00:00 GMT")]
+    fn a_validator_this_client_was_handed_is_its_own(#[case] field: &str, #[case] value: &str) {
+        let ts = Utc::now();
+        let client1 = crate::test_helpers::make_test_client();
+        let mut client2 = client1.clone();
+        client2.user_agent = "other".to_string();
+        let lm = Some("Mon, 01 Jan 2024 00:00:00 GMT");
+
+        let theirs = make_prev(
+            client2,
+            Some("private"),
+            Some("\"a\""),
+            lm,
+            ts - chrono::Duration::seconds(2),
+        );
+        let mine = make_prev(
+            client1.clone(),
+            Some("private"),
+            Some("\"a\""),
+            lm,
+            ts - chrono::Duration::seconds(1),
+        );
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = client1;
+        tx.request.headers.append(
+            hyper::header::HeaderName::from_bytes(field.as_bytes()).unwrap(),
+            value.parse().unwrap(),
+        );
+        let config =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["private_cache_visibility"]);
+
+        let both = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            mine,
+            theirs.clone(),
+        ]);
+        let v = crate::test_helpers::run_rule_all(&PrivateCacheVisibility, &tx, &both, &config);
+        assert!(v.is_empty(), "{field}: {v:?}");
+
+        // And the control: without the response to this client, the same
+        // request is the leak.
+        let only_theirs =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![theirs]);
+        let v =
+            crate::test_helpers::run_rule_all(&PrivateCacheVisibility, &tx, &only_theirs, &config);
+        assert_eq!(v.len(), 1, "{field}: {v:?}");
     }
 
     #[test]
