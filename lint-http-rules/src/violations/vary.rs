@@ -35,6 +35,15 @@ pub const RFC_7240_2: SpecRef = SpecRef {
     note: "The `Vary` MUST for a server that applies a preference which might vary a cache's handling of the response entity, and the `Vary: *` alternative it offers instead",
 };
 
+/// Vary: what the field is for, the SHOULD that has an origin send it, and the
+/// case § 12.5.5 lets it be left out.
+pub const RFC_9110_12_5_5: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5",
+    note: "Vary — an origin SHOULD send it on a cacheable response whose content was tailored to the request's preferences, and might elide it where reuse is already limited by cache directives",
+};
+
 defects! {
     /// A response saying it applied a preference that changes what the entity
     /// is, without nominating `Prefer` in its `Vary`.
@@ -65,5 +74,44 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_7240_2],
         strength: Strength::Must,
+    }
+
+    /// A response whose content coding was chosen from the request's
+    /// `Accept-Encoding`, cacheable, with no `Vary` naming that field.
+    ///
+    /// **The coding is the selection, and it is on the wire.** A server that
+    /// answers `Accept-Encoding: gzip, br` with `Content-Encoding: br` has
+    /// tailored the content to a preference the request expressed, which is
+    /// the case § 12.5.5 describes, and the response's own header says so.
+    /// Without `Accept-Encoding` in `Vary`, § 4.1 of RFC 9111 lets a cache
+    /// hand the `br` body to the next request whatever it accepts — including
+    /// one that cannot decode it.
+    ///
+    /// **The SHOULD has an antecedent, and the entry reads it as far as the
+    /// wire shows it.** § 12.5.5 asks for `Vary` on a cacheable response "when
+    /// it wishes that response to be selectively reused", and lets the field be
+    /// elided where "reuse is already limited by cache response directives".
+    /// So the response has to be one a cache could keep (RFC 9111 § 3), to a
+    /// `GET` that carried `Accept-Encoding` — a request with none accepts any
+    /// coding (§ 12.5.3), so a coded answer to it chose nothing — and it may
+    /// not already limit reuse: an unqualified `no-cache`, a `private`, or a
+    /// `max-age=0` with no `s-maxage` beside it is the origin having said
+    /// what § 12.5.5 lets it say instead.
+    ///
+    /// **`Vary: *` satisfies it**: a response that fails every match is
+    /// reused by no cache under any coding.
+    ///
+    /// `warn`: § 12.5.5's SHOULD, addressed to the server that sent the
+    /// response this reads.
+    ///
+    // cite(RFC 9110 § 12.5.5): "An origin server SHOULD generate a Vary header field on a cacheable response when it wishes that response to be selectively reused for subsequent requests. Generally, that is the case when the response content has been tailored to better fit the preferences expressed by those selecting header fields"
+    // cite(RFC 9110 § 12.5.5): "Vary might be elided when an origin server considers variance in content selection to be less significant than Vary's performance impact on caching, particularly when reuse is already limited by cache response directives"
+    VARY_ACCEPT_ENCODING_MISSING = {
+        id: "vary_accept_encoding_missing",
+        title: "A response coded from Accept-Encoding does not name it in Vary",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_12_5_5],
+        strength: Strength::Should,
     }
 }
