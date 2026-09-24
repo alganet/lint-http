@@ -100,7 +100,7 @@ pub const RFC_9111_4_1: SpecRef = SpecRef {
     spec: "RFC 9111",
     section: Some("4.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
-    note: "Calculating Cache Keys with the Vary Header Field — a `Vary: *` never matches, so no stored response of that resource can be selected and a directive advertising reuse has nothing to act on",
+    note: "Calculating Cache Keys with the Vary Header Field — a `Vary: *` never matches, so a stored response of that resource is never reused without validation and a freshness lifetime on it has nothing to act on",
 };
 
 /// The `must-revalidate` response directive.
@@ -563,31 +563,38 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9111_4_2_1],
     }
-    /// A directive advertising reuse — `max-age`, `s-maxage`, `public` — on a
-    /// response whose `Vary` is `*`.
+    /// A freshness lifetime — `max-age`, `s-maxage` — on a response whose
+    /// `Vary` is `*`.
     ///
     /// **The subject is this field because this field is the one that is
     /// dead.** A `Vary: *` alone is a server saying its responses are never to
-    /// be selected from a cache, which is a coherent thing to say; the
+    /// be reused without asking, which is a coherent thing to say; the
     /// directive alone is a server saying how long they may be. Together, § 4.1
-    /// makes the wildcard never match, so no stored response is ever selected
-    /// and the directive has nothing to act on — the tie-break
+    /// makes the wildcard fail every match, so the only reuse left is the kind
+    /// validation licenses, and a lifetime — a licence to reuse *without*
+    /// validation — has nothing to act on. The tie-break
     /// [`access_control_allow_credentials`](crate::violations::access_control_allow_credentials)
     /// used, applied to a cache.
+    ///
+    /// **`public` is not this entry, and used to be.** It licenses storage,
+    /// and a stored `Vary: *` response is still one a cache may validate and
+    /// then serve — RFC 9110 § 12.5.5 says only that a recipient cannot tell
+    /// whether it fits a later request "without forwarding the request to the
+    /// origin server", and RFC 9111 § 4.3.1 lets a cache validate a response it
+    /// cannot choose. `no-cache` is
+    /// not this entry either: it asks for the validation the wildcard already
+    /// makes every reuse need.
     ///
     /// **`_redundant`, because no sentence is broken**: nothing forbids the
     /// pairing and both fields are well-formed. `warn` rather than the `info`
     /// the ending starts at, and the argument is the size of the surprise — an
-    /// operator reading `max-age=86400` believes the deployment has a cache,
-    /// and it has none.
-    ///
-    /// `no-cache` is not this entry: it promises no reuse, so pairing it with
-    /// the wildcard states the same thing twice rather than contradicting it.
+    /// operator reading `max-age=86400` believes the deployment has a cache
+    /// that serves without asking, and it has none.
     ///
     // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
     CACHE_CONTROL_REDUNDANT = {
         id: "cache_control_redundant",
-        title: "A reuse directive sits on a response no cache may select",
+        title: "A freshness lifetime sits on a response never reused without validation",
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_4_1],

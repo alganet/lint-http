@@ -11,12 +11,15 @@ use crate::violations::ViolationDef;
 /// reuse beside a `Vary` no stored response can match.
 static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_REDUNDANT];
 
-/// Responses that include `Vary: *` cannot be selected by caches for
-/// subsequent requests (a `Vary: *` always fails to match; see RFC 9111 §4.1).
-/// If a response also advertises explicit cacheability directives such as
-/// `Cache-Control: max-age`/`s-maxage` or `public`, those directives are
-/// likely ineffective because caches cannot select stored responses when
-/// `Vary: *` is present. This rule flags those cases as likely misconfiguration.
+/// A response with `Vary: *` is never reused without validation: the wildcard
+/// fails every match (RFC 9111 §4.1), and what remains is the reuse a
+/// request forwarded to the origin can establish (RFC 9110 §12.5.5). A freshness lifetime —
+/// `max-age`, `s-maxage` — is a licence to reuse *without* validation, so on
+/// such a response it is never acted on. This rule flags the pairing.
+///
+/// `public` is not flagged. It licenses storage, not unvalidated reuse, and a
+/// stored `Vary: *` response is one a cache may still validate and then serve
+/// (RFC 9111 §4.3.1).
 pub struct VaryAndCacheConsistent;
 
 /// The specification references this rule declares, each named so a finding
@@ -44,7 +47,7 @@ impl RuleMeta for VaryAndCacheConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "When a response includes `Vary: *`, caches cannot select that stored response for subsequent requests (a `Vary: *` always fails to match). If the same response advertises explicit cacheability directives (such as `Cache-Control: max-age`/`s-maxage` or `public`), those directives are likely ineffective for reuse by caches. This rule flags cases where `Vary: *` and explicit cacheability directives are both present."
+        "When a response includes `Vary: *`, no cache reuses it without validation: a `Vary: *` always fails to match (RFC 9111 §4.1), so the only reuse left is the kind a request forwarded to the origin can establish — RFC 9110 §12.5.5: a recipient \"will not be able to determine whether this response is appropriate for a later request without forwarding the request to the origin server\". A freshness lifetime is a licence for the other kind — `Cache-Control: max-age` and `s-maxage` say how long a stored response may be served *without* asking — so on such a response it is never used. This rule flags each freshness directive written beside `Vary: *`.\n\n**`public` is not flagged.** It licenses a cache to store the response, and a stored `Vary: *` response is still one a cache may validate and then serve: RFC 9111 §4.3.1 lets a cache validate a response it cannot choose with the request it is sending. `no-cache` is not flagged either: it asks for validation, which is what the wildcard already makes every reuse need.\n\n**Two reasonable readings, one finding.** An operator writing `max-age=86400` beside `Vary: *` either wanted a cache and has none that serves without asking, or wanted none and wrote a lifetime nothing will read; either way one of the two fields is not doing what it says."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -110,13 +113,14 @@ impl Rule for VaryAndCacheConsistent {
                 return Vec::new();
             }
 
-            // If Vary: * is present, an explicit cacheability directive is likely ineffective (the
-            // response can never be selected). No sentence says this pairing is illegal, so this is
-            // a misconfiguration heuristic, recorded in the tracker.
-            // Only directives that *advertise reuse* are flagged. `no-cache` is
-            // deliberately excluded: it promises no reuse benefit (it requires
-            // revalidation), so pairing it with Vary: * is not a misconfiguration signal.
-            const ADVERTISES_REUSE: [&str; 3] = ["max-age", "s-maxage", "public"];
+            // Only a freshness lifetime is flagged: it licenses reuse *without*
+            // validation, and that is the reuse the wildcard rules out. `public`
+            // licenses storage, and a stored `Vary: *` response can still be
+            // validated and served, so it is not dead. `no-cache` asks for the
+            // validation the wildcard already makes every reuse need.
+            // cite(RFC 9110 § 12.5.5): "A recipient will not be able to determine whether this response is appropriate for a later request without forwarding the request to the origin server."
+            // cite(RFC 9111 § 4.3.1): "Typically, this will include only the stored response(s) that has the same cache key, although a cache is allowed to validate a response that it cannot choose with the request header fields it is sending"
+            const ADVERTISES_REUSE: [&str; 2] = ["max-age", "s-maxage"];
             // The joined value is held here because a directive borrows the
             // member it was parsed from, and it is read as octets so a bad
             // one no longer hides the directives written beside it.
@@ -131,7 +135,7 @@ impl Rule for VaryAndCacheConsistent {
                 if ADVERTISES_REUSE.iter().any(|name| directive.is(name)) {
                     let name = directive.name.to_ascii_lowercase();
                     out.push(ctx.report_with(&CACHE_CONTROL_REDUNDANT, format!(
-                            "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective",
+                            "Response includes Vary: '*' and Cache-Control directive '{}'; a response with Vary: '*' is never reused without validation, so the freshness lifetime '{}' gives it is never used",
                             name, name
                         )));
                 }
@@ -219,8 +223,11 @@ mod tests {
     // a walk answering once about a list also satisfies.
     #[case(Some("*"), Some("max-age=3600"), 1)]
     #[case(Some("*"), Some("s-maxage=3600"), 1)]
-    #[case(Some("*"), Some("public"), 1)]
-    #[case(Some("*"), Some("public, max-age=60"), 2)]
+    #[case(Some("*"), Some("max-age=60, s-maxage=600"), 2)]
+    // `public` licenses storage, and a stored `Vary: *` response can still be
+    // validated and served.
+    #[case(Some("*"), Some("public"), 0)]
+    #[case(Some("*"), Some("public, max-age=60"), 1)]
     #[case(Some("*"), Some("no-cache"), 0)]
     #[case(Some("Accept-Encoding"), Some("max-age=60"), 0)]
     #[case(None, Some("max-age=60"), 0)]
@@ -346,8 +353,8 @@ mod tests {
     fn cache_control_case_insensitive_directive_detection() {
         let rule = VaryAndCacheConsistent;
 
-        // Public (mixed case) should be detected
-        let tx = make_tx(Some("*"), Some("Public"));
+        // S-MaxAge (mixed case) should be detected
+        let tx = make_tx(Some("*"), Some("S-MaxAge=60"));
         let v = one_finding(
             &rule,
             &tx,
