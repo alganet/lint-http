@@ -549,6 +549,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [user_agent_missing](violations/user_agent_missing.md) — A request does not say what sent it
 - [validator_missing](violations/validator_missing.md) — A response gives a later request nothing to validate against
 - [vary_accept_encoding_missing](violations/vary_accept_encoding_missing.md) — A response coded from Accept-Encoding does not name it in Vary
+- [vary_conflicting](violations/vary_conflicting.md) — A default response omits a field its siblings name in Vary
 - [vary_prefer_missing](violations/vary_prefer_missing.md) — A response applied a preference its Vary does not nominate
 - [via_comment_duplicated](violations/via_comment_duplicated.md) — Via member carries more than one comment
 - [via_member_malformed](violations/via_member_malformed.md) — Via member does not end where the production ends it

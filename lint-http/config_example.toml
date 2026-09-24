@@ -981,6 +981,9 @@ enabled = true
 [rules.vary_and_content_encoding_consistent]
 enabled = true
 
+[rules.vary_consistent]
+enabled = true
+
 [rules.vary_header_valid]
 enabled = true
 
@@ -3479,6 +3482,10 @@ severity = "warn"
 [violations.vary_accept_encoding_missing]
 # A response coded from Accept-Encoding does not name it in Vary
 # SHOULD obliges the sender, so this defaults to warn.
+severity = "warn"
+
+[violations.vary_conflicting]
+# A default response omits a field its siblings name in Vary
 severity = "warn"
 
 [violations.vary_prefer_missing]
