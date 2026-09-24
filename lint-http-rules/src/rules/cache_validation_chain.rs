@@ -69,7 +69,7 @@ impl RuleMeta for CacheValidationChain {
     }
 
     fn description(&self) -> &'static str {
-        "Caches must validate stored responses using up-to-date validators.  When a server supplies an `ETag` or `Last-Modified` header, a well-behaved cache will include that validator in subsequent conditional requests (`If-None-Match` or `If-Modified-Since`).  The value in those request headers should match the most recently observed validator for the resource; if it does not, revalidation may fail and clients can receive stale or unexpected content.\n\nThis rule applies weak comparison semantics for entity-tags, meaning a weak ETag (`W/\"tag\"`) is considered equivalent to its strong counterpart when the opaque tag matches.\n\nThis rule examines the recorded history for the same client+resource and recomputes the current validator, taking into account updates that may arrive in `304 Not Modified` responses.  If the current request contains a conditional header whose value does not match the known validator, a violation is raised.  The rule ignores requests that are not conditional and situations where no validator was ever seen."
+        "Caches must validate stored responses using up-to-date validators.  When a server supplies an `ETag` or `Last-Modified` header, a well-behaved cache will include that validator in subsequent conditional requests (`If-None-Match` or `If-Modified-Since`).  The value in those request headers should match the most recently observed validator for the resource; if it does not, revalidation may fail and clients can receive stale or unexpected content.\n\nThis rule applies weak comparison semantics for entity-tags, meaning a weak ETag (`W/\"tag\"`) is considered equivalent to its strong counterpart when the opaque tag matches.\n\nThis rule examines the recorded history for the same client+resource and recomputes the current validator, taking into account updates that may arrive in `304 Not Modified` responses.\n\n**The validator is the one of an entry this request could be revalidating**, not the newest one seen. RFC 9111 §4 lets a stored response answer a request only where the method allows it and the request presents the fields the response's `Vary` nominates, and §3 decides whether there was an entry at all. So a resource varied on `Accept-Encoding` with a tag per coding has one current validator per variant, and a request asking for gzip is compared against the gzip response's tag however recently the identity one arrived; a `no-store` answer, an `OPTIONS` answer, or a response no cache was licensed to keep does not replace the entry before it. A `304` does renew it: it is never stored itself, but it freshens the stored response it validated (§4.3.4).  If the current request contains a conditional header whose value does not match the known validator, a violation is raised.  The rule ignores requests that are not conditional and situations where no validator was ever seen."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -140,14 +140,40 @@ impl Rule for CacheValidationChain {
                 return None;
             }
 
-            // The most recent validator seen in history: the newest response
-            // carrying either one, since a cache holding this resource would
-            // hold that one. A 304 that updates the validator is a response like
-            // any other here. History is already scoped to this (client,
-            // resource) pair by the rule's ByResource query, so no URI or client
-            // filter is needed.
+            // The most recent validator of an entry this request could be
+            // revalidating: the newest response carrying one that a cache was
+            // allowed to keep (§ 3), whose method allows it to answer this
+            // request, and whose selecting fields this request presents (§ 4,
+            // § 4.1). A resource varied on `Accept-Encoding` with a tag per
+            // coding has one current validator per variant, and a cache
+            // revalidating its gzip entry sends the gzip tag however recently
+            // the identity one was seen; a `no-store` answer left nothing behind
+            // to replace the entry before it. A `304` is kept although it is
+            // never stored itself: it freshens the stored response it validated
+            // and carries that entry's validators (§ 4.3.4). History is already
+            // scoped to this (client, resource) pair by the rule's ByResource
+            // query, so no URI or client filter is needed.
+            // cite(RFC 9111 § 4): "request header fields nominated by the stored response (if any) match those presented (see Section 4.1)"
+            // cite(RFC 9111 § 4.3.4): "When a cache receives a 304 (Not Modified) response, it needs to identify stored responses that are suitable for updating with the new information provided, and then do so."
             let (etag, last_modified) = history
                 .responses()
+                .filter(|(past, resp)| {
+                    (resp.status == 304
+                        || crate::helpers::stored_response::storage_allowed(
+                            &past.request.headers,
+                            resp.status,
+                            &resp.headers,
+                        ))
+                        && crate::helpers::stored_response::method_allows(
+                            &past.request.method,
+                            &req.method,
+                        )
+                        && crate::helpers::stored_response::selecting_fields_match(
+                            &past.request.headers,
+                            &resp.headers,
+                            &req.headers,
+                        )
+                })
                 .map(|(_, resp)| {
                     crate::helpers::validator::extract_validators_from_response(&resp.headers)
                 })
@@ -275,6 +301,120 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cache_validation_chain"]),
         );
         assert!(v.is_none());
+    }
+
+    /// One earlier exchange: method, request fields, status, response fields.
+    type Earlier<'a> = (
+        &'a str,
+        Vec<(&'a str, &'a str)>,
+        u16,
+        Vec<(&'a str, &'a str)>,
+    );
+
+    /// A labelled case: the exchanges before, the conditional request, and how
+    /// many findings it draws.
+    type Case<'a> = (&'a str, Vec<Earlier<'a>>, Vec<(&'a str, &'a str)>, usize);
+
+    /// The earlier exchanges, oldest first, and then a conditional `GET`
+    /// carrying `request`; the findings on it.
+    fn after(earlier: &[Earlier<'_>], request: &[(&str, &str)]) -> Vec<Violation> {
+        let base = chrono::Utc::now();
+        let n = earlier.len() as i64;
+        let mut history: Vec<_> = earlier
+            .iter()
+            .enumerate()
+            .map(|(i, (method, rq, status, rs))| {
+                let mut t = make_prev(*status, rs);
+                t.request.method = method.to_string();
+                t.request.headers = crate::test_helpers::make_headers_from_pairs(rq);
+                t.timestamp = base - chrono::Duration::seconds(n - i as i64);
+                t
+            })
+            .collect();
+        history.reverse();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = "GET".to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(request);
+        crate::test_helpers::run_rule_all(
+            &CacheValidationChain,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(history),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cache_validation_chain"]),
+        )
+    }
+
+    /// The entry a revalidation names is one this request could be answered
+    /// from, not the newest response of any kind.
+    #[test]
+    fn the_validator_is_the_entrys_this_request_could_revalidate() {
+        let gz = vec![("accept-encoding", "gzip")];
+        let varied = |tag| vec![("etag", tag), ("vary", "Accept-Encoding")];
+        let cases: Vec<Case<'_>> = vec![
+            (
+                "a tag per coding: the gzip entry is revalidated with the gzip tag",
+                vec![
+                    ("GET", gz.clone(), 200, varied("\"a-gz\"")),
+                    ("GET", vec![], 200, varied("\"a\"")),
+                ],
+                vec![("accept-encoding", "gzip"), ("if-none-match", "\"a-gz\"")],
+                0,
+            ),
+            (
+                "the other variant's tag is still reported",
+                vec![
+                    ("GET", gz.clone(), 200, varied("\"a-gz\"")),
+                    ("GET", vec![], 200, varied("\"a\"")),
+                ],
+                vec![("if-none-match", "\"a-gz\"")],
+                1,
+            ),
+            (
+                "a no-store answer left nothing to replace the entry",
+                vec![
+                    (
+                        "GET",
+                        vec![],
+                        200,
+                        vec![("etag", "\"v1\""), ("cache-control", "max-age=60")],
+                    ),
+                    (
+                        "GET",
+                        vec![],
+                        200,
+                        vec![("etag", "\"v2\""), ("cache-control", "no-store")],
+                    ),
+                ],
+                vec![("if-none-match", "\"v1\"")],
+                0,
+            ),
+            (
+                "an OPTIONS answer is no entry for a GET",
+                vec![
+                    ("GET", vec![], 200, vec![("etag", "\"v1\"")]),
+                    ("OPTIONS", vec![], 200, vec![("etag", "\"o1\"")]),
+                ],
+                vec![("if-none-match", "\"v1\"")],
+                0,
+            ),
+            (
+                "a 304 renews the validator of the entry it freshened",
+                vec![
+                    ("GET", vec![], 200, vec![("etag", "\"v1\"")]),
+                    (
+                        "GET",
+                        vec![("if-none-match", "\"v1\"")],
+                        304,
+                        vec![("etag", "\"v2\"")],
+                    ),
+                ],
+                vec![("if-none-match", "\"v1\"")],
+                1,
+            ),
+        ];
+        for (label, earlier, request, expected) in cases {
+            let found = after(&earlier, &request);
+            assert_eq!(found.len(), expected, "{label}: {found:?}");
+        }
     }
 
     #[test]
