@@ -5,12 +5,17 @@
 //! `Vary` defects — the dimensions a cache key was told to carry.
 //!
 //! The field names the request fields a stored response was selected on, and
-//! § 4.1 makes reuse conditional on all of them matching. What is here is the
-//! one thing a proxy watching an exchange can say about that: a stored response
-//! came back for a request that differs in a field the response itself
-//! nominated.
+//! RFC 9111 § 4.1 makes reuse conditional on all of them matching. What a proxy
+//! watching the exchanges can say about that is on the *sending* side: a
+//! response whose selection depended on a request field it does not name.
 //!
-//! **What the *value* may be is not here.** `Vary = #field-name` is
+//! **Whether a cache honoured the field is not here, and cannot be.** A request
+//! that reaches the wire is one no cache answered, and one that revalidates a
+//! stored response under a request whose selecting fields differ is § 4.3.1's
+//! permission — "a cache is allowed to validate a response that it cannot choose
+//! with the request header fields it is sending" — rather than a breach of it.
+//!
+//! **What the *value* may be is not here either.** `Vary = #field-name` is
 //! `vary_header_valid`'s, over [`list`](crate::violations::list) and
 //! [`token`](crate::violations::token), and a `Vary: *` beside a directive
 //! advertising reuse is [`cache_control`](crate::violations::cache_control)'s —
@@ -30,43 +35,7 @@ pub const RFC_7240_2: SpecRef = SpecRef {
     note: "The `Vary` MUST for a server that applies a preference which might vary a cache's handling of the response entity, and the `Vary: *` alternative it offers instead",
 };
 
-/// Calculating Cache Keys with the Vary Header Field: what all the nominated
-/// fields matching buys, and what their not matching forbids.
-pub const RFC_9111_4_1: SpecRef = SpecRef {
-    spec: "RFC 9111",
-    section: Some("4.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
-    note: "Calculating Cache Keys with the Vary Header Field — a stored response may only be reused without revalidation where every request field the response nominated matches the original request's",
-};
-
 defects! {
-    /// A stored response reused for a request that differs in a field its own
-    /// `Vary` nominated.
-    ///
-    /// **`_ignored` is the ending**: the response stated the dimensions its
-    /// selection depends on, correctly, and something reused it across one of
-    /// them. That is a requirement honoured by nobody rather than stated
-    /// wrongly — the same reading
-    /// [`http3_goaway_ignored`](crate::violations::http3_goaway) is on, at a
-    /// field instead of a frame.
-    ///
-    /// **The comparison is stricter than § 4.1's** and the direction is
-    /// deliberate: the section's "match" additionally permits whitespace,
-    /// line-combining and semantic normalization, none of which is applied
-    /// here, so this can report a pair that § 4.1 would call matching. An
-    /// over-report, chosen because the alternative is to guess which
-    /// normalization a particular cache implements.
-    ///
-    // cite(RFC 9111 § 4.1): "the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request"
-    VARY_IGNORED = {
-        id: "vary_ignored",
-        title: "A response is reused across a dimension its Vary nominated",
-        message: "",
-        default_severity: Severity::Warn,
-        spec: &[RFC_9111_4_1],
-        strength: Strength::Unstated,
-    }
-
     /// A response saying it applied a preference that changes what the entity
     /// is, without nominating `Prefer` in its `Vary`.
     ///
@@ -77,13 +46,6 @@ defects! {
     /// dimension of the cache key rather than anything about the preference.
     /// The pairing rule this catalogue already follows — the subject is
     /// whichever field the requirement is addressed to — decides it.
-    ///
-    /// **The other entry here is its consequence, one exchange later.**
-    /// [`VARY_IGNORED`] reports a cache reusing a response across a dimension
-    /// the response *did* nominate; this reports the dimension never being
-    /// nominated, which is the case no cache can be blamed for. An operator
-    /// seeing the second and then the first is watching one mistake become a
-    /// wrong answer.
     ///
     /// **`Vary: *` satisfies it and so does nothing else.** § 2 offers that
     /// alternative by name, and it works because a `*` makes the response
@@ -103,18 +65,5 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_7240_2],
         strength: Strength::Must,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The ending says who is at fault: the response stated its dimensions
-    /// correctly and something else did not honour them.
-    #[test]
-    fn the_ending_names_the_party_that_did_not_honour_the_field() {
-        assert!(VARY_IGNORED.id.ends_with("_ignored"));
-        assert_eq!(VARY_IGNORED.default_severity, Severity::Warn);
     }
 }

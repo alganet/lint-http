@@ -975,9 +975,6 @@ enabled = true
 [rules.vary_and_cache_consistent]
 enabled = true
 
-[rules.vary_header_cache_valid]
-enabled = true
-
 [rules.vary_header_valid]
 enabled = true
 
@@ -3467,10 +3464,6 @@ severity = "info"
 [violations.validator_missing]
 # A response gives a later request nothing to validate against
 # SHOULD obliges the sender, so this defaults to warn.
-severity = "warn"
-
-[violations.vary_ignored]
-# A response is reused across a dimension its Vary nominated
 severity = "warn"
 
 [violations.vary_prefer_missing]

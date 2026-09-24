@@ -547,7 +547,6 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [uri_scheme_leading_letter_missing](violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
 - [user_agent_missing](violations/user_agent_missing.md) — A request does not say what sent it
 - [validator_missing](violations/validator_missing.md) — A response gives a later request nothing to validate against
-- [vary_ignored](violations/vary_ignored.md) — A response is reused across a dimension its Vary nominated
 - [vary_prefer_missing](violations/vary_prefer_missing.md) — A response applied a preference its Vary does not nominate
 - [via_comment_duplicated](violations/via_comment_duplicated.md) — Via member carries more than one comment
 - [via_member_malformed](violations/via_member_malformed.md) — Via member does not end where the production ends it

@@ -4677,7 +4677,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 29
     - file: lint-http-rules/src/violations/vary.rs
-      line: 98
+      line: 60
   - label: Preference-Applied grammar
     section: § 3
     snippet: Preference-Applied = "Preference-Applied" ":" 1#applied-pref
@@ -6905,8 +6905,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
       line: 128
-    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 157
   - label: cached_validators_reused
     section: § 13.1.2
     snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
@@ -7061,8 +7059,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
       line: 190
-    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 133
   - label: conditional_date_syntax (2)
     section: § 13.1.4
     snippet: If-Unmodified-Since = HTTP-date
@@ -9023,8 +9019,6 @@ sources:
       line: 464
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
       line: 269
-    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 134
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
       line: 221
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
@@ -9667,8 +9661,6 @@ sources:
       line: 188
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 409
-    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 156
   - label: lint-http-rules/src/helpers/validator.rs (2)
     section: § 8.8.3
     snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
@@ -12238,8 +12230,6 @@ sources:
       line: 80
     - file: lint-http-rules/src/rules/vary_and_cache_consistent.rs
       line: 108
-    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 229
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 587
   - label: lint-http-rules/src/helpers/stored_response.rs (10)
@@ -12308,8 +12298,6 @@ sources:
       line: 110
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 148
-    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 112
   - label: must_revalidate_enforced (2)
     section: § 5.2.2.2
     snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
@@ -12398,12 +12386,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 269
-  - label: vary
-    section: § 4.1
-    snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
-    cited_by:
-    - file: lint-http-rules/src/violations/vary.rs
-      line: 60
   - label: warning
     section: § 5.5
     snippet: The "Warning" header field was used to carry additional information about the status or transformation of a message that might not be reflected in the status code.
