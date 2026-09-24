@@ -1258,6 +1258,10 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
         QueryType::ByResource,
     ),
     (&vary_consistent::VaryConsistent, QueryType::ByResource),
+    (
+        &vary_and_cors_consistent::VaryAndCorsConsistent,
+        QueryType::ByResource,
+    ),
 ];
 
 /// Lookup map from rule id to its required `QueryType`, built once from

@@ -53,6 +53,15 @@ pub const RFC_9111_4_1: SpecRef = SpecRef {
     note: "Calculating Cache Keys with the Vary Header Field — a resource whose default response omits Vary has that response chosen for later requests even when a more preferable one is available",
 };
 
+/// Fetch's background note on caching a CORS response: the one place the
+/// standard says when `Vary: Origin` is owed, and the failure without it.
+pub const FETCH_CORS_HTTP_CACHES: SpecRef = SpecRef {
+    spec: "Fetch",
+    section: None,
+    url: "https://fetch.spec.whatwg.org/#cors-protocol-and-http-caches",
+    note: "CORS protocol and HTTP caches (informative) — where Access-Control-Allow-Origin depends on the request's Origin, Vary is to be used, or a cached non-CORS response is handed to a later CORS request",
+};
+
 defects! {
     /// A response saying it applied a preference that changes what the entity
     /// is, without nominating `Prefer` in its `Vary`.
@@ -159,6 +168,46 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_4_1],
+        strength: Strength::Unstated,
+    }
+
+    /// A response whose `Access-Control-Allow-Origin` has been seen to follow
+    /// the request's `Origin`, with no `Vary` naming `Origin`.
+    ///
+    /// **Fetch describes the failure step by step.** A server that sends
+    /// `Access-Control-Allow-Origin` only in answer to a CORS request sends a
+    /// response without it to a navigation; the user agent caches that, and
+    /// answers the next CORS request for the resource from the cache — without
+    /// the header, so the request fails. The same happens between two
+    /// origins when the server echoes the one it was sent: the second is
+    /// handed the first one's grant. "If CORS protocol requirements are more
+    /// complicated than setting `Access-Control-Allow-Origin` to * or a static
+    /// origin, `Vary` is to be used."
+    ///
+    /// **The evidence is two responses, not one.** An
+    /// `Access-Control-Allow-Origin` equal to the request's `Origin` is what
+    /// a static single-origin configuration sends too, whenever that origin is
+    /// the one asking — and Fetch says a static origin needs no `Vary`. What
+    /// shows the value is computed from the request is two responses for the
+    /// resource, of the same status, to requests whose `Origin` differs — one
+    /// may carry none — with different `Access-Control-Allow-Origin` values,
+    /// one of which may be absent.
+    ///
+    /// **`Vary: *` satisfies it**, as it satisfies every selecting field.
+    ///
+    /// `warn`, and `Unstated`: the section is background reading, and "is to be
+    /// used" states no keyword. The level is the failure it describes — a CORS
+    /// request refused, or a grant given to the wrong origin, by a cache doing
+    /// what the response told it.
+    ///
+    // cite(Fetch): "If CORS protocol requirements are more complicated than setting `Access-Control-Allow-Origin` to * or a static origin, `Vary` is to be used."
+    // cite(Fetch): "When a user agent receives a response to a non-CORS request for that resource (for example, as the result of a navigation request), the response will lack `Access-Control-Allow-Origin` and the user agent will cache that response."
+    VARY_ORIGIN_MISSING = {
+        id: "vary_origin_missing",
+        title: "An Access-Control-Allow-Origin chosen from the Origin is not keyed on it",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[FETCH_CORS_HTTP_CACHES],
         strength: Strength::Unstated,
     }
 }
