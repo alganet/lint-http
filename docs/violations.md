@@ -89,7 +89,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [cache_control_no_store_ignored](violations/cache_control_no_store_ignored.md) — A validator from a no-store response comes back on a later request
 - [cache_control_private_argument_empty](violations/cache_control_private_argument_empty.md) — Cache-Control private is qualified by no field name
 - [cache_control_private_ignored](violations/cache_control_private_ignored.md) — A validator from a private response reaches a second client
-- [cache_control_redundant](violations/cache_control_redundant.md) — A reuse directive sits on a response no cache may select
+- [cache_control_redundant](violations/cache_control_redundant.md) — A freshness lifetime sits on a response never reused without validation
 - [cache_control_s_maxage_ignored](violations/cache_control_s_maxage_ignored.md) — A cache that s-maxage does not address used it for freshness
 - [cache_control_storage_conflicting](violations/cache_control_storage_conflicting.md) — Two Cache-Control directives disagree about storing the response
 - [cache_response_conflicting](violations/cache_response_conflicting.md) — Two responses for one URI disagree about which version is current

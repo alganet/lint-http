@@ -1385,7 +1385,7 @@ severity = "info"
 severity = "warn"
 
 [violations.cache_control_redundant]
-# A reuse directive sits on a response no cache may select
+# A freshness lifetime sits on a response never reused without validation
 severity = "warn"
 
 [violations.cache_control_s_maxage_ignored]

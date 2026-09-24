@@ -5483,7 +5483,7 @@ sources:
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 163
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 829
+      line: 836
   - label: immutable_cache_never_stale (2)
     section: § 2
     snippet: The immutable extension only applies during the freshness lifetime of the stored response.
@@ -5493,7 +5493,7 @@ sources:
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 162
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 808
+      line: 815
 - label: RFC 8259
   url: https://www.rfc-editor.org/rfc/rfc8259.html
   fragments:
@@ -7153,9 +7153,9 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 62
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 682
+      line: 689
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 742
+      line: 749
     - file: lint-http-rules/src/violations/if_range.rs
       line: 158
   - label: conditional_request_handling
@@ -7477,9 +7477,9 @@ sources:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 178
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 674
+      line: 681
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 734
+      line: 741
     - file: lint-http-rules/src/violations/method.rs
       line: 522
   - label: content_type_valid
@@ -9619,7 +9619,7 @@ sources:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 226
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 894
+      line: 901
   - label: 3xx redirection class
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
@@ -10045,9 +10045,9 @@ sources:
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 227
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 683
+      line: 690
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 743
+      line: 750
     - file: lint-http-rules/src/violations/if_range.rs
       line: 133
   - label: must_revalidate_enforced (2)
@@ -10061,9 +10061,9 @@ sources:
     - file: lint-http-rules/src/rules/status_304_required_fields.rs
       line: 160
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 673
+      line: 680
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 733
+      line: 740
   - label: no_body_for_1xx_204_304
     section: § 15.2
     snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -11546,6 +11546,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/vary.rs
       line: 126
+  - label: vary_and_cache_consistent
+    section: § 12.5.5
+    snippet: A recipient will not be able to determine whether this response is appropriate for a later request without forwarding the request to the origin server.
+    cited_by:
+    - file: lint-http-rules/src/rules/vary_and_cache_consistent.rs
+      line: 121
   - label: vary_header_valid
     section: § 12.5.5
     snippet: The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response.
@@ -11886,7 +11892,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_present.rs
       line: 130
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 852
+      line: 859
   - label: cache_validation_chain
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
@@ -11970,7 +11976,7 @@ sources:
     - file: lint-http-rules/src/rules/vary_and_content_encoding_consistent.rs
       line: 89
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 763
+      line: 770
   - label: caching_directive_interaction (3)
     section: § 5.2.2.9
     snippet: The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3.
@@ -12166,7 +12172,7 @@ sources:
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 157
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 786
+      line: 793
   - label: lint-http-rules/src/helpers/cache_control.rs (14)
     section: § 5.2.2.4
     snippet: The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
@@ -12178,7 +12184,7 @@ sources:
     - file: lint-http-rules/src/rules/vary_and_content_encoding_consistent.rs
       line: 88
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 744
+      line: 751
   - label: lint-http-rules/src/helpers/cache_control.rs (15)
     section: § 5.2.2.4
     snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request
@@ -12206,7 +12212,7 @@ sources:
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 532
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 611
+      line: 618
   - label: lint-http-rules/src/helpers/stored_response.rs
     section: § 3
     snippet: a private response directive, if the cache is not shared
@@ -12286,7 +12292,7 @@ sources:
     - file: lint-http-rules/src/helpers/vary.rs
       line: 80
     - file: lint-http-rules/src/rules/vary_and_cache_consistent.rs
-      line: 108
+      line: 111
     - file: lint-http-rules/src/rules/vary_and_content_encoding_consistent.rs
       line: 146
     - file: lint-http-rules/src/rules/vary_and_cors_consistent.rs
@@ -12294,7 +12300,7 @@ sources:
     - file: lint-http-rules/src/rules/vary_consistent.rs
       line: 71
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 587
+      line: 594
   - label: lint-http-rules/src/helpers/stored_response.rs (10)
     section: § 4.1
     snippet: If (after any normalization that might take place) a header field is absent from a request, it can only match another request if it is also absent there.
@@ -12368,7 +12374,7 @@ sources:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 293
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 684
+      line: 691
   - label: pragma_token_valid
     section: § 5.4
     snippet: As a result, this specification deprecates Pragma.
@@ -12405,6 +12411,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 251
+    - file: lint-http-rules/src/rules/vary_and_cache_consistent.rs
+      line: 122
   - label: singleton_fields_not_repeated
     section: § 5.1
     snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server.
