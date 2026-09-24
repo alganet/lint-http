@@ -264,9 +264,78 @@ pub fn selecting_fields_match(
     }
 }
 
+/// Whether an earlier exchange left the entry a cache would revalidate for
+/// the request now presented — the three questions above, asked together.
+///
+/// § 3: a cache was allowed to keep the response ([`storage_allowed`]). § 4:
+/// its method allows it to answer this one ([`method_allows`]), and this
+/// request presents the fields its `Vary` nominates
+/// ([`selecting_fields_match`]). A rule asking "which validator does the
+/// client hold for this request" is asking which entry that is, and a resource
+/// negotiated per coding holds one entry per variant, each with its own tag.
+///
+/// **A `304` is taken although § 3 would refuse it.** It is never stored
+/// itself; it freshens the stored response it validated and renews that
+/// entry's validators (§ 4.3.4), so for the question of what the entry now
+/// holds it is the newest word.
+// cite(RFC 9111 § 4.3.4): "When a cache receives a 304 (Not Modified) response, it needs to identify stored responses that are suitable for updating with the new information provided, and then do so."
+pub fn is_entry_for(
+    past: &crate::http_transaction::HttpTransaction,
+    presented: &crate::http_transaction::RequestInfo,
+) -> bool {
+    let Some(resp) = past.response.as_ref() else {
+        return false;
+    };
+    (resp.status == 304 || storage_allowed(&past.request.headers, resp.status, &resp.headers))
+        && method_allows(&past.request.method, &presented.method)
+        && selecting_fields_match(&past.request.headers, &resp.headers, &presented.headers)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The three questions and the one exception, each turned off alone.
+    #[test]
+    fn is_entry_for_asks_storage_method_and_variant() {
+        let past = |method: &str, rq: &[(&str, &str)], status: u16, rs: &[(&str, &str)]| {
+            let mut t = crate::test_helpers::make_test_transaction_with_response(status, rs);
+            t.request.method = method.to_string();
+            t.request.headers = crate::test_helpers::make_headers_from_pairs(rq);
+            t
+        };
+        let mut presented = crate::test_helpers::make_test_transaction().request;
+        presented.method = "GET".to_string();
+        presented.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("accept-encoding", "gzip")]);
+        let gz = [("accept-encoding", "gzip")];
+        let varied = [("vary", "Accept-Encoding"), ("etag", "\"v\"")];
+
+        assert!(is_entry_for(&past("GET", &gz, 200, &varied), &presented));
+        assert!(
+            !is_entry_for(&past("GET", &[], 200, &varied), &presented),
+            "another variant"
+        );
+        assert!(
+            !is_entry_for(&past("OPTIONS", &gz, 200, &varied), &presented),
+            "no caching semantics"
+        );
+        assert!(
+            !is_entry_for(
+                &past("GET", &gz, 200, &[("cache-control", "no-store")]),
+                &presented
+            ),
+            "never stored"
+        );
+        assert!(
+            !is_entry_for(&past("GET", &gz, 412, &[]), &presented),
+            "no licence to store"
+        );
+        assert!(
+            is_entry_for(&past("GET", &gz, 304, &varied), &presented),
+            "a 304 renews the entry"
+        );
+    }
     use rstest::rstest;
 
     /// The six rules named in this module's doc all report a peer on the near

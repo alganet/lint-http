@@ -108,7 +108,7 @@ impl RuleMeta for RangeRequestAndCaching {
     fn description(&self) -> &'static str {
         "A client that has been given a 206 (Partial Content) response holds a fragment of a representation, and the fragments can only be combined if they share the same strong validator.  When the stored response provided an entity tag, a cache validating it has to send that tag back — RFC 9111 §4.3.1 makes it a MUST, and names three fields that satisfy it: `If-Match`, `If-None-Match` or `If-Range`.\n\nThis rule tracks earlier transactions for the same client and resource.  After a 206, it reports a later `Range` request **in that same range unit** that carries none of those three fields, and an `If-Range` holding a tag other than the one most recently provided for the resource.
 
-**The date is asked about on different terms, because §13.1.5 states different ones.**  That sentence forbids an `If-Range` holding an `HTTP-date` to a client that has an entity tag \"for the corresponding representation\", and says nothing about how the client came by one — so a plain 200 carrying an `ETag` is enough, no partial copy is needed, and a second precondition beside it does not excuse the field.  Only the two §4.3.1 findings above are conditioned on the 206 and on its range unit.  The validator compared against is the one from the most recent response carrying any, since a later 200 or 304 replaces what the client stores.\n\nWhere the stored response carried only a `Last-Modified` date the rule is silent: §4.3.1 asks for that date with a SHOULD that excludes subrange requests and a MAY that covers them, and neither makes its absence a defect.  Weak entity tags are skipped, because `If-Range` may not carry one and ranges sharing only a weak validator cannot be combined at all.\n\n**What it assumes.** §4.3.1 is addressed to caches, and no field on the wire says whether a client is one.  A user agent that fetches consecutive ranges and stores nothing — a media player, a download manager streaming to disk — is under no obligation to send any of these fields, and this rule will report it. Two negotiated variants of one resource share a history here as well, since the query is keyed on the URI and not on the cache key §4.3.1 narrows to.  A stored 206 whose unit the header section does not name is passed over rather than guessed at: a multipart 206 carries its `Content-Range` in each body part instead of the header section (§15.3.7.2), so unless the request it answered is in the same history there is nothing to compare a later unit against.  Turn the rule off for traffic that is not caching."
+**The date is asked about on different terms, because §13.1.5 states different ones.**  That sentence forbids an `If-Range` holding an `HTTP-date` to a client that has an entity tag \"for the corresponding representation\", and says nothing about how the client came by one — so a plain 200 carrying an `ETag` is enough, no partial copy is needed, and a second precondition beside it does not excuse the field.  Only the two §4.3.1 findings above are conditioned on the 206 and on its range unit.  The validator compared against is the one from the most recent response carrying any, since a later 200 or 304 replaces what the client stores.\n\nWhere the stored response carried only a `Last-Modified` date the rule is silent: §4.3.1 asks for that date with a SHOULD that excludes subrange requests and a MAY that covers them, and neither makes its absence a defect.  Weak entity tags are skipped, because `If-Range` may not carry one and ranges sharing only a weak validator cannot be combined at all.\n\n**What it assumes.** §4.3.1 is addressed to caches, and no field on the wire says whether a client is one.  A user agent that fetches consecutive ranges and stores nothing — a media player, a download manager streaming to disk — is under no obligation to send any of these fields, and this rule will report it. Two negotiated variants of one resource share the history the query hands over, which is keyed on the URI, so the rule narrows it to the cache key §4.3.1 names: the tag and the partial copy are taken only from responses whose `Vary` fields this request presents, whose method allows them to answer it, and which a cache was allowed to keep (a `304` counts, since it renews the entry it validated). A gzip range request is compared against the gzip variant's tag, and §13.1.5's \"entity tag for the corresponding representation\" is that variant's.  A stored 206 whose unit the header section does not name is passed over rather than guessed at: a multipart 206 carries its `Content-Range` in each body part instead of the header section (§15.3.7.2), so unless the request it answered is in the same history there is nothing to compare a later unit against.  Turn the rule off for traffic that is not caching."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -240,17 +240,20 @@ impl Rule for RangeRequestAndCaching {
             let raw_range = req.headers.get("range")?;
             let raw_range = crate::helpers::headers::field_line_as_written(raw_range);
 
-            // What the client holds *now*. Newest first, stopping at the first
-            // response that carried any validator at all: that response's metadata is
+            // What the client holds *now* for this request's variant. Newest first,
+            // stopping at the first response that carried any validator at all among
+            // those that are an entry for this request: that response's metadata is
             // what a stored entry would have been updated to, whether it was a 206,
-            // a later 200, or a 304 that freshened it.
-            // "The same URI" is what this walk implements; the cache key it narrows to
-            // is what the walk cannot see, and the second sentence is here so that the
-            // approximation is on the record next to the code making it.
+            // a later 200, or a 304 that freshened it. The history is keyed on "the
+            // same URI"; `is_entry_for` narrows it to the cache key, so a gzip range
+            // request is not compared against the identity variant's tag.
             // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields.  These contain validator metadata sourced from a stored response(s) that has the same URI."
             // cite(RFC 9111 § 4.3.1): "Typically, this will include only the stored response(s) that has the same cache key, although a cache is allowed to validate a response that it cannot choose with the request header fields it is sending"
             let mut newest_validators: Option<(Option<String>, Option<String>)> = None;
-            for past in history.iter() {
+            for past in history
+                .iter()
+                .filter(|past| crate::helpers::stored_response::is_entry_for(past, req))
+            {
                 if let Some(resp) = &past.response {
                     let (etag, last_modified) =
                         crate::helpers::validator::extract_validators_from_response(&resp.headers);
@@ -359,6 +362,7 @@ impl Rule for RangeRequestAndCaching {
             // cite(RFC 9110 § 14.2): "An origin server MUST ignore a Range header field that contains a range unit it does not understand."
             let holds_a_partial_copy = history.iter().any(|past| {
                 past.response.as_ref().is_some_and(|r| r.status == 206)
+                    && crate::helpers::stored_response::is_entry_for(past, req)
                     && partial_copy_unit(past).is_some_and(|unit| unit == requested_unit)
             });
             if !holds_a_partial_copy {
@@ -418,6 +422,99 @@ mod tests {
     /// and one client because the `ByResource` query is what puts them in the
     /// same history — a fixture that skips that is not a fixture for this rule,
     /// and neither is one whose request lacks the `Range` the whole rule is about.
+    /// One earlier exchange with its own request fields: `(request, status,
+    /// response)`.
+    type Exchange<'a> = (Vec<(&'a str, &'a str)>, u16, Vec<(&'a str, &'a str)>);
+
+    /// The findings on a range request after `earlier`, each exchange given
+    /// its own request fields: `(request, status, response)`, oldest first.
+    fn after_variants(earlier: &[Exchange<'_>], request: &[(&str, &str)]) -> Vec<Violation> {
+        let base = chrono::Utc::now();
+        let n = earlier.len() as i64;
+        let mut entries: Vec<_> = earlier
+            .iter()
+            .enumerate()
+            .map(|(i, (rq, status, rs))| {
+                let mut past =
+                    crate::test_helpers::make_test_transaction_with_response(*status, rs);
+                past.request.method = "GET".to_string();
+                past.request.uri = "/resource".to_string();
+                past.client = crate::test_helpers::make_test_client();
+                past.request.headers = crate::test_helpers::make_headers_from_pairs(rq);
+                past.timestamp = base - chrono::Duration::seconds(n - i as i64);
+                past
+            })
+            .collect();
+        entries.reverse();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.uri = "/resource".to_string();
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(request);
+        tx.timestamp = base;
+        crate::test_helpers::run_rule_all(
+            &RangeRequestAndCaching,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(entries),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "range_request_and_caching",
+            ]),
+        )
+    }
+
+    /// A resource with a tag per coding holds one entry per variant, and the
+    /// tag a range request is held to is its own variant's — for § 4.3.1's
+    /// `If-Range` and for § 13.1.5's "entity tag for the corresponding
+    /// representation" alike.
+    #[test]
+    fn the_stored_tag_is_this_variants() {
+        let gz_part = vec![("accept-encoding", "gzip"), ("range", "bytes=0-9")];
+        let gz_206 = vec![
+            ("etag", "\"a-gz\""),
+            ("vary", "Accept-Encoding"),
+            ("content-range", "bytes 0-9/100"),
+        ];
+        let identity_200 = vec![("etag", "\"a\""), ("vary", "Accept-Encoding")];
+        let history = [
+            (gz_part.clone(), 206, gz_206.clone()),
+            (vec![], 200, identity_200.clone()),
+        ];
+
+        // The gzip entry's own tag in `If-Range` is right, however recently the
+        // identity tag was seen.
+        let found = after_variants(
+            &history,
+            &[
+                ("accept-encoding", "gzip"),
+                ("range", "bytes=10-19"),
+                ("if-range", "\"a-gz\""),
+            ],
+        );
+        assert!(found.is_empty(), "{found:?}");
+
+        // And the identity tag in a gzip request is the conflict.
+        let found = after_variants(
+            &history,
+            &[
+                ("accept-encoding", "gzip"),
+                ("range", "bytes=10-19"),
+                ("if-range", "\"a\""),
+            ],
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].violation, "conditional_validator_conflicting");
+
+        // A client holding a tag only for the gzip variant has none for the
+        // identity one, so a date in an identity range request is permitted.
+        let found = after_variants(
+            &[(gz_part, 206, gz_206)],
+            &[
+                ("range", "bytes=0-9"),
+                ("if-range", "Mon, 01 Jan 2024 00:00:00 GMT"),
+            ],
+        );
+        assert!(found.is_empty(), "{found:?}");
+    }
+
     fn sequence(
         earlier: &[(u16, &[(&str, &str)])],
         request: &[(&str, &str)],
