@@ -44,6 +44,15 @@ pub const RFC_9110_12_5_5: SpecRef = SpecRef {
     note: "Vary — an origin SHOULD send it on a cacheable response whose content was tailored to the request's preferences, and might elide it where reuse is already limited by cache directives",
 };
 
+/// Calculating Cache Keys with the Vary Header Field: the default response
+/// that omits `Vary`, which § 4.1 names as a mistake and says what it costs.
+pub const RFC_9111_4_1: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
+    note: "Calculating Cache Keys with the Vary Header Field — a resource whose default response omits Vary has that response chosen for later requests even when a more preferable one is available",
+};
+
 defects! {
     /// A response saying it applied a preference that changes what the entity
     /// is, without nominating `Prefer` in its `Vary`.
@@ -113,5 +122,43 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9110_12_5_5],
         strength: Strength::Should,
+    }
+
+    /// Two responses for one resource, one naming a selecting field in `Vary`,
+    /// and the other — sent to a request without that field — naming nothing
+    /// of the kind.
+    ///
+    /// **This is the mistake § 4.1 describes by name.** "Some resources
+    /// mistakenly omit the Vary header field from their default response (i.e.,
+    /// the one sent when the request does not express any preferences)": the
+    /// response to a request with no `Accept-Encoding`, no `Accept-Language`,
+    /// no `Cookie`, sent without the `Vary` its siblings carry. A cache holding
+    /// it has nothing to compare, so it answers every later request with it —
+    /// the uncompressed body to a client that asked for `br`, the anonymous
+    /// page to a signed-in one — "even when more preferable responses are
+    /// available".
+    ///
+    /// **`_conflicting`: each response is well formed, and the two cannot
+    /// both describe the resource.** One says the field selects its content;
+    /// the other, sent when the field was absent, says nothing selects it.
+    /// Absence is not a value a field can be compared on, so the response that
+    /// omitted it is the one to change.
+    ///
+    /// **Reported once for each response that omits the field.** Where the
+    /// omitting response comes second, it is the finding. Where it came first,
+    /// the finding is on the first response that nominated the field, naming
+    /// the earlier one, and not again on every response after it.
+    ///
+    /// `warn`, and `Unstated`: § 4.1 calls it a mistake and binds nobody, and
+    /// the level is what the cache does with it.
+    ///
+    // cite(RFC 9111 § 4.1): "Some resources mistakenly omit the Vary header field from their default response (i.e., the one sent when the request does not express any preferences), with the effect of choosing it for subsequent requests to that resource even when more preferable responses are available."
+    VARY_CONFLICTING = {
+        id: "vary_conflicting",
+        title: "A default response omits a field its siblings name in Vary",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_4_1],
+        strength: Strength::Unstated,
     }
 }
