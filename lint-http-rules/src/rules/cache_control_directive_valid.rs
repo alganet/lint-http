@@ -5,11 +5,11 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cache_control::{
-    CACHE_CONTROL_ARGUMENT_QUOTED_FORM_FORBIDDEN, CACHE_CONTROL_DIRECTIVE_ARGUMENT_FORBIDDEN,
-    CACHE_CONTROL_DIRECTIVE_ARGUMENT_MISSING, CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY,
-    CACHE_CONTROL_PRIVATE_ARGUMENT_EMPTY, RFC_9111_5_2, RFC_9111_5_2_1_1, RFC_9111_5_2_1_2,
-    RFC_9111_5_2_1_3, RFC_9111_5_2_1_4, RFC_9111_5_2_2_1, RFC_9111_5_2_2_10, RFC_9111_5_2_2_4,
-    RFC_9111_5_2_2_7, RFC_9111_5_2_3,
+    CACHE_CONTROL_ARGUMENT_QUOTED_FORM_FORBIDDEN, CACHE_CONTROL_ARGUMENT_TOKEN_FORM_FORBIDDEN,
+    CACHE_CONTROL_DIRECTIVE_ARGUMENT_FORBIDDEN, CACHE_CONTROL_DIRECTIVE_ARGUMENT_MISSING,
+    CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY, CACHE_CONTROL_PRIVATE_ARGUMENT_EMPTY, RFC_9111_5_2,
+    RFC_9111_5_2_1_1, RFC_9111_5_2_1_2, RFC_9111_5_2_1_3, RFC_9111_5_2_1_4, RFC_9111_5_2_2_1,
+    RFC_9111_5_2_2_10, RFC_9111_5_2_2_4, RFC_9111_5_2_2_7, RFC_9111_5_2_3,
 };
 use crate::violations::delta_seconds::{DELTA_SECONDS_CHARACTER_FORBIDDEN, RFC_9111_1_2_2};
 use crate::violations::list::{cache_directive_member, LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
@@ -77,6 +77,7 @@ static DECLARED: &[&ViolationDef] = &[
     &CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY,
     &CACHE_CONTROL_PRIVATE_ARGUMENT_EMPTY,
     &CACHE_CONTROL_ARGUMENT_QUOTED_FORM_FORBIDDEN,
+    &CACHE_CONTROL_ARGUMENT_TOKEN_FORM_FORBIDDEN,
     &CACHE_CONTROL_DIRECTIVE_ARGUMENT_MISSING,
     &CACHE_CONTROL_DIRECTIVE_ARGUMENT_FORBIDDEN,
 ];
@@ -227,7 +228,7 @@ impl RuleMeta for CacheControlDirectiveValid {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Cache-Control: max-age=3600\nCache-Control: s-maxage=0, public\nCache-Control: private=\"Set-Cookie, X-Foo\"\nCache-Control: private=Foo,bar",
+                snippet: "Cache-Control: max-age=3600\nCache-Control: s-maxage=0, public\nCache-Control: private=\"Set-Cookie, X-Foo\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -238,6 +239,11 @@ impl RuleMeta for CacheControlDirectiveValid {
                 compliance: Compliance::NonCompliant,
                 label: Some("(a directive defined by its argument, written without one)"),
                 snippet: "HTTP/1.1 200 OK\nCache-Control: public, max-age",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a field-name argument in the token form, which RFC 9111 § 5.2.2.7 has a sender quote even for one name)"),
+                snippet: "HTTP/1.1 200 OK\nCache-Control: private=Set-Cookie",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -347,8 +353,8 @@ fn member_defect(member: &str, side: &str) -> Vec<Defect> {
         // asking the qualified form's sentence of it as well would report a
         // request against a paragraph about a response. `private` is defined
         // once, in § 5.2.2.7, and keeps that definition wherever it is written.
-        "private" => field_name_list_defect(name, argument),
-        "no-cache" if side != "request" => field_name_list_defect(name, argument),
+        "private" => field_name_list_defect(name, argument, side),
+        "no-cache" if side != "request" => field_name_list_defect(name, argument, side),
         _ => {
             // For other directives, accept token or quoted-string and ensure token syntax if unquoted
             if argument.starts_with('"') {
@@ -602,7 +608,7 @@ fn delta_seconds_defect(name: &str, argument: &str, side: &str) -> Option<Defect
     ))
 }
 
-fn field_name_list_defect(name: &str, argument: &str) -> Vec<Defect> {
+fn field_name_list_defect(name: &str, argument: &str, side: &str) -> Vec<Defect> {
     let list = if argument.starts_with('"') {
         match crate::helpers::quoted_string::unescape_quoted_string(argument) {
             Ok(inner) => inner,
@@ -675,6 +681,29 @@ fn field_name_list_defect(name: &str, argument: &str) -> Vec<Defect> {
             true => Defect::named(qualified_form_lists_nothing(name), message),
             false => Defect::named(&LIST_MEMBER_EMPTY, message),
         });
+    }
+
+    // The form last, and only of an argument that reads: a name `token`
+    // refuses, or an argument with nothing in it, is the finding, and the
+    // spelling is what is left to say once the name is a name. Only on a
+    // response: both sentences are in the response directives' subsections,
+    // and a `private` in a request is a directive this document does not
+    // define for that side.
+    // cite(RFC 9111 § 5.2.2.4): "This directive uses the quoted-string form of the argument syntax. A sender SHOULD NOT generate the token form (even if quoting appears not to be needed for single-entry lists)."
+    // cite(RFC 9111 § 5.2.2.7): "This directive uses the quoted-string form of the argument syntax. A sender SHOULD NOT generate the token form (even if quoting appears not to be needed for single-entry lists)."
+    if side != "request" && !argument.starts_with('"') && out.is_empty() && !lists_no_field {
+        let section = match name.to_ascii_lowercase().as_str() {
+            "private" => "5.2.2.7",
+            _ => "5.2.2.4",
+        };
+        out.push(Defect::named(
+            &CACHE_CONTROL_ARGUMENT_TOKEN_FORM_FORBIDDEN,
+            format!(
+                "{name}={argument} writes the {name} argument in the token form; RFC 9111 \
+                 \u{a7} {section} has a sender generate the quoted-string form, \
+                 {name}=\"{argument}\""
+            ),
+        ));
     }
 
     out
@@ -785,8 +814,11 @@ mod tests {
     #[rstest]
     #[case("max-age=3600", false)]
     #[case("s-maxage=0", false)]
-    #[case("private=Foo,bar", false)]
+    // § 5.2.2.7 has a sender write the quoted form, even for one name.
+    #[case("private=Foo,bar", true)]
+    #[case("no-cache=Set-Cookie", true)]
     #[case("private=\"Set-Cookie, X-Foo\"", false)]
+    #[case("no-cache=\"Set-Cookie\"", false)]
     #[case("private=", false)]
     #[case("foo=bar", false)]
     #[case("max-age=60, stale-while-revalidate=30, stale-if-error=60", false)]

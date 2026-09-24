@@ -402,6 +402,38 @@ defects! {
         strength: Strength::Must,
     }
 
+    /// `Cache-Control: private=Set-Cookie` — a field-name argument written in
+    /// the token form.
+    ///
+    /// **The mirror of [`CACHE_CONTROL_ARGUMENT_QUOTED_FORM_FORBIDDEN`], one
+    /// keyword down.** `private` and `no-cache` take a list of field names, and
+    /// their subsections fix the other form: "This directive uses the
+    /// quoted-string form of the argument syntax. A sender SHOULD NOT generate
+    /// the token form (even if quoting appears not to be needed for single-entry
+    /// lists)." A recipient is told to read both, so `private=Set-Cookie` is
+    /// understood; what it breaks is the sentence about writing it, and the
+    /// message gives the quoted form of the same argument.
+    ///
+    /// **Reported only where nothing else is wrong with the argument**, as its
+    /// mirror is: a name holding a character a `token` refuses, or an argument
+    /// with nothing in it, is the finding, and the form is what is left to say
+    /// about an argument that does read. A token argument can hold one name and
+    /// no more — the comma after it ends the directive — so the parenthesis in
+    /// the sentence is exactly the case this reports.
+    ///
+    /// `warn`: two SHOULD NOTs, one per directive, each binding the sender.
+    ///
+    // cite(RFC 9111 § 5.2.2.4): "This directive uses the quoted-string form of the argument syntax. A sender SHOULD NOT generate the token form (even if quoting appears not to be needed for single-entry lists)."
+    // cite(RFC 9111 § 5.2.2.7): "This directive uses the quoted-string form of the argument syntax. A sender SHOULD NOT generate the token form (even if quoting appears not to be needed for single-entry lists)."
+    CACHE_CONTROL_ARGUMENT_TOKEN_FORM_FORBIDDEN = {
+        id: "cache_control_argument_token_form_forbidden",
+        title: "A Cache-Control field-name argument is written in the token form",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_5_2_2_4, RFC_9111_5_2_2_7],
+        strength: Strength::Should,
+    }
+
     /// `Cache-Control: max-age` — a directive whose own subsection gives it an
     /// argument, written with no `=` and nothing after it.
     ///
