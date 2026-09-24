@@ -23,7 +23,7 @@ Reports a `Permissions-Policy` response header carrying something a browser will
 ## Violations
 
 - [permissions_policy_allowlist_invalid](../violations/permissions_policy_allowlist_invalid.md) — A directive's allowlist is none of the permitted forms
-- [permissions_policy_report_to_malformed](../violations/permissions_policy_report_to_malformed.md) — A directive's report-to parameter is not a String
+- [permissions_policy_report_to_malformed](../violations/permissions_policy_report_to_malformed.md) — A directive's report-to parameter is not a Token
 - [structured_field_character_forbidden](../violations/structured_field_character_forbidden.md) — Structured field holds an octet outside US-ASCII
 - [structured_field_empty](../violations/structured_field_empty.md) — Structured field is written with nothing on it
 - [structured_field_inner_list_malformed](../violations/structured_field_inner_list_malformed.md) — Structured field Inner List has no closing parenthesis
@@ -56,7 +56,7 @@ enabled = true
 
 ```http
 HTTP/1.1 200 OK
-Permissions-Policy: geolocation=(self "https://example.com"), fullscreen=(), payment=("https://pay.example");report-to="endpoint"
+Permissions-Policy: geolocation=(self "https://example.com"), fullscreen=(), payment=("https://pay.example");report-to=endpoint
 ```
 
 ### ✅ Good (underscores and dots are ordinary SF key characters)
@@ -101,11 +101,11 @@ HTTP/1.1 200 OK
 Permissions-Policy: geolocation=SELF;Q=1
 ```
 
-### ❌ Bad (report-to must be a String)
+### ❌ Bad (report-to must be a Token)
 
 ```http
 HTTP/1.1 200 OK
-Permissions-Policy: geolocation=(self);report-to=endpoint
+Permissions-Policy: geolocation=(self);report-to="endpoint"
 ```
 
 ### ✅ Good (§4.2.1.2 discards leading SP before asking whether the list has ended, so space against a parenthesis changes nothing; and an item that derives and is not an origin is ignored while the allowlist stands)

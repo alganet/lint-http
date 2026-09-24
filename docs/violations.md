@@ -372,7 +372,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [percent_encoding_digits_missing](violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
 - [percent_encoding_malformed](violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
 - [permissions_policy_allowlist_invalid](violations/permissions_policy_allowlist_invalid.md) — A directive's allowlist is none of the permitted forms
-- [permissions_policy_report_to_malformed](violations/permissions_policy_report_to_malformed.md) — A directive's report-to parameter is not a String
+- [permissions_policy_report_to_malformed](violations/permissions_policy_report_to_malformed.md) — A directive's report-to parameter is not a Token
 - [pragma_conflicting](violations/pragma_conflicting.md) — A request asks for no-cache and only-if-cached at once
 - [pragma_obsolete](violations/pragma_obsolete.md) — A message carries a field this specification deprecates
 - [prefer_preference_duplicated](violations/prefer_preference_duplicated.md) — A Prefer names one preference more than once
