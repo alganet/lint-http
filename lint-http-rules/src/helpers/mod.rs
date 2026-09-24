@@ -89,6 +89,7 @@ pub mod auth;
 pub mod authority;
 pub mod cache_control;
 pub mod comment;
+pub mod content_coding;
 pub mod content_length;
 pub mod content_range;
 pub mod cookie;

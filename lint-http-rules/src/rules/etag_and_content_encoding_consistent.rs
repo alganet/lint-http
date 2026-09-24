@@ -69,27 +69,6 @@ impl RuleMeta for EtagAndContentEncodingConsistent {
     }
 }
 
-/// The content codings a response applied, in order: lowercased, `OWS`-trimmed,
-/// with empty members and `identity` dropped, so an absent field, an empty one
-/// and `identity` are all the unencoded representation.
-///
-/// `Content-Encoding = #content-coding`, and a coding name is a `token`, which
-/// is case-insensitive by § 8.4.1. `identity` is § 12.5.3's name for "no
-/// encoding"; it is registered for `Accept-Encoding` and a sender has no
-/// business writing it here, but a response that does has applied nothing.
-// cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
-// cite(RFC 9110 § 8.4.1): "All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry","
-fn codings(headers: &hyper::HeaderMap) -> Vec<String> {
-    crate::helpers::headers::combined_field_value_as_written(headers, "content-encoding")
-        .map(|value| {
-            crate::helpers::list::list_members(&value)
-                .map(|member| member.to_ascii_lowercase())
-                .filter(|member| member != "identity")
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 /// How a finding names a list of codings: the list, or `no content coding`.
 fn shown_codings(codings: &[String]) -> String {
     if codings.is_empty() {
@@ -134,7 +113,7 @@ impl Rule for EtagAndContentEncodingConsistent {
         let Some(resp) = tx.response.as_ref() else {
             return Vec::new();
         };
-        let here = codings(&resp.headers);
+        let here = crate::helpers::content_coding::applied_codings(&resp.headers);
 
         // The newest earlier `200` under the same tag with a different coding.
         // One finding per response: the tag is the defect, and naming every
@@ -146,7 +125,7 @@ impl Rule for EtagAndContentEncodingConsistent {
         // cite(RFC 9110 § 8.8.3.2): "two entity tags are equivalent if both are not weak and their opaque-tags match character-by-character."
         let Some(there) = history.iter().find_map(|earlier| {
             let earlier_resp = earlier.response.as_ref()?;
-            let theirs = codings(&earlier_resp.headers);
+            let theirs = crate::helpers::content_coding::applied_codings(&earlier_resp.headers);
             (strong_tag(earlier).as_deref() == Some(tag.as_str()) && theirs != here)
                 .then_some(theirs)
         }) else {
