@@ -18,6 +18,12 @@
 //! inside an opaque-tag, so `"a\"` is a tag ending in a backslash and `"a\"b"`
 //! is a tag that closed early with `b"` left over. The quoted-string reader
 //! answered the opposite on both.
+//!
+//! **One entry is not about the production.** A strong tag is a claim about
+//! the octets it names — that no other representation of the resource carries
+//! it unless its data is identical — and a well-formed tag can make that claim
+//! falsely. [`ETAG_CONFLICTING`] is the one case the wire shows: the same
+//! strong tag on two responses whose content codings differ.
 
 use crate::helpers::validator::EntityTagDefect;
 use crate::lint::Severity;
@@ -32,6 +38,15 @@ pub const RFC_9110_8_8_3: SpecRef = SpecRef {
     section: Some("8.8.3"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
     note: "Entity Tags — `entity-tag = [ weak ] opaque-tag`, `weak = %s\"W/\"` (case-sensitive by the `%s` prefix), `opaque-tag = DQUOTE *etagc DQUOTE`, and `etagc` as VCHAR minus the DQUOTE plus obs-text",
+};
+
+/// Validator strength, and the one example § 8.8.1 gives of a validator that
+/// is weak whatever it is labelled.
+pub const RFC_9110_8_8_1: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.8.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.1",
+    note: "Weak versus Strong — a validator shared by two representations of a resource at the same time is weak unless their data is identical, and a gzip-coded and an unencoded representation are the example",
 };
 
 defects! {
@@ -113,6 +128,46 @@ defects! {
         message: "ETag header value '*' is invalid for responses; ETag must be an entity-tag",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_8_8_3],
+    }
+
+    /// One strong entity tag on two responses for the same resource whose
+    /// content codings differ.
+    ///
+    /// **A content coding is part of the representation data**, so a `gzip`
+    /// response and an unencoded one are two sequences of octets, and a strong
+    /// tag says its octets are the only ones that carry it. § 8.8.1 gives this
+    /// pairing as *the* example of a validator that is weak — the `W/` is what
+    /// the sender left off — and § 8.8.3's note says why the difference is
+    /// worth keeping: a cache updating a stored response from a `304`, and a
+    /// client resuming with `If-Range`, both take a matching strong tag to mean
+    /// the bytes they hold are the bytes the server would send. A client that
+    /// fetched the first half of the `br` body and asks for the rest under the
+    /// tag gets the rest of the unencoded one.
+    ///
+    /// **`_conflicting`: two responses, each well formed, that cannot both be
+    /// telling the truth.** Nothing in either message is wrong on its own, and
+    /// which one to change — a distinct tag per coding, or `W/` on both — is
+    /// the operator's choice, so the finding names both codings and the tag.
+    ///
+    /// **Two media types under one tag are not this.** § 8.8.1 says outright
+    /// that two representations differing only in metadata may share a strong
+    /// validator, and the content coding is the one difference it names as not
+    /// metadata.
+    ///
+    /// `warn`, and `Unstated`: neither sentence carries a keyword, and the
+    /// level is the consequence — a spliced range or a stored response
+    /// freshened with the other coding's metadata is corrupt content, delivered
+    /// by a cache or client that did everything right.
+    ///
+    // cite(RFC 9110 § 8.8.1): "if the origin server sends the same validator for a representation with a gzip content coding applied as it does for a representation with no content coding, then that validator is weak."
+    // cite(RFC 9110 § 8.8.3.3): "Content codings are a property of the representation data, so a strong entity tag for a content-encoded representation has to be distinct from the entity tag of an unencoded representation to prevent potential conflicts during cache updates and range requests."
+    ETAG_CONFLICTING = {
+        id: "etag_conflicting",
+        title: "One strong entity tag names two content codings",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_8_8_1, RFC_9110_8_8_3],
+        strength: Strength::Unstated,
     }
 }
 

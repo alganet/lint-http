@@ -7025,6 +7025,8 @@ sources:
       line: 161
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 141
+    - file: lint-http-rules/src/rules/etag_and_content_encoding_consistent.rs
+      line: 80
   - label: compression_and_transfer_encoding_consistent (5)
     section: § 8.4
     snippet: If one or more encodings have been applied to a representation, the sender that applied the encodings MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied.
@@ -7051,6 +7053,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 172
+    - file: lint-http-rules/src/rules/etag_and_content_encoding_consistent.rs
+      line: 81
     - file: lint-http-rules/src/violations/content_coding.rs
       line: 121
   - label: conditional_date_syntax
@@ -7247,6 +7251,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 198
+    - file: lint-http-rules/src/rules/etag_and_content_encoding_consistent.rs
+      line: 146
   - label: connect_response_framing_valid
     section: § 5.3
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma
@@ -7637,18 +7643,30 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 307
+  - label: etag
+    section: § 8.8.1
+    snippet: if the origin server sends the same validator for a representation with a gzip content coding applied as it does for a representation with no content coding, then that validator is weak.
+    cited_by:
+    - file: lint-http-rules/src/violations/etag.rs
+      line: 162
   - label: weak indicator
     section: § 8.8.3
     snippet: entity-tag = [ weak ] opaque-tag weak       = %s"W/"
     cited_by:
     - file: lint-http-rules/src/violations/etag.rs
-      line: 48
+      line: 63
   - label: opaque-tag
     section: § 8.8.3
     snippet: opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/violations/etag.rs
-      line: 65
+      line: 80
+  - label: etag (2)
+    section: § 8.8.3.3
+    snippet: Content codings are a property of the representation data, so a strong entity tag for a content-encoded representation has to be distinct from the entity tag of an unencoded representation to prevent potential conflicts during cache updates and range requests.
+    cited_by:
+    - file: lint-http-rules/src/violations/etag.rs
+      line: 163
   - label: etag_or_last_modified_present
     section: § 3.2
     snippet: This "selected representation" provides the data and metadata for evaluating conditional requests (Section 13)
@@ -9672,7 +9690,7 @@ sources:
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 150
     - file: lint-http-rules/src/violations/etag.rs
-      line: 109
+      line: 124
   - label: entity-tag grammar
     section: § 8.8.3
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
@@ -9688,7 +9706,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 224
     - file: lint-http-rules/src/violations/etag.rs
-      line: 85
+      line: 100
   - label: lint-http-rules/src/helpers/validator.rs (4)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".

@@ -480,6 +480,9 @@ safe_methods = [
   "TRACE",
 ]
 
+[rules.etag_and_content_encoding_consistent]
+enabled = true
+
 [rules.etag_or_last_modified_present]
 enabled = true
 
@@ -1963,6 +1966,10 @@ severity = "error"
 # Entity-tag holds a character etagc does not admit
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
+
+[violations.etag_conflicting]
+# One strong entity tag names two content codings
+severity = "warn"
 
 [violations.etag_delimiter_missing]
 # Entity-tag is not quoted

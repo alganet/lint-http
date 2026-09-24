@@ -222,6 +222,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [early_data_invalid](violations/early_data_invalid.md) — Early-Data carries a value other than 1
 - [early_data_method_forbidden](violations/early_data_method_forbidden.md) — A request in early data uses a method whose safety is not known
 - [etag_character_forbidden](violations/etag_character_forbidden.md) — Entity-tag holds a character etagc does not admit
+- [etag_conflicting](violations/etag_conflicting.md) — One strong entity tag names two content codings
 - [etag_delimiter_missing](violations/etag_delimiter_missing.md) — Entity-tag is not quoted
 - [etag_weak_indicator_invalid](violations/etag_weak_indicator_invalid.md) — Weakness indicator is not written W/
 - [etag_wildcard_forbidden](violations/etag_wildcard_forbidden.md) — An ETag carries the wildcard the conditional fields take
