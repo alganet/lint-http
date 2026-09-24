@@ -157,23 +157,7 @@ impl Rule for CacheValidationChain {
             // cite(RFC 9111 § 4.3.4): "When a cache receives a 304 (Not Modified) response, it needs to identify stored responses that are suitable for updating with the new information provided, and then do so."
             let (etag, last_modified) = history
                 .responses()
-                .filter(|(past, resp)| {
-                    (resp.status == 304
-                        || crate::helpers::stored_response::storage_allowed(
-                            &past.request.headers,
-                            resp.status,
-                            &resp.headers,
-                        ))
-                        && crate::helpers::stored_response::method_allows(
-                            &past.request.method,
-                            &req.method,
-                        )
-                        && crate::helpers::stored_response::selecting_fields_match(
-                            &past.request.headers,
-                            &resp.headers,
-                            &req.headers,
-                        )
-                })
+                .filter(|(past, _)| crate::helpers::stored_response::is_entry_for(past, req))
                 .map(|(_, resp)| {
                     crate::helpers::validator::extract_validators_from_response(&resp.headers)
                 })
