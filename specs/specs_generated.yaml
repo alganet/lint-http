@@ -143,6 +143,21 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
       line: 245
+  - label: vary
+    snippet: If CORS protocol requirements are more complicated than setting `Access-Control-Allow-Origin` to * or a static origin, `Vary` is to be used.
+    cited_by:
+    - file: lint-http-rules/src/violations/vary.rs
+      line: 203
+  - label: vary (2)
+    snippet: When a user agent receives a response to a non-CORS request for that resource (for example, as the result of a navigation request), the response will lack `Access-Control-Allow-Origin` and the user agent will cache that response.
+    cited_by:
+    - file: lint-http-rules/src/violations/vary.rs
+      line: 204
+  - label: vary_and_cors_consistent
+    snippet: consider what happens if `Vary` is not used and a server is configured to send `Access-Control-Allow-Origin` for a certain resource only in response to a CORS request.
+    cited_by:
+    - file: lint-http-rules/src/rules/vary_and_cors_consistent.rs
+      line: 138
   - label: x_content_type_options_present
     section: § 3.6
     snippet: If values[0] is an ASCII case-insensitive match for "nosniff", then return true.
@@ -4677,7 +4692,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 29
     - file: lint-http-rules/src/violations/vary.rs
-      line: 78
+      line: 87
   - label: Preference-Applied grammar
     section: § 3
     snippet: Preference-Applied = "Preference-Applied" ":" 1#applied-pref
@@ -11524,13 +11539,13 @@ sources:
     snippet: An origin server SHOULD generate a Vary header field on a cacheable response when it wishes that response to be selectively reused for subsequent requests. Generally, that is the case when the response content has been tailored to better fit the preferences expressed by those selecting header fields
     cited_by:
     - file: lint-http-rules/src/violations/vary.rs
-      line: 116
+      line: 125
   - label: vary (2)
     section: § 12.5.5
     snippet: Vary might be elided when an origin server considers variance in content selection to be less significant than Vary's performance impact on caching, particularly when reuse is already limited by cache response directives
     cited_by:
     - file: lint-http-rules/src/violations/vary.rs
-      line: 117
+      line: 126
   - label: vary_header_valid
     section: § 12.5.5
     snippet: The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response.
@@ -12274,6 +12289,8 @@ sources:
       line: 108
     - file: lint-http-rules/src/rules/vary_and_content_encoding_consistent.rs
       line: 146
+    - file: lint-http-rules/src/rules/vary_and_cors_consistent.rs
+      line: 129
     - file: lint-http-rules/src/rules/vary_consistent.rs
       line: 71
     - file: lint-http-rules/src/violations/cache_control.rs
@@ -12437,7 +12454,7 @@ sources:
     snippet: Some resources mistakenly omit the Vary header field from their default response (i.e., the one sent when the request does not express any preferences), with the effect of choosing it for subsequent requests to that resource even when more preferable responses are available.
     cited_by:
     - file: lint-http-rules/src/violations/vary.rs
-      line: 155
+      line: 164
   - label: vary_consistent
     section: § 4.1
     snippet: Some resources mistakenly omit the Vary header field from their default response (i.e., the one sent when the request does not express any preferences)

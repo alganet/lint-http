@@ -981,6 +981,9 @@ enabled = true
 [rules.vary_and_content_encoding_consistent]
 enabled = true
 
+[rules.vary_and_cors_consistent]
+enabled = true
+
 [rules.vary_consistent]
 enabled = true
 
@@ -3486,6 +3489,10 @@ severity = "warn"
 
 [violations.vary_conflicting]
 # A default response omits a field its siblings name in Vary
+severity = "warn"
+
+[violations.vary_origin_missing]
+# An Access-Control-Allow-Origin chosen from the Origin is not keyed on it
 severity = "warn"
 
 [violations.vary_prefer_missing]
