@@ -1605,7 +1605,6 @@ mod tests {
         "trailer_connection_option_forbidden",
         "trailer_member_invalid",
         "transfer_encoding_coding_redundant",
-        "vary_ignored",
         "well_known_name_empty",
         "well_known_name_malformed",
     ];

@@ -279,8 +279,8 @@ so an entry states only what someone read. Three shapes reach it:
   `cache_response_conflicting` quotes a cache's `MUST NOT` about stale
   responses, and its own entry says a proxy "cannot tell a cache serving
   something stale from an origin that reverted a deployment".
-  `cache_control_no_store_ignored`, `cache_control_private_ignored`,
-  `vary_ignored` and `cookie_scope_ignored` are the same shape — a
+  `cache_control_no_store_ignored`, `cache_control_private_ignored` and
+  `cookie_scope_ignored` are the same shape — a
   reconstruction of a store nothing here can see — and `referer_empty` is its
   sharpest form: nothing in a message says where the target URI came from, so
   the cited `MUST`'s antecedent is unreachable from a capture.
