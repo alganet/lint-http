@@ -1322,6 +1322,11 @@ severity = "error"
 # MUST obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.cache_control_argument_token_form_forbidden]
+# A Cache-Control field-name argument is written in the token form
+# SHOULD obliges the sender, so this defaults to warn.
+severity = "warn"
+
 [violations.cache_control_directive_argument_forbidden]
 # A Cache-Control directive that defines no argument is written with one
 severity = "warn"

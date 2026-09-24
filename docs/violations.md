@@ -74,6 +74,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [boundary_trailing_space_forbidden](violations/boundary_trailing_space_forbidden.md) — Boundary ends with a space
 - [bws_forbidden](violations/bws_forbidden.md) — Whitespace written where the grammar admits BWS
 - [cache_control_argument_quoted_form_forbidden](violations/cache_control_argument_quoted_form_forbidden.md) — A Cache-Control delta-seconds argument is written in the quoted-string form
+- [cache_control_argument_token_form_forbidden](violations/cache_control_argument_token_form_forbidden.md) — A Cache-Control field-name argument is written in the token form
 - [cache_control_directive_argument_forbidden](violations/cache_control_directive_argument_forbidden.md) — A Cache-Control directive that defines no argument is written with one
 - [cache_control_directive_argument_missing](violations/cache_control_directive_argument_missing.md) — A Cache-Control directive that requires an argument carries none
 - [cache_control_directive_unregistered](violations/cache_control_directive_unregistered.md) — A Cache-Control directive names nothing any cache implements

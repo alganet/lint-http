@@ -20,6 +20,7 @@ This rule complements `cache_control_token_valid` which enforces general token/q
 ## Violations
 
 - [cache_control_argument_quoted_form_forbidden](../violations/cache_control_argument_quoted_form_forbidden.md) — A Cache-Control delta-seconds argument is written in the quoted-string form
+- [cache_control_argument_token_form_forbidden](../violations/cache_control_argument_token_form_forbidden.md) — A Cache-Control field-name argument is written in the token form
 - [cache_control_directive_argument_forbidden](../violations/cache_control_directive_argument_forbidden.md) — A Cache-Control directive that defines no argument is written with one
 - [cache_control_directive_argument_missing](../violations/cache_control_directive_argument_missing.md) — A Cache-Control directive that requires an argument carries none
 - [cache_control_no_cache_argument_empty](../violations/cache_control_no_cache_argument_empty.md) — Cache-Control no-cache is qualified by no field name
@@ -67,7 +68,6 @@ enabled = true
 Cache-Control: max-age=3600
 Cache-Control: s-maxage=0, public
 Cache-Control: private="Set-Cookie, X-Foo"
-Cache-Control: private=Foo,bar
 ```
 
 ### ❌ Bad
@@ -86,6 +86,13 @@ Cache-Control: private="Set Cookie" # quoted content contains space-separated to
 ```http
 HTTP/1.1 200 OK
 Cache-Control: public, max-age
+```
+
+### ❌ Bad (a field-name argument in the token form, which RFC 9111 § 5.2.2.7 has a sender quote even for one name)
+
+```http
+HTTP/1.1 200 OK
+Cache-Control: private=Set-Cookie
 ```
 
 ### ❌ Bad (an argument on a directive RFC 9111 § 5.2 allows none for)
