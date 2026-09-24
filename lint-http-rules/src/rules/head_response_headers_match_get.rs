@@ -222,11 +222,18 @@ fn content_length_finding(
 /// `list_members` drops empty members, which is the recipient's reading and
 /// the right one for a question about what was advertised; a sender that
 /// writes `Accept, , Accept-Encoding` is `vary_header_valid`'s.
+///
+/// **A set has no count either.** A field named twice is looked up once, so
+/// `Accept-Encoding, Accept-Encoding, Cookie` advertises what
+/// `Accept-Encoding, Cookie` does. The sort alone kept the second copy, and a
+/// `GET` and a `HEAD` differing only in the repetition were reported as
+/// differing sets.
 fn vary_members(value: &str) -> Vec<String> {
     let mut members: Vec<String> = crate::helpers::list::list_members(value)
         .map(|s| s.to_ascii_lowercase())
         .collect();
     members.sort_unstable();
+    members.dedup();
     members
 }
 
@@ -1500,6 +1507,23 @@ mod tests {
             &make_cfg_with_headers(vec!["vary"]),
         );
         assert!(v.is_none());
+    }
+
+    /// A member written twice is the same set as one written once.
+    #[test]
+    fn vary_repeated_member_is_the_same_set() {
+        let rule = HeadResponseHeadersMatchGet;
+        let prev = make_prev_with_headers(&[("vary", "Accept-Encoding, Accept-Encoding,Cookie")]);
+        let mut head = make_head_with_headers(&[("vary", "cookie, accept-encoding")]);
+        head.request.uri = prev.request.uri.clone();
+
+        let v = crate::test_helpers::run_rule_all(
+            &rule,
+            &head,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &make_cfg_with_headers(vec!["vary"]),
+        );
+        assert!(v.is_empty(), "{v:?}");
     }
 
     #[test]

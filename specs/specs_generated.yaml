@@ -6391,7 +6391,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 300
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 446
+      line: 453
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 357
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
@@ -7467,7 +7467,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 134
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 445
+      line: 452
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 276
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
@@ -7789,7 +7789,7 @@ sources:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 215
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 314
+      line: 321
     - file: lint-http-rules/src/violations/field.rs
       line: 207
   - label: extension_headers_registered (5)
@@ -7821,7 +7821,7 @@ sources:
     snippet: The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any).
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 481
+      line: 488
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 121
   - label: head_response_headers_match_get (4)
@@ -7883,7 +7883,7 @@ sources:
     snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 440
+      line: 447
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 197
     - file: lint-http-rules/src/violations/method.rs
@@ -12605,13 +12605,13 @@ sources:
     snippet: This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 529
+      line: 536
   - label: head_response_headers_match_get (2)
     section: § 6.1
     snippet: Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 528
+      line: 535
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 292
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
