@@ -89,14 +89,20 @@ defects! {
         spec: &[PERMISSIONS_POLICY_5_2],
     }
 
-    /// A `report-to` parameter whose value is not a String:
-    /// `geolocation=(self);report-to=endpoint`.
+    /// A `report-to` parameter whose value is not a Token:
+    /// `geolocation=(self);report-to="endpoint"`.
+    ///
+    /// **This was the other way round until 2026-09-22.** § 5.2 and § 9.2 both
+    /// said String, and this entry reported the Token; the spec was changed
+    /// (w3c/webappsec-permissions-policy#592) to parse the parameter as a
+    /// Token, so a header written to the earlier text — a quoted endpoint name
+    /// — is now the one whose reports go nowhere.
     ///
     /// **What this costs is the reporting and not the directive**, which is the
     /// one place in this field where the two scopes § 5.2 defines are both too
     /// wide. The field still parses, so nothing is discarded; and the policy
     /// construction algorithm reads the parameter only *if* it "exists, and is
-    /// a string", so a Token there is skipped and the allowlist beside it is
+    /// a token", so a String there is skipped and the allowlist beside it is
     /// applied exactly as written. What the sender loses is the endpoint the
     /// violations were meant to be reported to — silently, since nothing else
     /// in the field marks it.
@@ -114,10 +120,10 @@ defects! {
     /// `info`. The permission is enforced as the sender wrote it; what is lost
     /// is telemetry about the times it bites.
     ///
-    // cite(Permissions Policy § 5.2): "Member Values may have a Parameter named "report-to", whose value must be a String."
+    // cite(Permissions Policy § 5.2): "Member Values may have a Parameter named "report-to", whose value must be a Token."
     PERMISSIONS_POLICY_REPORT_TO_MALFORMED = {
         id: "permissions_policy_report_to_malformed",
-        title: "A directive's report-to parameter is not a String",
+        title: "A directive's report-to parameter is not a Token",
         message: "",
         default_severity: Severity::Info,
         spec: &[PERMISSIONS_POLICY_5_2],

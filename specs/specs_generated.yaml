@@ -895,10 +895,10 @@ sources:
   fragments:
   - label: permissions_policy
     section: § 5.2
-    snippet: Member Values may have a Parameter named "report-to", whose value must be a String.
+    snippet: Member Values may have a Parameter named "report-to", whose value must be a Token.
     cited_by:
     - file: lint-http-rules/src/violations/permissions_policy.rs
-      line: 117
+      line: 123
   - label: permissions_policy_directives_valid
     section: § 5.2
     snippet: Any other items inside of an Inner List will be ignored by the processing steps, and the Member Value will be processed as if they were not present.
@@ -939,7 +939,7 @@ sources:
       line: 233
   - label: permissions_policy_directives_valid (6)
     section: § 9.2
-    snippet: If params["report-to"] exists, and is a string, then set reporting-config[feature] to params["report-to"].
+    snippet: If params["report-to"] exists, and is a token, then set reporting-config[feature] to params["report-to"].
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 620
@@ -14116,7 +14116,7 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 469
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 967
+      line: 964
   - label: lint-http-rules/src/helpers/structured_fields.rs (15)
     section: § 4.2.1.2
     snippet: Let item be the result of running Parsing an Item (Section 4.2.3) with input_string.
@@ -14190,7 +14190,7 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 323
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 985
+      line: 982
   - label: lint-http-rules/src/helpers/structured_fields.rs (26)
     section: § 4.2.2
     snippet: Let value be Boolean true.
@@ -14434,7 +14434,7 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 332
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 1011
+      line: 1008
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 338
     - file: lint-http-rules/src/violations/structured_fields.rs
@@ -14458,7 +14458,7 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 475
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 1039
+      line: 1036
   - label: permissions_policy_directives_valid (6)
     section: § 4.2.2
     snippet: Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored.

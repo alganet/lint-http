@@ -88,7 +88,7 @@ impl RuleMeta for PermissionsPolicyDirectivesValid {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self \"https://example.com\"), fullscreen=(), payment=(\"https://pay.example\");report-to=\"endpoint\"\n",
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self \"https://example.com\"), fullscreen=(), payment=(\"https://pay.example\");report-to=endpoint\n",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -126,8 +126,8 @@ impl RuleMeta for PermissionsPolicyDirectivesValid {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("(report-to must be a String)"),
-                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self);report-to=endpoint\n",
+                label: Some("(report-to must be a Token)"),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self);report-to=\"endpoint\"\n",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -256,7 +256,7 @@ impl Rule for PermissionsPolicyDirectivesValid {
 // - each member must be FeatureIdentifier = MemberValue
 // - member name: an SF key (§ 5.2), not § 5.1's HTML-attribute feature-identifier
 // - MemberValue: token '*', token 'self', string, or inner-list '(...)'
-// - MemberValue may have parameters after it; only parameter name 'report-to' is validated to be a quoted-string
+// - MemberValue may have parameters after it; only parameter name 'report-to' is validated to be a Token
 // Conservative: relies on liberal parsing of inner-list contents; primary goal is to catch common mistakes
 ///
 /// The two scopes § 5.2 and RFC 9651 § 4.2 define decide the shape of the
@@ -610,17 +610,17 @@ fn judge_parameters(parts: &[&str], feature: &str) -> Verdict {
             // The one per-directive failure among the parameters: the value
             // parses as a Structured Field and is refused by this field's own
             // definition, not by § 4.2.
-            if !is_quoted_string(value) {
+            if !is_valid_token_like(value) {
                 // What this costs is the reporting and not the directive, which
                 // is narrower than either scope above: the policy construction
                 // algorithm reads the parameter only if it "exists, and is a
-                // string", so a Token here is skipped and the allowlist beside
+                // token", so a String here is skipped and the allowlist beside
                 // it is applied exactly as written. The message says so, and the
                 // entry ranks on it.
-                // cite(Permissions Policy § 9.2): "If params["report-to"] exists, and is a string, then set reporting-config[feature] to params["report-to"]."
+                // cite(Permissions Policy § 9.2): "If params["report-to"] exists, and is a token, then set reporting-config[feature] to params["report-to"]."
                 ignored.get_or_insert_with(|| {
                     format!(
-                        "parameter 'report-to' for '{}' must be a String, so no reports are \
+                        "parameter 'report-to' for '{}' must be a Token, so no reports are \
                          sent for it -- the allowlist itself is still applied",
                         feature
                     )
@@ -756,10 +756,7 @@ mod tests {
     #[rstest]
     #[case(Some("geolocation=(self \"https://example.com\")"), false)]
     #[case(Some("fullscreen=()"), false)]
-    #[case(
-        Some("payment=(\"https://pay.example\") ; report-to=\"endpoint\""),
-        false
-    )]
+    #[case(Some("payment=(\"https://pay.example\") ; report-to=endpoint"), false)]
     #[case(Some("feature=*"), false)]
     #[case(Some("feature=self"), false)]
     // A Token keeps its case, so these are not the Tokens § 5.2 names; each is
@@ -778,7 +775,7 @@ mod tests {
     // A bare key parses -- it is the Boolean true -- so the field survives and
     // this one directive does not.
     #[case(Some("geolocation"), true)]
-    #[case(Some("geolocation=(self);report-to=endpoint"), true)]
+    #[case(Some("geolocation=(self);report-to=\"endpoint\""), true)]
     #[case(Some("geolocation=?1"), true)]
     #[case(Some(":byte:="), true)]
     #[case(None, false)]
@@ -1200,7 +1197,7 @@ mod tests {
     #[case("geolocation", "permissions_policy_allowlist_invalid")]
     #[case("geolocation=?1", "permissions_policy_allowlist_invalid")]
     #[case(
-        "geolocation=(self);report-to=endpoint",
+        "geolocation=(self);report-to=\"endpoint\"",
         "permissions_policy_report_to_malformed"
     )]
     fn each_shape_names_the_entry_that_answers_it(#[case] value: &str, #[case] id: &str) {
@@ -1211,13 +1208,13 @@ mod tests {
     fn an_uppercase_parameter_key_is_not_report_to() {
         // A key cannot hold an uppercase letter, so this is a parse failure
         // rather than a misspelled `report-to` whose value needs checking.
-        let v = findings_for("geolocation=(self);Report-To=\"endpoint\"");
+        let v = findings_for("geolocation=(self);Report-To=endpoint");
         assert_eq!(v.len(), 1, "{v:?}");
         assert!(v[0].contains("invalid parameter 'Report-To'"), "{}", v[0]);
     }
 
     #[test]
-    fn report_to_quoted_is_ok() {
+    fn report_to_token_is_ok() {
         let rule = PermissionsPolicyDirectivesValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "permissions_policy_directives_valid",
@@ -1226,7 +1223,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
             "permissions-policy",
-            "geolocation=(self);report-to=\"endpoint\"",
+            "geolocation=(self);report-to=endpoint",
         )]);
 
         let v = crate::test_helpers::run_rule(

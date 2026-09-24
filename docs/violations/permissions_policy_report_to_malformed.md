@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # permissions_policy_report_to_malformed
 
-A directive's report-to parameter is not a String
+A directive's report-to parameter is not a Token
 
 ## Message
 
@@ -24,7 +24,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.permissions_policy_report_to_malformed]
-# A directive's report-to parameter is not a String
+# A directive's report-to parameter is not a Token
 severity = "info"
 ```
 
