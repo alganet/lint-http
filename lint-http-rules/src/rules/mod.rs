@@ -1253,6 +1253,10 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
         QueryType::ByResource,
     ),
     (&s_max_age_enforced::SMaxAgeEnforced, QueryType::ByResource),
+    (
+        &etag_and_content_encoding_consistent::EtagAndContentEncodingConsistent,
+        QueryType::ByResource,
+    ),
 ];
 
 /// Lookup map from rule id to its required `QueryType`, built once from
