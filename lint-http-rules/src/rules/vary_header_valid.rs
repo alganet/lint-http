@@ -153,7 +153,13 @@ impl Rule for VaryHeaderValid {
                 if s.split(',')
                     .any(|raw| crate::helpers::headers::trim_ows(raw).is_empty())
                 {
-                    out.push(ctx.report_with(&LIST_MEMBER_EMPTY, "Vary header contains empty token (e.g., trailing or consecutive commas)".into()));
+                    out.push(ctx.report_with(
+                        &LIST_MEMBER_EMPTY,
+                        format!(
+                            "Vary field line '{}' holds an empty list element: every position in `#( \"*\" / field-name )` names a field or the wildcard, and a comma with nothing beside it names neither",
+                            crate::helpers::shown::shown_in_finding(s)
+                        ),
+                    ));
                 }
 
                 for token in crate::helpers::list::list_members(s) {
@@ -353,6 +359,13 @@ mod tests {
             .count();
         assert_eq!(empties, 1, "the gaps are one list defect: {found:?}");
         assert_eq!(found.len() - empties, 2, "{found:?}");
+        // And it names the line, since the sentence is the same for every
+        // value that draws it only if it names none.
+        let gap = found
+            .iter()
+            .find(|v| v.violation == "list_member_empty")
+            .expect("the gap");
+        assert!(gap.message.contains("'Acc@pt,,Us@r,,'"), "{}", gap.message);
     }
 
     #[test]
