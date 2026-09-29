@@ -163,6 +163,11 @@ pub fn defines_caching_semantics(method: &str) -> bool {
 /// refuses an entry only when neither could have held it. A cache extension
 /// that permits storing (§ 5.2.3) is the one alternative not read, and the
 /// omission errs toward silence.
+///
+/// **A status whose own document forbids storing it is refused before the
+/// licences are read.** RFC 6585 says a cache MUST NOT store a `428`, `429`,
+/// `431` or `511`, and none of § 3's alternatives answers that: a `429`
+/// carrying `max-age=60` was read as an entry a client could be holding.
 // cite(RFC 9111 § 3): "the no-store cache directive is not present in the response"
 // cite(RFC 9111 § 5.2.1.5): "The no-store request directive indicates that a cache MUST NOT store any part of either this request or any response to it."
 // cite(RFC 9111 § 3): "the response status code is final"
@@ -175,7 +180,10 @@ pub fn storage_allowed(
     status: u16,
     response: &hyper::HeaderMap,
 ) -> bool {
-    !no_store_forbids(request, response) && status >= 200 && licenses_storage(status, response)
+    !no_store_forbids(request, response)
+        && status >= 200
+        && !super::status::forbids_storage(status)
+        && licenses_storage(status, response)
 }
 
 /// § 3's last term alone: whether the response carries anything that licenses
@@ -675,6 +683,11 @@ mod tests {
     #[case(301, "", false, true)]
     #[case(101, "max-age=5", false, false)]
     #[case(200, "no-store", false, false)]
+    // RFC 6585's statuses are refused whatever licence they carry.
+    #[case(429, "max-age=60", false, false)]
+    #[case(428, "public", false, false)]
+    #[case(431, "", true, false)]
+    #[case(511, "s-maxage=5", false, false)]
     fn a_response_no_cache_could_keep_leaves_no_entry(
         #[case] status: u16,
         #[case] cache_control: &str,

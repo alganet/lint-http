@@ -956,7 +956,9 @@ defects! {
     /// matching `Content-Location` of every POST status alike. A `304` is not
     /// what a cache keeps. A `412` or a `416` is a verdict on the request's
     /// own precondition or `Range`, and a lifetime would let a cache hand it
-    /// to a later request that carried neither.
+    /// to a later request that carried neither. A `428`, `429`, `431` or `511`
+    /// is one RFC 6585 forbids a cache to store at all, so no lifetime makes
+    /// it stored.
     ///
     // cite(RFC 9110 § 15.1): "Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls"
     CACHE_CONTROL_FRESHNESS_MISSING = {

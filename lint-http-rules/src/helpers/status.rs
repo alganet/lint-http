@@ -31,6 +31,22 @@ pub fn is_heuristically_cacheable(status: u16) -> bool {
     )
 }
 
+/// Whether the document defining `status` forbids a cache to store a response
+/// carrying it, whatever else the response says.
+///
+/// RFC 6585 defines four statuses and closes each definition with the same
+/// sentence. RFC 9111 § 3 lists what a cache needs before it may store a
+/// response, and a MUST NOT in the status's own document is a further term
+/// none of § 3's licences answers: a `429` carrying `max-age=60` is still a
+/// response no cache keeps.
+// cite(RFC 6585 § 3): "Responses with the 428 status code MUST NOT be stored by a cache."
+// cite(RFC 6585 § 4): "Responses with the 429 status code MUST NOT be stored by a cache."
+// cite(RFC 6585 § 5): "Responses with the 431 status code MUST NOT be stored by a cache."
+// cite(RFC 6585 § 6): "Responses with the 511 status code MUST NOT be stored by a cache."
+pub fn forbids_storage(status: u16) -> bool {
+    matches!(status, 428 | 429 | 431 | 511)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -48,6 +64,17 @@ mod tests {
             100, 101, 201, 202, 302, 303, 304, 307, 400, 401, 403, 412, 416, 429, 500, 503,
         ] {
             assert!(!is_heuristically_cacheable(s), "{s}");
+        }
+    }
+
+    /// RFC 6585's four, and the neighbours that share a class with them.
+    #[test]
+    fn the_statuses_whose_document_forbids_storage_are_rfc_6585s_four() {
+        for s in [428, 429, 431, 511] {
+            assert!(forbids_storage(s), "{s}");
+        }
+        for s in [200, 404, 412, 416, 430, 451, 500, 503, 510] {
+            assert!(!forbids_storage(s), "{s}");
         }
     }
 

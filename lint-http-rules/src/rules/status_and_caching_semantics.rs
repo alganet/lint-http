@@ -238,6 +238,16 @@ impl Rule for StatusAndCachingSemantics {
                 return None;
             }
 
+            // A status whose own document forbids a cache to store it has the
+            // same answer for a different reason: a lifetime is the repair this
+            // entry names, and no lifetime makes a `429` stored. RFC 6585 ends
+            // each of its four definitions with that MUST NOT, and the storage
+            // reader every cache rule asks refuses them on it.
+            // cite(RFC 6585 § 4): "Responses with the 429 status code MUST NOT be stored by a cache."
+            if crate::helpers::status::forbids_storage(status) {
+                return None;
+            }
+
             // `no-store` is the next term of the conjunction, and it fails the
             // same way the two above do: § 3 states it before the one about
             // freshness, so a response carrying it is unstorable whatever
@@ -408,6 +418,14 @@ mod tests {
     #[case(416, vec![("content-range", "bytes */1234")], false)]
     #[case(412, vec![("cache-control", "max-age=60")], false)]
     #[case(403, vec![], true)]
+    // A status whose own document forbids a cache to store it: no lifetime is
+    // a repair, so none is asked for. And a 451, which RFC 7725 makes
+    // cacheable by default, is not "not cacheable by default".
+    #[case(428, vec![], false)]
+    #[case(429, vec![("retry-after", "60")], false)]
+    #[case(431, vec![], false)]
+    #[case(511, vec![], false)]
+    #[case(451, vec![], false)]
     fn caching_cases(
         #[case] status: u16,
         #[case] hdrs: Vec<(&str, &str)>,
