@@ -1809,7 +1809,7 @@ sources:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 446
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 265
+      line: 279
   - label: multipart_boundary_syntax (3)
     section: § 5.1.1
     snippet: The grammar for parameters on the Content-type field is such that it is often necessary to enclose the boundary parameter values in quotes on the Content-type line.
@@ -1833,19 +1833,19 @@ sources:
     snippet: An exact match of the entire candidate line is not required; it is sufficient that the boundary appear in its entirety following the CRLF.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 311
+      line: 325
   - label: multipart_content_type_and_body_consistent (2)
     section: § 5.1.1
     snippet: Boundary string comparisons must compare the boundary value with the beginning of each candidate line.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 310
+      line: 324
   - label: close-delimiter
     section: § 5.1.1
     snippet: Such a delimiter line is identical to the previous delimiter lines, with the addition of two more hyphens after the boundary parameter value.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 389
+      line: 403
     - file: lint-http-rules/src/violations/multipart_body.rs
       line: 82
   - label: multipart_content_type_and_body_consistent (3)
@@ -1861,25 +1861,25 @@ sources:
     snippet: The boundary delimiter MUST occur at the beginning of a line, i.e., following a CRLF, and the initial CRLF is considered to be attached to the boundary delimiter line rather than part of the preceding part.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 285
+      line: 299
   - label: multipart_content_type_and_body_consistent (5)
     section: § 5.1.1
     snippet: The boundary delimiter line following the last body part is a distinguished delimiter that indicates that no further body parts will follow.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 376
+      line: 390
   - label: multipart_content_type_and_body_consistent (6)
     section: § 5.1.1
     snippet: close-delimiter := delimiter "--"
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 322
+      line: 336
   - label: multipart_content_type_and_body_consistent (7)
     section: § 5.1.1
     snippet: dash-boundary := "--" boundary
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 264
+      line: 278
 - label: RFC 2068
   url: https://www.rfc-editor.org/rfc/rfc2068.html
   fragments:
@@ -8939,7 +8939,7 @@ sources:
     snippet: 'Content-Encoding = #content-coding'
     cited_by:
     - file: lint-http-rules/src/helpers/content_coding.rs
-      line: 26
+      line: 30
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 152
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
@@ -8951,7 +8951,7 @@ sources:
     snippet: If one or more encodings have been applied to a representation, the sender that applied the encodings MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied.
     cited_by:
     - file: lint-http-rules/src/helpers/content_coding.rs
-      line: 27
+      line: 31
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 249
   - label: lint-http-rules/src/helpers/content_coding.rs (3)
@@ -8959,19 +8959,37 @@ sources:
     snippet: Note that the coding named "identity" is reserved for its special role in Accept-Encoding and thus SHOULD NOT be included.
     cited_by:
     - file: lint-http-rules/src/helpers/content_coding.rs
-      line: 29
+      line: 33
     - file: lint-http-rules/src/violations/content_coding.rs
       line: 81
   - label: lint-http-rules/src/helpers/content_coding.rs (4)
+    section: § 8.4
+    snippet: The "Content-Encoding" header field indicates what content codings have been applied to the representation, beyond those inherent in the media type, and thus what decoding mechanisms have to be applied in order to obtain data in the media type referenced by the Content-Type header field.
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_coding.rs
+      line: 62
+  - label: lint-http-rules/src/helpers/content_coding.rs (5)
     section: § 8.4.1
     snippet: All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry",
     cited_by:
     - file: lint-http-rules/src/helpers/content_coding.rs
-      line: 28
+      line: 32
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 172
     - file: lint-http-rules/src/violations/content_coding.rs
       line: 123
+  - label: transfer-coding
+    section: § A
+    snippet: transfer-coding = token *( OWS ";" OWS transfer-parameter )
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_coding.rs
+      line: 65
+    - file: lint-http-rules/src/rules/te_header_valid.rs
+      line: 144
+    - file: lint-http-rules/src/rules/te_header_valid.rs
+      line: 189
+    - file: lint-http-rules/src/violations/transfer_coding.rs
+      line: 66
   - label: lint-http-rules/src/helpers/content_length.rs
     section: § 6.4
     snippet: For example, an HTTP/1.1 message body (Section 6 of [HTTP/1.1]) might consist of a stream of data encoded with the chunked transfer coding -- a sequence of data chunks, one zero-length chunk, and a trailer section -- whereas the content of that same message includes only the data stream after the transfer coding has been decoded; it does not include the chunk lengths, chunked framing syntax, nor the trailer fields (Section 6.5).
@@ -9327,7 +9345,7 @@ sources:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 203
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 177
+      line: 191
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 244
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
@@ -10445,7 +10463,7 @@ sources:
     snippet: The message body is itself a protocol element; a sender MUST generate only CRLF to represent line breaks between body parts.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 286
+      line: 300
   - label: must_revalidate_enforced
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2.
@@ -10682,12 +10700,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
       line: 50
-  - label: problem_details_structure_valid (4)
-    section: § 8.4
-    snippet: The "Content-Encoding" header field indicates what content codings have been applied to the representation, beyond those inherent in the media type, and thus what decoding mechanisms have to be applied in order to obtain data in the media type referenced by the Content-Type header field.
-    cited_by:
-    - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 221
   - label: proxy_connection_discouraged
     section: § 7.6.1
     snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
@@ -11712,16 +11724,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 99
-  - label: transfer-coding
-    section: § A
-    snippet: transfer-coding = token *( OWS ";" OWS transfer-parameter )
-    cited_by:
-    - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 144
-    - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 189
-    - file: lint-http-rules/src/violations/transfer_coding.rs
-      line: 66
   - label: token68
     section: § 11.2
     snippet: token68        = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
@@ -12952,22 +12954,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 224
-  - label: transfer-coding names
-    section: § 7
-    snippet: All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3.
-    cited_by:
-    - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 203
-    - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 105
-    - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 362
-    - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 441
-    - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 176
-    - file: lint-http-rules/src/violations/transfer_coding.rs
-      line: 110
   - label: compression_and_transfer_encoding_consistent (2)
     section: § 7.2
     snippet: 'The following transfer coding names for compression are defined by the same algorithm as their corresponding content coding:'
@@ -13140,6 +13126,36 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_version.rs
       line: 104
+  - label: transfer-coding names
+    section: § 7
+    snippet: All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3.
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_coding.rs
+      line: 66
+    - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
+      line: 203
+    - file: lint-http-rules/src/rules/transfer_coding_registered.rs
+      line: 105
+    - file: lint-http-rules/src/rules/transfer_coding_registered.rs
+      line: 362
+    - file: lint-http-rules/src/rules/transfer_coding_registered.rs
+      line: 441
+    - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
+      line: 176
+    - file: lint-http-rules/src/violations/transfer_coding.rs
+      line: 110
+  - label: lint-http-rules/src/helpers/content_coding.rs
+    section: § 7
+    snippet: This differs from a content coding in that the transfer coding is a property of the message rather than a property of the representation that is being transferred.
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_coding.rs
+      line: 64
+  - label: lint-http-rules/src/helpers/content_coding.rs (2)
+    section: § 7
+    snippet: Transfer coding names are used to indicate an encoding transformation that has been, can be, or might need to be applied to a message's content in order to ensure "safe transport" through the network.
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_coding.rs
+      line: 63
   - label: lint-http-rules/src/helpers/content_length.rs
     section: § 6.3
     snippet: If a message is received without Transfer-Encoding and with an invalid Content-Length header field, then the message framing is invalid and the recipient MUST treat it as an unrecoverable error, unless the field value can be successfully parsed as a comma-separated list (Section 5.6.1 of [HTTP]), all values in the list are valid, and all values in the list are the same (in which case, the message is processed with that single value used as the Content-Length field value).

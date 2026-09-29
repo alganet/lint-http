@@ -90,7 +90,7 @@ impl RuleMeta for ProblemDetailsStructureValid {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a response whose `Content-Type` is `application/problem+json` but whose content is not the problem details JSON object that media type identifies — content that is empty, that does not parse as JSON, or that parses as some other JSON value (an array, a string, a number). RFC 9457 defines the format; it obsoletes RFC 7807.\n\n**Any status code.** RFC 9457 says problem details \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\". Whether they *suit* a status is `problem_details_content_type`'s question; this rule's is whether content labelled as problem details is problem details, and that question reads the same on a 200 as on a 500.\n\n**Only where there is a document to read.** A response to `HEAD`, a `1xx`, `204`, `205` or `304`, and a `2xx` to `CONNECT` carry no content, so an empty capture there is what the exchange requires and not an empty document. A single-part `206` encloses one range of the representation, which is a slice of the format rather than a document in it, so it is not parsed either; a `206` whose range is the whole representation is.\n\n**An empty JSON object is conforming and is not reported.** Every member is optional: §3.1 introduces them with \"can have\", §3.1.1 says that when `type` is absent \"its value is assumed to be `about:blank`\", and §4.2.1 confirms that \"any problem details object not carrying an explicit `type` member implicitly uses this URI\" — the registered type meaning the problem has no semantics beyond the status code. So `{}` is a problem details object that says exactly that.\n\n**What the finding rests on.** No RFC states a MUST that content match its `Content-Type`. RFC 9110 §8.1 defines representation data as being \"in a format and encoding defined by the representation metadata header fields\", §8.3 says the indicated media type \"defines both the data format and how that data is intended to be processed by a recipient\", and the same section calls a server that does otherwise one that has not been configured \"to provide the correct Content-Type for a given representation\". A finding is a contradiction between two things the message itself states, not a matter of taste — but it is definitional in origin, not a stated requirement.\n\n**Limits.** Only the JSON serialization is checked: RFC 9457 defines an equivalent XML format (`application/problem+xml`) in Appendix B, and measuring an XML document against it needs a parser this crate does not have. A `Content-Encoding` means the captured octets are the coded form, so they are not parsed as JSON — the emptiness checks still apply, since a coded representation of nothing is still nothing. Two `Content-Type` field lines are declined: `Content-Type` is a singleton, recipients often act on the last member, and `content_type_valid` reports the duplication. A response carrying no `Content-Type` at all is `content_type_present`'s finding, and an unparseable one is `content_type_valid`'s.\n\nCaptured bodies are available to rules in memory, and `captures_include_body` decides whether they are also written to the captures file — a file written with it reads its bodies back, so this rule reaches the same content on a replay that it reached live, and a file written without it carries none. A body captured as a truncated prefix is not parsed. Nor is a counted zero read as an empty document when the reading stopped before the body's end — the zero is then where the reading stopped, not where the content ran out. Where no bytes are available at all, the emptiness half of the question is still answered from the counted octets, or failing that from a declared `Content-Length` of zero, which is evidence only when no `Transfer-Encoding` overrides it."
+        "Reports a response whose `Content-Type` is `application/problem+json` but whose content is not the problem details JSON object that media type identifies — content that is empty, that does not parse as JSON, or that parses as some other JSON value (an array, a string, a number). RFC 9457 defines the format; it obsoletes RFC 7807.\n\n**Any status code.** RFC 9457 says problem details \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\". Whether they *suit* a status is `problem_details_content_type`'s question; this rule's is whether content labelled as problem details is problem details, and that question reads the same on a 200 as on a 500.\n\n**Only where there is a document to read.** A response to `HEAD`, a `1xx`, `204`, `205` or `304`, and a `2xx` to `CONNECT` carry no content, so an empty capture there is what the exchange requires and not an empty document. A single-part `206` encloses one range of the representation, which is a slice of the format rather than a document in it, so it is not parsed either; a `206` whose range is the whole representation is.\n\n**An empty JSON object is conforming and is not reported.** Every member is optional: §3.1 introduces them with \"can have\", §3.1.1 says that when `type` is absent \"its value is assumed to be `about:blank`\", and §4.2.1 confirms that \"any problem details object not carrying an explicit `type` member implicitly uses this URI\" — the registered type meaning the problem has no semantics beyond the status code. So `{}` is a problem details object that says exactly that.\n\n**What the finding rests on.** No RFC states a MUST that content match its `Content-Type`. RFC 9110 §8.1 defines representation data as being \"in a format and encoding defined by the representation metadata header fields\", §8.3 says the indicated media type \"defines both the data format and how that data is intended to be processed by a recipient\", and the same section calls a server that does otherwise one that has not been configured \"to provide the correct Content-Type for a given representation\". A finding is a contradiction between two things the message itself states, not a matter of taste — but it is definitional in origin, not a stated requirement.\n\n**Limits.** Only the JSON serialization is checked: RFC 9457 defines an equivalent XML format (`application/problem+xml`) in Appendix B, and measuring an XML document against it needs a parser this crate does not have. A `Content-Encoding`, or a `Transfer-Encoding` naming any coding but `chunked`, means the captured octets are the coded form, since a capture removes the chunked framing and nothing else, so they are not parsed as JSON — the emptiness checks still apply, since a coded representation of nothing is still nothing. Two `Content-Type` field lines are declined: `Content-Type` is a singleton, recipients often act on the last member, and `content_type_valid` reports the duplication. A response carrying no `Content-Type` at all is `content_type_present`'s finding, and an unparseable one is `content_type_valid`'s.\n\nCaptured bodies are available to rules in memory, and `captures_include_body` decides whether they are also written to the captures file — a file written with it reads its bodies back, so this rule reaches the same content on a replay that it reached live, and a file written without it carries none. A body captured as a truncated prefix is not parsed. Nor is a counted zero read as an empty document when the reading stopped before the body's end — the zero is then where the reading stopped, not where the content ran out. Where no bytes are available at all, the emptiness half of the question is still answered from the counted octets, or failing that from a declared `Content-Length` of zero, which is evidence only when no `Transfer-Encoding` overrides it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -211,15 +211,15 @@ impl Rule for ProblemDetailsStructureValid {
                 return None;
             }
 
-            // A content coding makes the octets on the wire the coded form, so they
+            // A coding makes the octets the capture holds the coded form, so they
             // are not a JSON document and were never meant to be. What that
             // disqualifies is reading them as one -- and nothing else: how many of
             // them there are is still evidence, and an empty content is empty
-            // whatever was applied to it. A lone `identity` is not excepted: the
-            // same section says it SHOULD NOT be sent, so the only message this
-            // costs a finding is one already contradicting that sentence.
-            // cite(RFC 9110 § 8.4): "The "Content-Encoding" header field indicates what content codings have been applied to the representation, beyond those inherent in the media type, and thus what decoding mechanisms have to be applied in order to obtain data in the media type referenced by the Content-Type header field."
-            let coded = resp.headers.contains_key("content-encoding");
+            // whatever was applied to it. The coding is a content coding or a
+            // transfer coding other than chunked, which the capture does not undo;
+            // this read only `Content-Encoding`, and parsed a document sent
+            // `Transfer-Encoding: gzip, chunked` as malformed JSON.
+            let coded = crate::helpers::content_coding::captured_octets_coded(&resp.headers);
 
             // Skip byte inspection when the captured body is a truncated prefix
             // (streaming): a truncated JSON object would mis-parse. The bound is the
@@ -508,17 +508,30 @@ mod tests {
         assert!(v.message.contains("content is empty"), "{}", v.message);
     }
 
-    /// A `Content-Encoding` makes the captured octets the coded form, so they
-    /// cannot be parsed as JSON. The four bytes here are a gzip header.
-    #[test]
-    fn content_encoding_suppresses_the_json_parse() {
-        let tx = fixture(
-            500,
-            &[PJ, ("content-encoding", "gzip")],
-            Some(&[0x1f, 0x8b, 0x08, 0x00]),
-            Some(4),
-        );
+    /// A coding makes the captured octets the coded form, so they cannot be
+    /// parsed as JSON. The four bytes here are a gzip header. A capture removes
+    /// the chunked framing and nothing else, so a transfer coding beneath it is
+    /// still on the octets, and a document sent `gzip, chunked` was reported as
+    /// malformed JSON.
+    #[rstest]
+    #[case::content_coding(("content-encoding", "gzip"))]
+    #[case::transfer_coding_under_chunked(("transfer-encoding", "gzip, chunked"))]
+    #[case::transfer_coding_to_the_close(("transfer-encoding", "gzip"))]
+    fn a_coding_suppresses_the_json_parse(#[case] coding: (&str, &str)) {
+        let tx = fixture(500, &[PJ, coding], Some(&[0x1f, 0x8b, 0x08, 0x00]), Some(4));
         assert!(check(&tx).is_none(), "{:?}", check(&tx));
+    }
+
+    /// ...and a field naming no coding does not. Chunked is framing the capture
+    /// has removed, and `identity` is the absence of a coding, so the octets
+    /// are the document and the gzip header is not one.
+    #[rstest]
+    #[case::chunked(("transfer-encoding", "chunked"))]
+    #[case::identity(("content-encoding", "identity"))]
+    fn no_coding_leaves_the_octets_the_document(#[case] field: (&str, &str)) {
+        let tx = fixture(500, &[PJ, field], Some(&[0x1f, 0x8b, 0x08, 0x00]), Some(4));
+        let v = check(&tx).expect("expected a finding");
+        assert!(v.message.contains("not a JSON document"), "{}", v.message);
     }
 
     /// ...and nothing else. A coded representation of zero octets is still no
