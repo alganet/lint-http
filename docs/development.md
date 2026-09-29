@@ -107,8 +107,8 @@ id it does not recognise, pointing the operator at `docs/rules.md`.
 A rule id names a **claim** about the traffic; a violation id names the
 **defect** that breaks it, so the predicate vocabulary inverts. The shape is
 `<subject>[_<part>]_<defect>`, and it reads as a noun phrase closed by the
-adjective that condemns it: `if_match_member_malformed` is "the `If-Match`
-member is malformed".
+adjective that condemns it: `cookie_expires_malformed` is "the cookie's
+`Expires` is malformed".
 
 - The **subject** is the field or protocol element, spelled the way the rules
   spell it — `if_match`, `content_type`, `www_authenticate`. It is never the id

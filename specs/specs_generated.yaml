@@ -9253,7 +9253,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
       line: 110
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 467
+      line: 468
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
       line: 269
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
@@ -9303,7 +9303,7 @@ sources:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 287
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 469
+      line: 470
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.5
     snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
@@ -9311,7 +9311,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 473
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 470
+      line: 471
   - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.5
     snippet: field-content  = field-vchar [ 1*( SP / HTAB / field-vchar ) field-vchar ]
@@ -11177,7 +11177,7 @@ sources:
     snippet: 'such as an ABNF rule of #(values) defined in Section 5.6.1'
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 468
+      line: 469
   - label: singleton_fields_not_repeated (4)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated, having the same semantics as the Origination Date Field (orig-date) defined in Section 3.6.1 of [RFC5322].

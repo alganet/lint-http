@@ -138,7 +138,7 @@ impl Rule for AuthenticationFailureLoop {
             // A 401 that carries no challenge at all ends the run rather than
             // matching another that carries none: "contains the same challenge as
             // the prior response" is not satisfied by two responses that contain
-            // none, and a 401 without the field is `challenge_missing`'s finding
+            // none, and a 401 without the field is `status_401_challenge_missing`'s finding
             // rather than evidence for this one.
             // cite(RFC 9110 § 15.5.2): "The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource."
             let challenge = combined_field_value_as_written(&resp.headers, "www-authenticate")?;

@@ -314,9 +314,10 @@ enabled = true
          `Location`, `Max-Forwards`, `From`, `Content-Disposition`, `Content-Type`, `ETag` and \
          `Retry-After` — `If-Modified-Since` and `If-Unmodified-Since` are counted in \
          `conditional_headers_consistent`, `Host` in `host_header` (where RFC 9112 §3.2 adds \
-         the recipient's 400), and `Content-Length` reports its repetition as \
-         `content_length_conflicting` instead, because RFC 9110 §8.6 gives that field its own \
-         arithmetic for duplicate values, which is a different question from this rule's. \
+         the recipient's 400), and `Content-Length` reports lines that disagree as \
+         `content_length_members_conflicting` instead, because RFC 9110 §8.6 gives that field \
+         its own arithmetic for duplicate values, which is a different question from this \
+         rule's. \
          Beyond those, every field whose own document fixes it to one value counts its own \
          repetition where that value is judged: `Strict-Transport-Security`, \
          `X-Frame-Options`, `X-Content-Type-Options`, `X-XSS-Protection`, the three \

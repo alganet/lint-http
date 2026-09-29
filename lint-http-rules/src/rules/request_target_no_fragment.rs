@@ -299,7 +299,7 @@ mod tests {
         assert_eq!(v.violation, "request_target_fragment_forbidden");
         // `error`, inherited: no form of a request target generates the
         // component, so § 2.2's sender MUST NOT is what the entry breaks, and
-        // it ranks with `request_target_form_invalid` rather than below it.
+        // it ranks with `request_target_malformed` rather than below it.
         assert_eq!(v.severity, crate::lint::Severity::Error);
         assert!(
             v.message.contains(&format!("'{expected}'")),
