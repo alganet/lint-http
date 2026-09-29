@@ -61,7 +61,7 @@ impl RuleMeta for StatusAndCachingSemantics {
     }
 
     fn description(&self) -> &'static str {
-        "Responses with certain status codes are heuristically cacheable (for example: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414`, `501`). A response on any other status is stored only if it says something that licenses storing it: explicit freshness (`Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header), or a `public` or `private` directive — which licenses storage on its own and lets a cache calculate the lifetime heuristically.\n\nThis rule warns when a response status that is not heuristically cacheable says none of those, so no cache may keep it. It stays silent where a lifetime would not help: `no-store` on either message, an interim status, a method that defines no caching semantics, and a `304 (Not Modified)` — RFC 9111 §4.3.4 has a cache *update* stored responses from a 304 rather than keep the 304, and RFC 9110 §15.4.5 is the one sentence that asks a 304 for `Cache-Control` or `Expires`, conditionally on the `200` to the same request having carried one. That condition is `status_304_field_missing`'s to read.\n\n**A `412` or a `416` is not asked either, because there the lifetime is the wrong repair.** Each is a verdict on something only the request carried — its precondition, or its `Range` — and RFC 9111 §4 has a cache select a stored response by target URI, method and the fields `Vary` nominates, which include neither. A `412` stored for a minute answers the next plain `GET` of that URI with *precondition failed*. No sentence forbids storing either status, so nothing is reported whichever the response says."
+        "Responses with certain status codes are heuristically cacheable (for example: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414`, `501`). A response on any other status is stored only if it says something that licenses storing it: explicit freshness (`Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header), or a `public` or `private` directive — which licenses storage on its own and lets a cache calculate the lifetime heuristically.\n\nThis rule warns when a response status that is not heuristically cacheable says none of those, so no cache may keep it. It stays silent where a lifetime would not help: `no-store` on either message, an interim status, a method that defines no caching semantics, a `POST` (RFC 9110 §9.3.3 leaves its response unstorable without explicit freshness *and* a `Content-Location` equal to the target, whatever the status, so the status answers nothing here), and a `304 (Not Modified)` — RFC 9111 §4.3.4 has a cache *update* stored responses from a 304 rather than keep the 304, and RFC 9110 §15.4.5 is the one sentence that asks a 304 for `Cache-Control` or `Expires`, conditionally on the `200` to the same request having carried one. That condition is `status_304_field_missing`'s to read.\n\n**A `412` or a `416` is not asked either, because there the lifetime is the wrong repair.** Each is a verdict on something only the request carried — its precondition, or its `Range` — and RFC 9111 §4 has a cache select a stored response by target URI, method and the fields `Vary` nominates, which include neither. A `412` stored for a minute answers the next plain `GET` of that URI with *precondition failed*. No sentence forbids storing either status, so nothing is reported whichever the response says."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -124,8 +124,8 @@ impl RuleMeta for StatusAndCachingSemantics {
                 snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 403 Forbidden\n",
             },
             Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(POST — \u{a7}9.3.3 makes explicit freshness half of what would store it)"),
+                compliance: Compliance::Compliant,
+                label: Some("(POST — \u{a7}9.3.3 leaves it unstorable by method at every status, and a lifetime is half of what it asks)"),
                 snippet: "POST /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 403 Forbidden\n",
             },
         ]
@@ -159,15 +159,25 @@ impl Rule for StatusAndCachingSemantics {
             // no `max-age` its sender could add that would change the answer,
             // so the finding names a repair that does not exist.
             //
-            // `POST` is on § 9.2.3's list and stays asked, which is where this
-            // parts from `cache_control_present` next door. That rule warns
-            // about a heuristic § 9.3.3 never lets a POST response reach; this
-            // one says the response is unstorable and asks for freshness, and
-            // for a POST explicit freshness is half of exactly what § 9.3.3
-            // requires to make it storable. The advice is takeable, so it is
-            // given.
             // cite(RFC 9111 § 3): "the request method is understood by the cache"
             if !crate::helpers::stored_response::defines_caching_semantics(&tx.request.method) {
+                return None;
+            }
+
+            // `POST` is on § 9.2.3's list and is declined all the same, because
+            // for a POST it is the method, not the status, that leaves the
+            // response unstorable. § 9.3.3 makes a POST response cacheable only
+            // with explicit freshness *and* a `Content-Location` equal to the
+            // target, and lets no later POST be served from it at all; the
+            // heuristic § 15.1 grants by status never reaches it. So the
+            // question this entry asks -- does the status leave the response
+            // uncacheable by default? -- has the same answer on every POST
+            // status, and asking it of a `201` or a `403` while the heuristic
+            // term stayed silent on a `200` or a `204` reported by status what
+            // the method decides. The sentence also names half of the repair.
+            // `cache_control_present` declines POST for the same section.
+            // cite(RFC 9110 § 9.3.3): "Responses to POST requests are only cacheable when they include explicit freshness information (see Section 4.2.1 of [CACHING]) and a Content-Location header field that has the same value as the POST's target URI (Section 8.7)."
+            if tx.request.method == "POST" {
                 return None;
             }
 
@@ -432,16 +442,15 @@ mod tests {
     /// `max-age` their senders could add would make a cache hold the response
     /// and the finding names a repair that does not exist.
     ///
-    /// **`POST` is the row that separates this rule from `cache_control_present`
-    /// next door**, and it is pinned in both files for that reason. There the
-    /// harm is a heuristic \u{a7} 9.3.3 never lets a POST response reach, so the
-    /// question is dropped; here the finding is that nothing may store the
-    /// response, and \u{a7} 9.3.3 makes explicit freshness half of what would
-    /// change that. The advice is takeable, so it is still given.
+    /// **`POST` is declined by \u{a7} 9.3.3, as it is in `cache_control_present`
+    /// next door.** A POST response is unstorable without explicit freshness
+    /// *and* a matching `Content-Location` whatever its status, so a `403`
+    /// reported here beside a silent `200` was the status answering what the
+    /// method decides.
     #[rstest]
     #[case("GET", true)]
     #[case("HEAD", true)]
-    #[case("POST", true)]
+    #[case("POST", false)]
     #[case("OPTIONS", false)]
     #[case("TRACE", false)]
     #[case("PUT", false)]

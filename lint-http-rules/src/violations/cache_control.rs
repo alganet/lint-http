@@ -942,6 +942,14 @@ defects! {
     /// is not in that position — it is final, and stating its own freshness
     /// does make it storable.
     ///
+    /// **Nor is a response where the lifetime is not the repair.** A method
+    /// with no caching semantics and a `POST` are unstorable by method, the
+    /// second because RFC 9110 § 9.3.3 asks explicit freshness *and* a
+    /// matching `Content-Location` of every POST status alike. A `304` is not
+    /// what a cache keeps. A `412` or a `416` is a verdict on the request's
+    /// own precondition or `Range`, and a lifetime would let a cache hand it
+    /// to a later request that carried neither.
+    ///
     // cite(RFC 9110 § 15.1): "Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls"
     CACHE_CONTROL_FRESHNESS_MISSING = {
         id: "cache_control_freshness_missing",

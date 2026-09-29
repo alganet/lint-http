@@ -178,8 +178,8 @@ mod tests {
     /// it: the heuristic this rule warns about is assigned to a stored
     /// response, and `OPTIONS`, `TRACE` and the rest of \u{a7} 9.2.3's absentees
     /// leave none. `POST` is on \u{a7} 9.2.3's list and is still not asked, by
-    /// \u{a7} 9.3.3 — which is the one row here that differs from
-    /// `status_and_caching_semantics` next door, so it is pinned in both files.
+    /// \u{a7} 9.3.3, and `status_and_caching_semantics` next door declines it
+    /// for the same section, so the two cache rules agree on every method.
     #[rstest]
     #[case(
         "GET",
