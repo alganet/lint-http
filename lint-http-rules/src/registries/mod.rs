@@ -16,10 +16,17 @@
 //! with the date IANA gives for each registry's last update. What a deployment
 //! knowingly uses beyond them is the rule's `allowed` option, which adds to the
 //! registry and never replaces it.
+//!
+//! **The field-name registry is asked a different question: which type.** RFC
+//! 9651 § 4.2 parses a field value given a `field_type`, and nothing on the
+//! wire carries one, so a reader that does not know it can only ask whether
+//! the value parses as *some* type. The registry's Structured Type column is
+//! where the type is published.
 
 mod auth_schemes;
 mod charsets;
 mod media_types;
+mod structured_types;
 
 /// Whether a sorted, lowercased snapshot holds `name` under any casing.
 ///
@@ -58,6 +65,32 @@ pub fn auth_scheme_registered(name: &str) -> bool {
     holds(auth_schemes::NAMES, name)
 }
 
+/// The three `field_type`s RFC 9651 § 4.2 parses a field value as.
+// cite(RFC 9651 § 4.2): "Given an array of bytes as input_bytes that represent the chosen field's field-value (which is empty if that field is not present) and field_type (one of "dictionary", "list", or "item"), return the parsed field value."
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructuredType {
+    Item,
+    List,
+    Dictionary,
+}
+
+/// The Structured Type the HTTP Field Name registry gives the field `name`,
+/// if its column names one of the three.
+///
+/// `None` for a field the column leaves blank, which is most of them, and for
+/// a cell naming something that is no `field_type`: the generator leaves such
+/// a field out and says so.
+// cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1."
+pub fn structured_type(name: &str) -> Option<StructuredType> {
+    [
+        (structured_types::ITEMS, StructuredType::Item),
+        (structured_types::LISTS, StructuredType::List),
+        (structured_types::DICTIONARIES, StructuredType::Dictionary),
+    ]
+    .into_iter()
+    .find_map(|(names, ty)| holds(names, name).then_some(ty))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,6 +103,9 @@ mod tests {
     #[case::media_types(media_types::NAMES)]
     #[case::charsets(charsets::NAMES)]
     #[case::auth_schemes(auth_schemes::NAMES)]
+    #[case::structured_items(structured_types::ITEMS)]
+    #[case::structured_lists(structured_types::LISTS)]
+    #[case::structured_dictionaries(structured_types::DICTIONARIES)]
     fn a_snapshot_is_folded_sorted_and_unique(#[case] names: &[&str]) {
         for pair in names.windows(2) {
             assert!(
@@ -124,5 +160,35 @@ mod tests {
     #[case("AidLogin", false)]
     fn auth_schemes_are_the_registrys(#[case] name: &str, #[case] expected: bool) {
         assert_eq!(auth_scheme_registered(name), expected);
+    }
+
+    /// A field is registered with one type, so the three lists are disjoint;
+    /// a name in two would be read as whichever list is asked first.
+    #[test]
+    fn a_field_has_one_structured_type() {
+        for item in structured_types::ITEMS {
+            assert!(!holds(structured_types::LISTS, item), "{item}");
+            assert!(!holds(structured_types::DICTIONARIES, item), "{item}");
+        }
+        for list in structured_types::LISTS {
+            assert!(!holds(structured_types::DICTIONARIES, list), "{list}");
+        }
+    }
+
+    #[rstest]
+    #[case("Accept-CH", Some(StructuredType::List))]
+    #[case("cache-status", Some(StructuredType::List))]
+    #[case("CDN-Cache-Control", Some(StructuredType::Dictionary))]
+    #[case("Priority", Some(StructuredType::Dictionary))]
+    #[case("Incremental", Some(StructuredType::Item))]
+    #[case("Origin-Agent-Cluster", Some(StructuredType::Item))]
+    #[case("Sec-Fetch-Storage-Access", None)] // its cell reads `Token`
+    #[case("Reporting-Endpoints", None)] // its cell is blank
+    #[case("Cache-Control", None)]
+    fn structured_types_are_the_registrys(
+        #[case] name: &str,
+        #[case] expected: Option<StructuredType>,
+    ) {
+        assert_eq!(structured_type(name), expected);
     }
 }

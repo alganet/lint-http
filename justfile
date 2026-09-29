@@ -138,7 +138,9 @@ genconfig:
 # Regenerate the IANA registry snapshots in lint-http-rules/src/registries/ from
 # the registries' own CSVs. Three rules ask whether a name is registered, and a
 # short shipped list standing in for the answer reported registered names as
-# unregistered, so the answer is the registry and this is how it is kept.
+# unregistered, so the answer is the registry and this is how it is kept. A
+# fourth asks which Structured Type a field was registered with, which is the
+# `field_type` RFC 9651 § 4.2 parses it as.
 #
 # Each file is headed with the date IANA says the registry was last updated,
 # never today's, so a run against an unchanged registry rewrites nothing and
@@ -175,13 +177,17 @@ genregistries:
             raise SystemExit(f"{BASE}{path}: expected a CSV opening {header!r}, got {body[:60]!r}")
         return list(csv.DictReader(io.StringIO(body)))
 
-    def write(stem, title, index, sources, what, cite, names, floor):
-        names = sorted(set(names))
-        if len(names) < floor:
-            raise SystemExit(f"{stem}: {len(names)} names, fewer than the {floor} the registry holds")
-        bad = [n for n in names if not re.fullmatch(r"[!-~]+", n) or '"' in n or "\\" in n]
-        if bad:
-            raise SystemExit(f"{stem}: names outside visible ASCII or needing an escape: {bad}")
+    # `groups` is one `(CONST, names, floor)` per list the file carries.
+    def write(stem, title, index, sources, what, cite, groups):
+        consts = []
+        for const, names, floor in groups:
+            names = sorted(set(names))
+            if len(names) < floor:
+                raise SystemExit(f"{stem}: {len(names)} {const}, fewer than the {floor} the registry holds")
+            bad = [n for n in names if not re.fullmatch(r"[!-~]+", n) or '"' in n or "\\" in n]
+            if bad:
+                raise SystemExit(f"{stem}: names outside visible ASCII or needing an escape: {bad}")
+            consts.append((const, names))
         lines = [
             "// SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>",
             "//",
@@ -197,10 +203,12 @@ genregistries:
         ] + [f"//! - <{BASE}{s}>" for s in sources] + [
             "",
             f"// cite({cite[0]}): \"{cite[1]}\"",
-            "pub(super) const NAMES: &[&str] = &[",
-        ] + [f"    \"{n}\"," for n in names] + ["];", ""]
-        (OUT / f"{stem}.rs").write_text("\n".join(lines))
-        print(f"{stem}.rs: {len(names)} names")
+        ]
+        for i, (const, names) in enumerate(consts):
+            lines += ([""] if i else []) + [f"pub(super) const {const}: &[&str] = &["]
+            lines += [f"    \"{n}\"," for n in names] + ["];"]
+        (OUT / f"{stem}.rs").write_text("\n".join(lines + [""]))
+        print(f"{stem}.rs: " + ", ".join(f"{len(names)} {const}" for const, names in consts))
 
     TYPES = ["application", "audio", "font", "haptics", "image", "message", "model", "multipart", "text", "video"]
     media = []
@@ -210,7 +218,7 @@ genregistries:
           [f"media-types/{t}.csv" for t in TYPES],
           "Every `type/subtype` its top-level tables list",
           ("RFC 9110 § 8.3.1", "Media types ought to be registered with IANA according to the procedures defined in [BCP13]."),
-          media, 2000)
+          [("NAMES", media, 2000)])
 
     charsets = []
     for r in rows("character-sets/character-sets-1.csv", "Preferred MIME Name,Name,MIBenum"):
@@ -222,7 +230,7 @@ genregistries:
           ["character-sets/character-sets-1.csv"],
           "Every name, preferred MIME name and alias",
           ("RFC 9110 § 8.3.2", "Charset names ought to be registered in the IANA \"Character Sets\" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978]."),
-          charsets, 800)
+          [("NAMES", charsets, 800)])
 
     schemes = [r["Authentication Scheme Name"].strip().lower()
                for r in rows("http-authschemes/authschemes.csv", "Authentication Scheme Name,Reference")]
@@ -230,9 +238,24 @@ genregistries:
           ["http-authschemes/authschemes.csv"],
           "Every scheme name",
           ("RFC 9110 § 16.4.1", "The \"Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry\" defines the namespace for the authentication schemes in challenges and credentials."),
-          schemes, 10)
+          [("NAMES", schemes, 10)])
 
-    subprocess.run(["rustfmt", "--edition", "2021"] + [str(OUT / f"{s}.rs") for s in ("media_types", "charsets", "auth_schemes")], check=True)
+    # RFC 9651 § 4.2 is run with one of three `field_type`s, so a cell naming
+    # anything else names no algorithm, and the field is left untyped.
+    typed = {"Item": [], "List": [], "Dictionary": []}
+    for r in rows("http-fields/field-names.csv", "Field Name,Status,Structured Type"):
+        t = r["Structured Type"].strip()
+        if t in typed:
+            typed[t].append(r["Field Name"].strip().lower())
+        elif t:
+            print(f"structured_types.rs: {r['Field Name']} is typed {t!r}, which is no field_type; left untyped")
+    write("structured_types", "HTTP Field Name", "http-fields/http-fields.xhtml",
+          ["http-fields/field-names.csv"],
+          "Every field name whose Structured Type column names a `field_type`, one list per type",
+          ("RFC 9651 § 5", "The \"Structured Type\" column indicates the type of the field (per RFC 9651), if any, and may be \"Dictionary\", \"List\", or \"Item\"."),
+          [("ITEMS", typed["Item"], 15), ("LISTS", typed["List"], 6), ("DICTIONARIES", typed["Dictionary"], 8)])
+
+    subprocess.run(["rustfmt", "--edition", "2021"] + [str(OUT / f"{s}.rs") for s in ("media_types", "charsets", "auth_schemes", "structured_types")], check=True)
 
 # The workspace still builds on the oldest Rust it claims to support.
 #

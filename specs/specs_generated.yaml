@@ -1369,6 +1369,16 @@ sources:
       line: 151
     - file: lint-http-rules/src/violations/report_to.rs
       line: 102
+- label: Reporting API
+  url: https://www.w3.org/TR/reporting-1/
+  type: text/html
+  fragments:
+  - label: structured_headers_valid
+    section: § 3.2
+    snippet: Reporting-Endpoints is a Dictionary Structured Field [STRUCTURED-FIELDS].
+    cited_by:
+    - file: lint-http-rules/src/rules/structured_headers_valid.rs
+      line: 39
 - label: Storage Access Headers
   url: https://privacycg.github.io/storage-access-headers/
   type: text/html
@@ -8764,7 +8774,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 1088
     - file: lint-http-rules/src/registries/mod.rs
-      line: 30
+      line: 37
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
       line: 190
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
@@ -9874,7 +9884,7 @@ sources:
     - file: lint-http-rules/src/helpers/response_content.rs
       line: 88
     - file: lint-http-rules/src/registries/mod.rs
-      line: 28
+      line: 35
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 307
     - file: lint-http-rules/src/rules/charset_present.rs
@@ -10470,11 +10480,25 @@ sources:
     - file: lint-http-rules/src/violations/media_type.rs
       line: 143
   - label: lint-http-rules/src/registries/mod.rs
+    section: § 5.1
+    snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1.
+    cited_by:
+    - file: lint-http-rules/src/registries/mod.rs
+      line: 83
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
+      line: 143
+    - file: lint-http-rules/src/rules/trailer_fields_valid.rs
+      line: 206
+    - file: lint-http-rules/src/rules/trailer_fields_valid.rs
+      line: 248
+    - file: lint-http-rules/src/rules/trailer_header_valid.rs
+      line: 125
+  - label: lint-http-rules/src/registries/mod.rs (2)
     section: § 8.3.2
     snippet: In both cases, charset names are matched case-insensitively.
     cited_by:
     - file: lint-http-rules/src/registries/mod.rs
-      line: 29
+      line: 36
     - file: lint-http-rules/src/rules/charset_registered.rs
       line: 82
     - file: lint-http-rules/src/rules/charset_registered.rs
@@ -10922,24 +10946,12 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 132
   - label: post_creates_resource (2)
-    section: § 5.1
-    snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1.
-    cited_by:
-    - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 143
-    - file: lint-http-rules/src/rules/trailer_fields_valid.rs
-      line: 206
-    - file: lint-http-rules/src/rules/trailer_fields_valid.rs
-      line: 248
-    - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 125
-  - label: post_creates_resource (3)
     section: § 9.3.3
     snippet: An origin server indicates response semantics by choosing an appropriate status code depending on the result of processing the POST request; almost all of the status codes defined by this specification could be received in a response to POST (the exceptions being 206 (Partial Content), 304 (Not Modified), and 416 (Range Not Satisfiable)).
     cited_by:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 121
-  - label: post_creates_resource (4)
+  - label: post_creates_resource (3)
     section: § 9.3.3
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created (Section 10.2.2) and a representation that describes the status of the request while referring to the new resource(s).
     cited_by:
@@ -14978,7 +14990,9 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 521
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 315
+      line: 392
+    - file: lint-http-rules/src/rules/structured_headers_valid.rs
+      line: 459
   - label: lint-http-rules/src/helpers/structured_fields.rs (10)
     section: § 4.2
     snippet: The parsing algorithms for both types allow tab characters, since these might be used to combine field lines by some implementations.
@@ -15032,7 +15046,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 625
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 321
+      line: 323
   - label: lint-http-rules/src/helpers/structured_fields.rs (18)
     section: § 4.2.10
     snippet: If char is in the range %x00-1f or %x7f-ff (i.e., it is not in VCHAR or SP), fail parsing.
@@ -15112,7 +15126,9 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 204
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 323
+      line: 388
+    - file: lint-http-rules/src/rules/structured_headers_valid.rs
+      line: 467
   - label: lint-http-rules/src/helpers/structured_fields.rs (29)
     section: § 4.2.3
     snippet: Let bare_item be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string.
@@ -15132,9 +15148,9 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 394
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 271
+      line: 273
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 296
+      line: 298
   - label: lint-http-rules/src/helpers/structured_fields.rs (32)
     section: § 4.2.3.2
     snippet: Discard any leading SP characters from input_string.
@@ -15311,6 +15327,20 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 322
+  - label: lint-http-rules/src/registries/mod.rs
+    section: § 4.2
+    snippet: Given an array of bytes as input_bytes that represent the chosen field's field-value (which is empty if that field is not present) and field_type (one of "dictionary", "list", or "item"), return the parsed field value.
+    cited_by:
+    - file: lint-http-rules/src/registries/mod.rs
+      line: 69
+    - file: lint-http-rules/src/rules/structured_headers_valid.rs
+      line: 440
+  - label: lint-http-rules/src/registries/structured_types.rs
+    section: § 5
+    snippet: The "Structured Type" column indicates the type of the field (per RFC 9651), if any, and may be "Dictionary", "List", or "Item".
+    cited_by:
+    - file: lint-http-rules/src/registries/structured_types.rs
+      line: 14
   - label: permissions_policy_directives_valid
     section: § 3.2
     snippet: As with Lists, an empty Dictionary is represented by omitting the entire field.
@@ -15318,7 +15348,7 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 205
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 350
+      line: 352
   - label: permissions_policy_directives_valid (2)
     section: § 3.2
     snippet: Member keys cannot contain uppercase characters.
@@ -15342,7 +15372,7 @@ sources:
     - file: lint-http-rules/src/violations/structured_fields.rs
       line: 25
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 241
+      line: 243
   - label: permissions_policy_directives_valid (4)
     section: § 4.2
     snippet: When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly.
@@ -15352,7 +15382,7 @@ sources:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 100
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 34
+      line: 63
   - label: permissions_policy_directives_valid (5)
     section: § 4.2.1.2
     snippet: If the first character of input_string is not SP or ")", fail parsing.
@@ -15369,6 +15399,8 @@ sources:
       line: 400
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 358
+    - file: lint-http-rules/src/rules/structured_headers_valid.rs
+      line: 410
     - file: lint-http-rules/src/violations/structured_fields.rs
       line: 177
   - label: priority_header_syntax
@@ -15381,37 +15413,39 @@ sources:
     snippet: This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 252
+      line: 349
   - label: structured_headers_valid (2)
-    section: § 4.2
-    snippet: Given an array of bytes as input_bytes that represent the chosen field's field-value (which is empty if that field is not present) and field_type (one of "dictionary", "list", or "item"), return the parsed field value.
-    cited_by:
-    - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 296
-  - label: structured_headers_valid (3)
     section: § 4.2
     snippet: If field_type is "dictionary", let output be the result of running Parsing a Dictionary (Section 4.2.2) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 335
-  - label: structured_headers_valid (4)
+      line: 401
+    - file: lint-http-rules/src/rules/structured_headers_valid.rs
+      line: 479
+  - label: structured_headers_valid (3)
     section: § 4.2
     snippet: If field_type is "item", let output be the result of running Parsing an Item (Section 4.2.3) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 328
-  - label: structured_headers_valid (5)
+      line: 396
+    - file: lint-http-rules/src/rules/structured_headers_valid.rs
+      line: 472
+  - label: structured_headers_valid (4)
     section: § 4.2
     snippet: If field_type is "list", let output be the result of running Parsing a List (Section 4.2.1) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 330
-  - label: structured_headers_valid (6)
+      line: 399
+    - file: lint-http-rules/src/rules/structured_headers_valid.rs
+      line: 474
+  - label: structured_headers_valid (5)
     section: § 4.2.1
     snippet: No structured data has been found; return members (which is empty).
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 322
+      line: 387
+    - file: lint-http-rules/src/rules/structured_headers_valid.rs
+      line: 466
 - label: RFC 9745
   url: https://www.rfc-editor.org/rfc/rfc9745.html
   fragments:

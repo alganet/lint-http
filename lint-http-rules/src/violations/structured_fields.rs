@@ -222,11 +222,13 @@ defects! {
     /// **The coarse entry, and it is what a reader that does not know the
     /// field's type is left with.** § 4.2 takes a `field_type` and nothing on
     /// the wire carries one: the registry publishes a Structured Type column
-    /// for the fields that have been given one, and a rule pointed at a bare
-    /// field name has only the value. Such a reader can try all three and
-    /// report that none of them parsed; it cannot say *which* member, because
-    /// naming one would be naming a type the field may well not have been
-    /// defined as.
+    /// for the fields that have been given one, and a field it leaves blank,
+    /// whose document is not in hand either, has only the value. Such a reader
+    /// can try all three and report that none of them parsed; it cannot say
+    /// *which* member, because naming one would be naming a type the field may
+    /// well not have been defined as. `structured_headers_valid` carries the
+    /// column, so it reports this only for a name its `headers` option adds
+    /// that nothing types.
     ///
     /// **So it sits beside the finer entries rather than instead of them.**
     /// A rule that knows the field is a Dictionary reports

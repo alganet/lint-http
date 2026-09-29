@@ -899,11 +899,11 @@ enabled = true
 # list; a field nobody registered is not on it however its draft describes the
 # value, which is why `Critical-CH` and the `Sec-CH-UA-*` client hints are absent.
 #
-# This rule cannot know which type a field was defined as, so it accepts a value
-# that parses as any of the three; where a field has its own rule -- Priority,
-# Permissions-Policy, the four `Sec-Fetch-*` and `Sec-Fetch-Storage-Access` --
-# that rule knows the type and reports more precisely, and listing it here only
-# doubles the finding.
+# Each field is parsed as the type that column (or its document) gives it; a
+# name added here that nothing types is accepted if it parses as any of the
+# three. Where a field has its own rule -- Priority, Permissions-Policy, the four
+# `Sec-Fetch-*` and `Sec-Fetch-Storage-Access` -- that rule reads its members
+# too, and listing it here only doubles the finding.
 headers = ["Accept-CH", "Accept-Query", "Activate-Storage-Access",
     "Available-Dictionary", "Cache-Group-Invalidation", "Cache-Groups",
     "Cache-Status", "Capsule-Protocol", "CDN-Cache-Control", "Client-Cert",

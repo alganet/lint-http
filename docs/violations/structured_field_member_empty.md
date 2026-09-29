@@ -40,3 +40,4 @@ severity = "warn"
 - [sec_fetch_site_value_valid](../rules/sec_fetch_site_value_valid.md)
 - [sec_fetch_storage_access_value_valid](../rules/sec_fetch_storage_access_value_valid.md)
 - [sec_fetch_user_value_valid](../rules/sec_fetch_user_value_valid.md)
+- [structured_headers_valid](../rules/structured_headers_valid.md)

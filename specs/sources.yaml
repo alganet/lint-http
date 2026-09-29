@@ -157,6 +157,13 @@ sources:
     # does not define how its own value is *parsed*: § 5.1 defers that to
     # Section 4 of [HTTP-JFV], which is the pinned draft below.
 
+  - label: Reporting API
+    url: https://www.w3.org/TR/reporting-1/
+    type: text/html
+    # Cited for the one field whose Structured Type the HTTP Field Name Registry
+    # leaves blank while its own document states it: § 3.2 defines
+    # `Reporting-Endpoints` as a Dictionary.
+
   - label: Storage Access Headers
     url: https://privacycg.github.io/storage-access-headers/
     type: text/html

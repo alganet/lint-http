@@ -4,22 +4,51 @@
 
 use crate::helpers::structured_fields::*;
 use crate::lint::Violation;
+use crate::registries::StructuredType;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::structured_fields::{
-    RFC_9651_4_2, STRUCTURED_FIELD_CHARACTER_FORBIDDEN, STRUCTURED_FIELD_MALFORMED,
+    structured_field_defect, RFC_9651_4_2, RFC_9651_4_2_1_2, RFC_9651_4_2_2, RFC_9651_4_2_3_1,
+    RFC_9651_4_2_3_3, STRUCTURED_FIELD_CHARACTER_FORBIDDEN, STRUCTURED_FIELD_INNER_LIST_MALFORMED,
+    STRUCTURED_FIELD_KEY_DUPLICATED, STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MALFORMED,
+    STRUCTURED_FIELD_MEMBER_EMPTY, STRUCTURED_FIELD_VALUE_EMPTY, STRUCTURED_FIELD_VALUE_MALFORMED,
 };
 use crate::violations::ViolationDef;
 
 pub struct StructuredHeadersValid;
 
-/// The two a field-type-blind reader can tell apart, and no more. The octet
-/// check § 4.2 runs before it chooses an algorithm is the one failure this
-/// rule can name; past it, all three readings have failed and naming a member
-/// would mean naming a type the field may not have been defined as.
+/// Two readers' entries. A field whose type is known is parsed as that type,
+/// and a failure names the member it stopped on, through the five entries
+/// `structured_field_defect` maps a parse failure to; a Dictionary that parsed
+/// can still carry a key twice. A configured field whose type is not known is
+/// tried as all three, and past the octet check § 4.2 runs before it chooses
+/// an algorithm, the coarse entry is all it can say: naming a member would
+/// mean naming a type the field may not have been defined as.
 static DECLARED: &[&ViolationDef] = &[
     &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
     &STRUCTURED_FIELD_MALFORMED,
+    &STRUCTURED_FIELD_MEMBER_EMPTY,
+    &STRUCTURED_FIELD_KEY_MALFORMED,
+    &STRUCTURED_FIELD_VALUE_EMPTY,
+    &STRUCTURED_FIELD_VALUE_MALFORMED,
+    &STRUCTURED_FIELD_INNER_LIST_MALFORMED,
+    &STRUCTURED_FIELD_KEY_DUPLICATED,
 ];
+
+/// The fields whose registry cell is blank and whose own document states the
+/// type. The registry is asked first, so a cell filled later takes over.
+// cite(Reporting API § 3.2): "Reporting-Endpoints is a Dictionary Structured Field [STRUCTURED-FIELDS]."
+const TYPED_BY_THEIR_DOCUMENT: &[(&str, StructuredType)] =
+    &[("reporting-endpoints", StructuredType::Dictionary)];
+
+/// The `field_type` § 4.2 is run with for the lowercased field name `hdr`, if
+/// anything publishes one.
+fn field_type(hdr: &str) -> Option<StructuredType> {
+    crate::registries::structured_type(hdr).or_else(|| {
+        TYPED_BY_THEIR_DOCUMENT
+            .iter()
+            .find_map(|(name, ty)| (*name == hdr).then_some(*ty))
+    })
+}
 
 impl StructuredHeadersValid {
     /// Judge one header field across one section, from its joined value.
@@ -39,7 +68,7 @@ impl StructuredHeadersValid {
         section: &str,
         party: crate::lint::Party,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
+    ) -> Vec<Violation> {
         let mut lines: Vec<&str> = Vec::new();
         for hv in headers.get_all(hdr).iter() {
             // Not "not valid UTF-8", which this used to claim and is a different
@@ -48,22 +77,54 @@ impl StructuredHeadersValid {
             // considered -- which is what makes this the one failure a rule
             // holding no `field_type` can put a name to.
             let Ok(v) = hv.to_str() else {
-                return Some(self.parse_failure(
+                return vec![self.parse_failure(
                     ctx,
                     &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
                     hdr,
                     section,
                     party,
                     "contains an octet outside US-ASCII",
-                ));
+                )];
             };
             lines.push(v);
         }
         if lines.is_empty() {
-            return None;
+            return Vec::new();
         }
-        let msg = validate_structured_field(&lines.join(", "))?;
-        Some(self.parse_failure(ctx, &STRUCTURED_FIELD_MALFORMED, hdr, section, party, &msg))
+        let joined = lines.join(", ");
+        let Some(ty) = field_type(hdr) else {
+            return Vec::from_iter(validate_structured_field(&joined).map(|msg| {
+                self.parse_failure(ctx, &STRUCTURED_FIELD_MALFORMED, hdr, section, party, &msg)
+            }));
+        };
+        match parse_as(&joined, ty) {
+            Err(defect) => vec![self.parse_failure(
+                ctx,
+                structured_field_defect(defect.kind),
+                hdr,
+                section,
+                party,
+                &format!(
+                    "as the {} the field is defined as, {}",
+                    type_name(ty),
+                    defect.message
+                ),
+            )],
+            Ok(keys) => repeated(&keys)
+                .into_iter()
+                .map(|key| {
+                    ctx.by(party).report_with(
+                        &STRUCTURED_FIELD_KEY_DUPLICATED,
+                        format!(
+                            "The {} header '{}' gives the Dictionary key '{}' more than once; \
+                             a recipient keeps the last and ignores the others, so the earlier \
+                             ones have no effect",
+                            section, hdr, key
+                        ),
+                    )
+                })
+                .collect(),
+        }
     }
 
     /// The finding, framed as what a recipient does about it.
@@ -113,11 +174,17 @@ const RFC_9651_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-2.4",
     note: "Why a 9651 parser must accept the two new types: it parses everything an 8941 parser does, and more",
 };
+const REPORTING_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Reporting API",
+    section: Some("3.2"),
+    url: "https://www.w3.org/TR/reporting-1/#header",
+    note: "`Reporting-Endpoints` defined as a Dictionary, the one configured field whose registry cell is blank",
+};
 const RFC_9651_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9651",
     section: Some("5"),
     url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-5",
-    note: "The registry's \"Structured Type\" column — where the field_type this rule lacks is published, for the fields that have one",
+    note: "The registry's \"Structured Type\" column — where the field_type each field is parsed as is published, for the fields that have one",
 };
 
 impl RuleMeta for StructuredHeadersValid {
@@ -138,11 +205,11 @@ impl RuleMeta for StructuredHeadersValid {
 # list; a field nobody registered is not on it however its draft describes the
 # value, which is why `Critical-CH` and the `Sec-CH-UA-*` client hints are absent.
 #
-# This rule cannot know which type a field was defined as, so it accepts a value
-# that parses as any of the three; where a field has its own rule -- Priority,
-# Permissions-Policy, the four `Sec-Fetch-*` and `Sec-Fetch-Storage-Access` --
-# that rule knows the type and reports more precisely, and listing it here only
-# doubles the finding.
+# Each field is parsed as the type that column (or its document) gives it; a
+# name added here that nothing types is accepted if it parses as any of the
+# three. Where a field has its own rule -- Priority, Permissions-Policy, the four
+# `Sec-Fetch-*` and `Sec-Fetch-Storage-Access` -- that rule reads its members
+# too, and listing it here only doubles the finding.
 headers = ["Accept-CH", "Accept-Query", "Activate-Storage-Access",
     "Available-Dictionary", "Cache-Group-Invalidation", "Cache-Groups",
     "Cache-Status", "Capsule-Protocol", "CDN-Cache-Control", "Client-Cert",
@@ -172,11 +239,21 @@ headers = ["Accept-CH", "Accept-Query", "Activate-Storage-Access",
     }
 
     fn description(&self) -> &'static str {
-        "Reports a configured header field whose value fails RFC 9651 Structured Fields parsing. The finding is not that a member is malformed but that the **whole field is gone**: §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen it. One uppercase letter in a Dictionary key costs every other member of the field.\n\n**All three types are tried, because there is no way to know which one applies.** §4.2's algorithm takes a `field_type` — Dictionary, List or Item — and nothing on the wire carries it; the `headers` option names bare field names. So a value passes if any of the three parses it, which means `Priority: \"u\"` is accepted here: it is a perfectly good String Item, just not the Dictionary that field was defined as. When all three fail, the message says what each reading complained about, since telling a Dictionary it is an invalid Item tells it nothing. Point this rule at fields that have no rule of their own — one that knows the type will always say more.\n\n**Every field line is joined first**, as §4.2 requires. A List or Dictionary is a structure over the whole field and its members may be split across lines on purpose; a line judged alone can fail in ways the field does not, and a defect spread across two lines is invisible in either.\n\n**All seven bare-item types**, including the Date (`@1659578233`) and Display String (`%\"caf%c3%a9\"`) that RFC 9651 added over RFC 8941 — §2.4 is explicit that a parser implementing 9651 also parses everything an 8941 one does. A parameter value is any of them.\n\n**Not reported:** an empty field value, which §4.2.1 and §4.2.2 both parse into an empty structure rather than failing; and a duplicate Dictionary key, which §4.2.2 resolves silently in favour of the last one — a defect worth reporting, but only by a rule that knows the field is a Dictionary."
+        "Reports a configured header field whose value fails RFC 9651 Structured Fields parsing. The finding is not that a member is malformed but that the **whole field is gone**: §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen it. One uppercase letter in a Dictionary key costs every other member of the field.\n\n**Each field is parsed as the type it is defined as.** §4.2's algorithm takes a `field_type` — Dictionary, List or Item — and nothing on the wire carries it; the HTTP Field Name Registry's Structured Type column publishes it, and this rule carries that column. `Reporting-Endpoints` has a blank cell, and the Reporting API's §3.2 defines it as a Dictionary. So `Reporting-Endpoints: \"https://example.com/r\"` is reported: it is a perfectly good String Item, and a Dictionary cannot begin with a DQUOTE, so a browser registers no endpoint. A failure names the member the parse stopped on, under the entry for what went wrong there. A name added to `headers` that nothing types is tried as all three instead, and passes if any of them parses it; when all three fail, the message says what each reading complained about, under `structured_field_malformed`. Point this rule at fields that have no rule of their own — one that reads the members will always say more.\n\n**Every field line is joined first**, as §4.2 requires. A List or Dictionary is a structure over the whole field and its members may be split across lines on purpose; a line judged alone can fail in ways the field does not, and a defect spread across two lines is invisible in either.\n\n**All seven bare-item types**, including the Date (`@1659578233`) and Display String (`%\"caf%c3%a9\"`) that RFC 9651 added over RFC 8941 — §2.4 is explicit that a parser implementing 9651 also parses everything an 8941 one does. A parameter value is any of them.\n\n**A Dictionary key written twice is reported** although the field parses: §4.2.2 keeps the last and ignores the others, so the earlier ones have no effect and the header still reads as though they did.\n\n**Not reported:** an empty List or Dictionary, which §4.2.1 and §4.2.2 parse into an empty structure rather than failing, and which RFC 9651 spells by leaving the field out — whether writing one anyway is worth saying is each field's question. An empty Item is reported, since §4.2.3 finds no bare item in it and the field is discarded."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9651_4_2, RFC_9651_3_3, RFC_9651_2_4, RFC_9651_5]
+        &[
+            RFC_9651_4_2,
+            RFC_9651_4_2_2,
+            RFC_9651_4_2_1_2,
+            RFC_9651_4_2_3_1,
+            RFC_9651_4_2_3_3,
+            RFC_9651_3_3,
+            RFC_9651_2_4,
+            RFC_9651_5,
+            REPORTING_3_2,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -233,6 +310,26 @@ headers = ["Accept-CH", "Accept-Query", "Activate-Storage-Access",
                 label: Some("a Byte Sequence needs the second colon"),
                 snippet: "HTTP/1.1 200 OK\nProxy-Status: revdns; digest=:YWJj\n",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("a String is an Item, and Reporting-Endpoints is a Dictionary"),
+                snippet: "HTTP/1.1 200 OK\nReporting-Endpoints: \"https://example.com/reports\"\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("an Item that opens on its parameters has no bare item"),
+                snippet: "HTTP/1.1 200 OK\nIncremental: ;a\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("a Dictionary keeps the last of a repeated key"),
+                snippet: "HTTP/1.1 200 OK\nCDN-Cache-Control: max-age=60, max-age=5\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("an Inner List needs its closing parenthesis"),
+                snippet: "HTTP/1.1 200 OK\nAccept-CH: (Sec-CH-UA-Model Sec-CH-UA-Platform\n",
+            },
         ]
     }
 }
@@ -277,21 +374,68 @@ impl Rule for StructuredHeadersValid {
     }
 }
 
-/// Validate a joined field value as a Structured Field. `Some(msg)` on failure.
+/// Parse a joined field value as the `field_type` it is defined as, the way
+/// § 4.2 does: the keys of a Dictionary that parsed, in the order written, and
+/// nothing for a List or an Item that did.
 ///
-/// § 4.2 takes a `field_type` and this has none: nothing on the wire says
-/// whether a configured header was defined as a Dictionary, a List or an Item,
-/// and the config names bare field names. So all three are tried and the value
-/// passes if any of them parses it. That is a real weakening -- `Priority` is a
-/// Dictionary, and `Priority: "u"` is accepted here because it is a perfectly
-/// good String Item -- and it is the honest limit of what a generic rule can
-/// say. Where a field's own rule exists, that rule knows the type and this one
-/// should not be pointed at the same header.
+/// **An empty value is the one place the three types part.** A List and a
+/// Dictionary end on an empty structure, which RFC 9651 spells by leaving the
+/// field out; whether writing one anyway is worth reporting is a field's own
+/// question, and this reader serves many fields. An Item has no empty form:
+/// § 4.2.3 finds no bare item, and the field is discarded.
 ///
-/// (The registry does now publish types, which is the shape of a fix: RFC 9651
-/// § 5 added a "Structured Type" column and populated it for ten fields. It is
-/// a registry table, not something a parser derives, so it is left for a rule
-/// that transcribes one.)
+// cite(RFC 9651 § 4.2.1): "No structured data has been found; return members (which is empty)."
+// cite(RFC 9651 § 4.2.2): "No structured data has been found; return dictionary (which is empty)."
+fn parse_as(s: &str, ty: StructuredType) -> Result<Vec<&str>, SfDefect> {
+    // The same leniency as the untyped reading below: surrounding space is
+    // discarded by step 2 and steps 6-7, and a tab is an artifact of the join.
+    // cite(RFC 9651 § 4.2): "Discard any leading SP characters from input_string."
+    let s = s.trim();
+    let failed = |defect: Option<SfDefect>| defect.map_or(Ok(Vec::new()), Err);
+    match ty {
+        // cite(RFC 9651 § 4.2): "If field_type is "item", let output be the result of running Parsing an Item (Section 4.2.3) with input_string."
+        StructuredType::Item => failed(parse_item(s)),
+        StructuredType::List if s.is_empty() => Ok(Vec::new()),
+        // cite(RFC 9651 § 4.2): "If field_type is "list", let output be the result of running Parsing a List (Section 4.2.1) with input_string."
+        StructuredType::List => failed(parse_list(s)),
+        // cite(RFC 9651 § 4.2): "If field_type is "dictionary", let output be the result of running Parsing a Dictionary (Section 4.2.2) with input_string."
+        StructuredType::Dictionary => {
+            parse_dictionary(s).map(|members| members.into_iter().map(|m| m.key).collect())
+        }
+    }
+}
+
+/// Each key written more than once, once, in the order it first repeats.
+/// `u=1, u=2, u=3` is one fact about `u`.
+// cite(RFC 9651 § 4.2.2): "Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored."
+fn repeated<'a>(keys: &[&'a str]) -> Vec<&'a str> {
+    let mut out: Vec<&str> = Vec::new();
+    for (i, key) in keys.iter().enumerate() {
+        if keys[..i].contains(key) && !out.contains(key) {
+            out.push(key);
+        }
+    }
+    out
+}
+
+fn type_name(ty: StructuredType) -> &'static str {
+    match ty {
+        StructuredType::Item => "Item",
+        StructuredType::List => "List",
+        StructuredType::Dictionary => "Dictionary",
+    }
+}
+
+/// Validate a joined field value as a Structured Field of no known type.
+/// `Some(msg)` on failure.
+///
+/// The reading for a configured name nothing types: § 4.2 takes a
+/// `field_type`, nothing on the wire carries one, and neither the registry's
+/// Structured Type column nor [`TYPED_BY_THEIR_DOCUMENT`] names one for this
+/// field. So all three are tried and the value passes if any of them parses
+/// it. That is a real weakening -- `Priority: "u"` is a perfectly good String
+/// Item and no Dictionary -- which is why a field with a published type is
+/// parsed by [`parse_as`] instead.
 ///
 // cite(RFC 9651 § 4.2): "Given an array of bytes as input_bytes that represent the chosen field's field-value (which is empty if that field is not present) and field_type (one of "dictionary", "list", or "item"), return the parsed field value."
 fn validate_structured_field(s: &str) -> Option<String> {
@@ -318,7 +462,7 @@ fn validate_structured_field(s: &str) -> Option<String> {
     // An empty value is not a parse failure. Two of the three algorithms end by
     // returning an empty structure, so a field-type-blind check cannot call it
     // one. A field whose own definition makes it an Item is the exception, and
-    // that is exactly the judgement this rule is not in a position to make.
+    // only a reading that knows the type can make it: `parse_as` does.
     // cite(RFC 9651 § 4.2.1): "No structured data has been found; return members (which is empty)."
     // cite(RFC 9651 § 4.2.2): "No structured data has been found; return dictionary (which is empty)."
     if s.is_empty() {
@@ -330,8 +474,8 @@ fn validate_structured_field(s: &str) -> Option<String> {
     // cite(RFC 9651 § 4.2): "If field_type is "list", let output be the result of running Parsing a List (Section 4.2.1) with input_string."
     let as_list = parse_list(s);
     // Only whether it parsed is wanted here; the members it yields are for a
-    // caller that knows the field was defined as a Dictionary, which is the
-    // one thing this rule cannot know.
+    // caller that knows the field was defined as a Dictionary, which this
+    // reading does not.
     // cite(RFC 9651 § 4.2): "If field_type is "dictionary", let output be the result of running Parsing a Dictionary (Section 4.2.2) with input_string."
     let as_dictionary = parse_dictionary(s).err();
 
@@ -346,7 +490,7 @@ fn validate_structured_field(s: &str) -> Option<String> {
     // same limit stated once more: each names the defect *its* reading stopped
     // on, and nothing in the message says which reading the field was written
     // for. A rule that knows its field is a Dictionary keeps the one answer it
-    // asked for and reports the entry behind it; this one keeps the wording of
+    // asked for and reports the entry behind it; this reading keeps the wording of
     // all three and reports the coarse entry, which is what that entry is for.
     let (as_item, as_list, as_dictionary) =
         (as_item.message, as_list.message, as_dictionary.message);
@@ -1007,10 +1151,13 @@ mod tests {
                     let found = found.unwrap_or_else(|| {
                         panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
                     });
-                    assert!(
-                        found.message.contains("fails Structured Fields"),
-                        "{found:?}"
-                    );
+                    // A repeated key is the one finding on a field that parsed.
+                    let said = if found.violation == STRUCTURED_FIELD_KEY_DUPLICATED.id {
+                        "keeps the last"
+                    } else {
+                        "fails Structured Fields"
+                    };
+                    assert!(found.message.contains(said), "{found:?}");
                     saw_a_finding = true;
                 }
             }
@@ -1448,5 +1595,121 @@ mod tests {
         assert_eq!(all.len(), 2, "{all:?}");
         assert!(all[0].message.contains("x-first"), "{}", all[0].message);
         assert!(all[1].message.contains("x-second"), "{}", all[1].message);
+    }
+
+    /// Every finding one response header draws under the shipped default.
+    fn typed_findings(name: &str, value: &str) -> Vec<crate::lint::Violation> {
+        let shipped = shipped_default_headers();
+        let cfg = make_cfg_with_headers(&shipped.iter().map(String::as_str).collect::<Vec<_>>());
+        let tx = crate::test_helpers::make_test_transaction_with_response(200, &[(name, value)]);
+        crate::test_helpers::run_rule_all(
+            &StructuredHeadersValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+    }
+
+    /// A registered field is parsed as the type its registry row gives it,
+    /// and each value here parses as some other type: the any-of-three reading
+    /// accepted every one, and a recipient running § 4.2 with the field's own
+    /// type discards the field.
+    #[rstest]
+    // A String Item, and the field is a Dictionary (its document says so).
+    #[case(
+        "reporting-endpoints",
+        "\"https://example.com/reports\"",
+        "structured_field_key_malformed"
+    )]
+    // Two Items are a List, and the field is an Item.
+    #[case("incremental", "?1, ?0", "structured_field_value_malformed")]
+    // A Dictionary member, and the field is a List.
+    #[case("accept-ch", "sec-ch-ua-model=?1", "structured_field_value_malformed")]
+    // An Integer Item, and the field is a Dictionary, whose keys start with a
+    // letter. (A bare `max-age` is a Dictionary: a key set to Boolean true.)
+    #[case("cdn-cache-control", "60", "structured_field_key_malformed")]
+    // An Item has no empty form, where a List and a Dictionary do.
+    #[case("incremental", "", "structured_field_value_empty")]
+    #[case("dictionary-id", ";a", "structured_field_value_empty")]
+    // The shape five origins send, read as the Dictionary it is: the key
+    // parses, and the apostrophe starts no bare item.
+    #[case(
+        "reporting-endpoints",
+        "csp-report-to-endpoint='/w/api.php?action=cspreport&format=json';",
+        "structured_field_value_malformed"
+    )]
+    fn a_registered_field_is_parsed_as_its_own_type(
+        #[case] name: &str,
+        #[case] value: &str,
+        #[case] expected: &str,
+    ) {
+        let all = typed_findings(name, value);
+        assert_eq!(all.len(), 1, "{all:?}");
+        assert_eq!(all[0].violation, expected, "{}", all[0].message);
+        assert!(
+            all[0].message.contains("the field is defined as"),
+            "{}",
+            all[0].message
+        );
+    }
+
+    /// The other direction: each field's own type, written legally, including
+    /// the empty List and Dictionary § 4.2.1 and § 4.2.2 return.
+    #[rstest]
+    #[case("reporting-endpoints", "a=\"https://example.com/r\", b=\"/r\"")]
+    #[case("incremental", "?1")]
+    #[case("dictionary-id", "\"abc\";x=1")]
+    #[case("accept-ch", "Sec-CH-UA-Model, Sec-CH-UA-Platform-Version")]
+    #[case("accept-ch", "")]
+    #[case("cdn-cache-control", "max-age=60, no-store")]
+    #[case("cdn-cache-control", "")]
+    #[case("cache-status", "ExampleCache; hit, (a b)")]
+    fn a_registered_field_in_its_own_type_draws_nothing(#[case] name: &str, #[case] value: &str) {
+        let all = typed_findings(name, value);
+        assert!(all.is_empty(), "{all:?}");
+    }
+
+    /// A Dictionary that parsed keeps the last of a repeated key, so the
+    /// earlier ones are dead text: one finding per key, however often it
+    /// repeats, and none for a key written once.
+    #[test]
+    fn a_repeated_dictionary_key_is_reported_once_per_key() {
+        let all = typed_findings(
+            "cdn-cache-control",
+            "max-age=1, no-store, max-age=2, max-age=3",
+        );
+        assert_eq!(all.len(), 1, "{all:?}");
+        assert_eq!(all[0].violation, "structured_field_key_duplicated");
+        assert!(all[0].message.contains("'max-age'"), "{}", all[0].message);
+
+        let all = typed_findings(
+            "reporting-endpoints",
+            "a=\"/1\", b=\"/2\", a=\"/3\", b=\"/4\"",
+        );
+        assert_eq!(all.len(), 2, "{all:?}");
+    }
+
+    /// A List's members are not keyed, so a repetition there is two members.
+    #[test]
+    fn a_repeated_list_member_is_not_a_repeated_key() {
+        assert!(typed_findings("accept-ch", "Sec-CH-UA, Sec-CH-UA").is_empty());
+    }
+
+    /// A configured name nothing types keeps the any-of-three reading: a
+    /// String is a legal Item, and it draws nothing.
+    #[test]
+    fn an_untyped_name_is_accepted_as_any_type() {
+        let cfg = make_cfg_with_headers(&["x-struct"]);
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("x-struct", "\"https://example.com/reports\"")],
+        );
+        let all = crate::test_helpers::run_rule_all(
+            &StructuredHeadersValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(all.is_empty(), "{all:?}");
     }
 }
