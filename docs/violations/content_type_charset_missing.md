@@ -10,7 +10,7 @@ A text media type does not say which character encoding it used
 
 ## Message
 
-Text-based Content-Type header missing charset parameter.
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 

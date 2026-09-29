@@ -362,6 +362,12 @@ sources:
   url: https://html.spec.whatwg.org/multipage/semantics.html
   type: text/html
   fragments:
+  - label: charset_present
+    section: § 4.2.5.4
+    snippet: If an HTML document does not start with a BOM, and its encoding is not explicitly given by Content-Type metadata, and the document is not an iframe srcdoc document, then the encoding must be specified using a meta element with a charset attribute or a meta element with an http-equiv attribute in the Encoding declaration state.
+    cited_by:
+    - file: lint-http-rules/src/rules/charset_present.rs
+      line: 220
   - label: link_header_valid
     section: § 4.2.4.4
     snippet: Apply link options from parsed header attributes to options given attribs
@@ -1338,7 +1344,7 @@ sources:
     snippet: Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred.
     cited_by:
     - file: lint-http-rules/src/rules/charset_present.rs
-      line: 178
+      line: 194
 - label: MDN Expect-CT
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Expect-CT
   fragments:
@@ -7087,7 +7093,7 @@ sources:
     snippet: Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response.
     cited_by:
     - file: lint-http-rules/src/rules/charset_present.rs
-      line: 105
+      line: 116
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 123
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
@@ -7097,15 +7103,15 @@ sources:
     snippet: In a response to a HEAD request, the representation header fields describe the representation data that would have been enclosed in the content if the same request had been a GET.
     cited_by:
     - file: lint-http-rules/src/rules/charset_present.rs
-      line: 120
+      line: 131
   - label: charset_present (3)
     section: § 8.3.2
     snippet: HTTP uses "charset" names to indicate or negotiate the character encoding scheme
     cited_by:
     - file: lint-http-rules/src/rules/charset_present.rs
-      line: 141
+      line: 157
     - file: lint-http-rules/src/violations/content_type.rs
-      line: 76
+      line: 83
   - label: charset_registered
     section: § 8.3
     snippet: 'The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics.'
@@ -9445,7 +9451,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 307
     - file: lint-http-rules/src/rules/charset_present.rs
-      line: 133
+      line: 144
     - file: lint-http-rules/src/rules/content_type_registered.rs
       line: 145
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
@@ -12685,7 +12691,7 @@ sources:
     snippet: Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section.
     cited_by:
     - file: lint-http-rules/src/rules/charset_present.rs
-      line: 104
+      line: 115
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 115
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs

@@ -69,15 +69,22 @@ defects! {
     /// **No sentence asks for it, and the entry says so.** § 8.3.2 explains
     /// what `charset` is for and requires nothing, so this is a policy of this
     /// crate's — the same footing `problem_details_missing` is on, and ranked
-    /// the same way.
+    /// the same way. The nearest thing to a requirement is HTML's, and it is a
+    /// disjunction this field is one arm of: a page may declare its encoding
+    /// with a byte order mark or a `<meta charset>` instead, and a header reader
+    /// sees neither, so the finding names both rather than claiming the page
+    /// declares nothing.
     ///
     /// `info`.
+    ///
+    /// The sentence is formatted at the site, naming the `Content-Type` value
+    /// that drew it.
     ///
     // cite(RFC 9110 § 8.3.2): "HTTP uses "charset" names to indicate or negotiate the character encoding scheme"
     CONTENT_TYPE_CHARSET_MISSING = {
         id: "content_type_charset_missing",
         title: "A text media type does not say which character encoding it used",
-        message: "Text-based Content-Type header missing charset parameter.",
+        message: "",
         default_severity: Severity::Info,
         spec: &[RFC_9110_8_3_2],
     }

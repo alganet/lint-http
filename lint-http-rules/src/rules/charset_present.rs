@@ -21,6 +21,12 @@ const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
     note: "`media-type` and the case-insensitivity of its type/subtype tokens, which decides what counts as `text/*` here",
 };
+const HTML_SEMANTICS_4_2_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML Semantics",
+    section: Some("4.2.5.4"),
+    url: "https://html.spec.whatwg.org/multipage/semantics.html#charset",
+    note: "Specifying the document's character encoding — the three places an HTML page may declare it, of which this field is the only one a header reader sees",
+};
 const MDN_CONTENT_TYPE: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "MDN Content-Type",
     section: None,
@@ -39,13 +45,18 @@ impl RuleMeta for CharsetPresent {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter. Responses only, and the type is matched case-insensitively, so `TEXT/HTML` is in scope.\n\nSpecifying the character encoding is crucial for security and correct rendering. If the charset is not explicitly defined, browsers may attempt to guess the encoding (MIME sniffing), which can lead to Cross-Site Scripting (XSS) vulnerabilities or incorrect display of characters.\n\nNo specification requires the parameter — RFC 9110 defines what `charset` means and mandates nothing about sending it — so this rule is a deliberate policy rather than a conformance check. Only the parameter's presence is checked; whether its value names a registered charset is a separate rule's concern.\n\n**A response with no content to render is skipped**: `1xx`, `204`, `205` and `304`. The hazard this rule names is a recipient guessing the encoding of text it is about to render, and none of those messages carries any â the field beside them describes something the recipient is not receiving. A `304` is the case where the advice was not merely idle but contradictory, since §15.4.5 tells the sender not to generate representation metadata on one at all and `status_304_representation_metadata` reports it. **A response to `HEAD` is deliberately not skipped**: §8.2 makes its representation header fields describe the data a `GET` would have enclosed, so a charset absent there is absent from the representation.
+        "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter. Responses only, and the type is matched case-insensitively, so `TEXT/HTML` is in scope.\n\nThe parameter tells a recipient which character encoding the text was written in. Without it the recipient looks to the content itself, and where the content declares nothing either, it decodes by a default or a guess of its own — and text decoded in an encoding it was not written in is garbled. For `text/html` the finding says where else the page may declare it: HTML requires a page with no byte order mark and no `charset` here to carry a `<meta charset>`, and a header reader cannot see which of those a page has.\n\nNo specification requires the parameter — RFC 9110 defines what `charset` means and mandates nothing about sending it — so this rule is a deliberate policy rather than a conformance check. Only the parameter's presence is checked; whether its value names a registered charset is a separate rule's concern.\n\n**A response with no content to render is skipped**: `1xx`, `204`, `205` and `304`. The hazard this rule names is a recipient guessing the encoding of text it is about to render, and none of those messages carries any — the field beside them describes something the recipient is not receiving. A `304` is the case where the advice was not merely idle but contradictory, since §15.4.5 tells the sender not to generate representation metadata on one at all and `status_304_representation_metadata` reports it. **A response to `HEAD` is deliberately not skipped**: §8.2 makes its representation header fields describe the data a `GET` would have enclosed, so a charset absent there is absent from the representation.
 
 The parameter list is read quote-aware, so a `;` inside a quoted value does not start a new parameter and text that merely looks like `charset=` inside another value does not count. If the quoting never closes, the rule declines to judge rather than report a charset missing that the value plainly carries — an unreadable parameter list is `content_type_valid`'s finding, not an absent charset."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_8_3_1, RFC_9110_8_3_2, MDN_CONTENT_TYPE]
+        &[
+            RFC_9110_8_3_1,
+            RFC_9110_8_3_2,
+            HTML_SEMANTICS_4_2_5_4,
+            MDN_CONTENT_TYPE,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -132,6 +143,11 @@ impl Rule for CharsetPresent {
                 // `TEXT/HTML` is in scope exactly as `text/html` is.
                 // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
                 if let Ok(parsed) = crate::helpers::media_type::parse_media_type(ct_str) {
+                    let essence = format!(
+                        "{}/{}",
+                        parsed.type_.to_ascii_lowercase(),
+                        parsed.subtype.to_ascii_lowercase()
+                    );
                     if parsed.type_.eq_ignore_ascii_case("text") {
                         // Parameter *names* are case-insensitive too, which is why the
                         // key comparison folds case. Only the name is compared — the
@@ -177,7 +193,10 @@ impl Rule for CharsetPresent {
                         // not have.
                         // cite(MDN Content-Type): "Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred."
                         if !has_charset {
-                            return Some(ctx.report(&CONTENT_TYPE_CHARSET_MISSING));
+                            return Some(ctx.report_with(
+                                &CONTENT_TYPE_CHARSET_MISSING,
+                                missing_sentence(ct_str, &essence),
+                            ));
                         }
                     }
                 }
@@ -185,6 +204,35 @@ impl Rule for CharsetPresent {
             None
         };
         Vec::from_iter(finding())
+    }
+}
+
+/// The finding, naming the value that drew it and what a recipient does
+/// without the parameter.
+///
+/// **An HTML page has two other places to say it**, and HTML requires one of
+/// the three: a page that starts with no byte order mark and gets no `charset`
+/// here must carry a `<meta charset>`. A header reader sees only this one, so
+/// the sentence names the other two rather than implying the page declares
+/// nothing. For every other `text/*` type the sentence claims no more than the
+/// message shows: its fields do not say, and a recipient falls back on the
+/// content or on a default of its own.
+// cite(HTML Semantics § 4.2.5.4): "If an HTML document does not start with a BOM, and its encoding is not explicitly given by Content-Type metadata, and the document is not an iframe srcdoc document, then the encoding must be specified using a meta element with a charset attribute or a meta element with an http-equiv attribute in the Encoding declaration state."
+fn missing_sentence(value: &str, essence: &str) -> String {
+    if essence == "text/html" {
+        format!(
+            "Content-Type '{value}' names no charset, so HTML requires the page itself to \
+             declare its encoding, with a byte order mark or a `<meta charset>` element, which \
+             a reader of the header fields cannot see; naming it here, as in \
+             `text/html; charset=utf-8` for a UTF-8 page, declares it without relying on the \
+             markup"
+        )
+    } else {
+        format!(
+            "Content-Type '{value}' names no charset, so nothing in the message says which \
+             character encoding its text is in, and a recipient decodes it by what the \
+             content declares, if anything, or by a default of its own"
+        )
     }
 }
 
@@ -205,7 +253,7 @@ mod tests {
     #[case(
         "text/html",
         true,
-        Some("Text-based Content-Type header missing charset parameter.")
+        Some("Content-Type 'text/html' names no charset, so HTML requires the page itself to declare its encoding, with a byte order mark or a `<meta charset>` element, which a reader of the header fields cannot see; naming it here, as in `text/html; charset=utf-8` for a UTF-8 page, declares it without relying on the markup")
     )]
     // A `;` inside a quoted parameter value is not a separator, so the text
     // `charset=` inside another value is not a charset parameter and must not
@@ -213,7 +261,7 @@ mod tests {
     #[case(
         "text/html; boundary=\"x; charset=utf-8\"",
         true,
-        Some("Text-based Content-Type header missing charset parameter.")
+        Some("Content-Type 'text/html; boundary=\"x; charset=utf-8\"' names no charset, so HTML requires the page itself to declare its encoding, with a byte order mark or a `<meta charset>` element, which a reader of the header fields cannot see; naming it here, as in `text/html; charset=utf-8` for a UTF-8 page, declares it without relying on the markup")
     )]
     // A real charset following a quoted value that carries a ";" is still found.
     #[case("text/html; boundary=\"a;b\"; charset=utf-8", false, None)]
@@ -230,7 +278,25 @@ mod tests {
     #[case(
         "text/html; p=\"a;b\"",
         true,
-        Some("Text-based Content-Type header missing charset parameter.")
+        Some("Content-Type 'text/html; p=\"a;b\"' names no charset, so HTML requires the page itself to declare its encoding, with a byte order mark or a `<meta charset>` element, which a reader of the header fields cannot see; naming it here, as in `text/html; charset=utf-8` for a UTF-8 page, declares it without relying on the markup")
+    )]
+    // Every other text type is told only what the message shows: its fields do
+    // not say, and the recipient falls back on the content or a default. The
+    // HTML sentence is said of `text/html` in any case and of nothing else.
+    #[case(
+        "text/css",
+        true,
+        Some("Content-Type 'text/css' names no charset, so nothing in the message says which character encoding its text is in, and a recipient decodes it by what the content declares, if anything, or by a default of its own")
+    )]
+    #[case(
+        "TEXT/HTML",
+        true,
+        Some("Content-Type 'TEXT/HTML' names no charset, so HTML requires the page itself to declare its encoding, with a byte order mark or a `<meta charset>` element, which a reader of the header fields cannot see; naming it here, as in `text/html; charset=utf-8` for a UTF-8 page, declares it without relying on the markup")
+    )]
+    #[case(
+        "text/x-javascript",
+        true,
+        Some("Content-Type 'text/x-javascript' names no charset, so nothing in the message says which character encoding its text is in, and a recipient decodes it by what the content declares, if anything, or by a default of its own")
     )]
     #[case("application/json", false, None)]
     #[case("", false, None)]

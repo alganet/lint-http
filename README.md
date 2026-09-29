@@ -43,7 +43,11 @@ GET https://example.com/ -> 200
         that stores it may assign a heuristic freshness lifetime of its own
         [RFC 9111 §4.2.2 https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.2]
   info  content_type_charset_missing
-        Text-based Content-Type header missing charset parameter.
+        Content-Type 'text/html' names no charset, so HTML requires the page
+        itself to declare its encoding, with a byte order mark or a `<meta
+        charset>` element, which a reader of the header fields cannot see;
+        naming it here, as in `text/html; charset=utf-8` for a UTF-8 page,
+        declares it without relying on the markup
         [RFC 9110 §8.3.2 https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2]
   info  x_content_type_options_missing
         Response of type 'text/html' carries no `X-Content-Type-Options:
