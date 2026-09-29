@@ -148,7 +148,7 @@ sources:
     snippet: origin-or-null = serialized-origin / %s"null" ; case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 245
+      line: 229
   - label: vary
     snippet: If CORS protocol requirements are more complicated than setting `Access-Control-Allow-Origin` to * or a static origin, `Vary` is to be used.
     cited_by:
@@ -822,31 +822,31 @@ sources:
     snippet: Timing-Allow-Origin = 1#( origin-or-null / wildcard )
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 200
+      line: 254
   - label: timing_allow_origin_valid (2)
     section: § 3.5.2
     snippet: Server-side applications may return the Timing-Allow-Origin HTTP response header to allow the User Agent to fully expose, to the document origin(s) specified, the values of attributes that would have been zero due to those cross-origin restrictions.
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 170
+      line: 180
   - label: timing_allow_origin_valid (3)
     section: § 3.5.2
     snippet: 'The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):'
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 212
+      line: 216
   - label: timing_allow_origin_valid (4)
     section: § 3.5.2
     snippet: The recipient MAY combine multiple Timing-Allow-Origin header fields by appending each subsequent field value to the combined field value in order, separated by a comma.
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 188
+      line: 196
   - label: timing_allow_origin_valid (5)
     section: § 3.5.2
     snippet: The sender MAY generate multiple Timing-Allow-Origin header fields.
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 187
+      line: 195
 - label: Server Timing
   url: https://www.w3.org/TR/server-timing/
   type: text/html
@@ -6664,6 +6664,8 @@ sources:
       line: 324
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 292
+    - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
+      line: 255
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 475
     - file: lint-http-rules/src/violations/list.rs
@@ -8620,6 +8622,8 @@ sources:
       line: 366
     - file: lint-http-rules/src/rules/referrer_policy_valid.rs
       line: 220
+    - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
+      line: 217
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 279
     - file: lint-http-rules/src/rules/via_header_syntax.rs
@@ -8685,7 +8689,7 @@ sources:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 502
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 222
+      line: 218
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 96
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -11474,12 +11478,6 @@ sources:
       line: 189
     - file: lint-http-rules/src/violations/transfer_coding.rs
       line: 66
-  - label: timing_allow_origin_valid
-    section: § 5.6.1.2
-    snippet: 'A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism'
-    cited_by:
-    - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 232
   - label: token68
     section: § 11.2
     snippet: token68        = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="

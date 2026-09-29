@@ -12,9 +12,11 @@ Validate the `Timing-Allow-Origin` response header values. The header's value
 must be `*` (wildcard), the lowercase literal `null` (the grammar's `%s"null"`
 is case-sensitive), or one or more serialized origins (`scheme://host[:port]`).
 Multiple header fields are allowed and their values are combined using HTTP
-list semantics. This rule detects header values that cannot be decoded as
-visible US-ASCII, an entirely empty header value, and invalid origin
-serializations.
+list semantics, so the rule reads the combined value as one list. It reports a
+value naming no member at all (an empty value, or nothing but commas), an
+empty list element anywhere in it (a leading, doubled or trailing comma, or an
+empty line beside a full one), and every member that is not a serialized
+origin.
 
 ## Violations
 
@@ -87,4 +89,18 @@ Timing-Allow-Origin:
 ```http
 HTTP/1.1 200 OK
 Timing-Allow-Origin: 	
+```
+
+### ❌ Bad A trailing comma is an empty member
+
+```http
+HTTP/1.1 200 OK
+Timing-Allow-Origin: https://a.example, 
+```
+
+### ❌ Bad A lone comma names no origin
+
+```http
+HTTP/1.1 200 OK
+Timing-Allow-Origin: ,
 ```

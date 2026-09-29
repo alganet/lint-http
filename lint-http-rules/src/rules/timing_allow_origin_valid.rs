@@ -83,7 +83,7 @@ impl RuleMeta for TimingAllowOriginValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validate the `Timing-Allow-Origin` response header values. The header's value\nmust be `*` (wildcard), the lowercase literal `null` (the grammar's `%s\"null\"`\nis case-sensitive), or one or more serialized origins (`scheme://host[:port]`).\nMultiple header fields are allowed and their values are combined using HTTP\nlist semantics. This rule detects header values that cannot be decoded as\nvisible US-ASCII, an entirely empty header value, and invalid origin\nserializations."
+        "Validate the `Timing-Allow-Origin` response header values. The header's value\nmust be `*` (wildcard), the lowercase literal `null` (the grammar's `%s\"null\"`\nis case-sensitive), or one or more serialized origins (`scheme://host[:port]`).\nMultiple header fields are allowed and their values are combined using HTTP\nlist semantics, so the rule reads the combined value as one list. It reports a\nvalue naming no member at all (an empty value, or nothing but commas), an\nempty list element anywhere in it (a leading, doubled or trailing comma, or an\nempty line beside a full one), and every member that is not a serialized\norigin."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -144,6 +144,16 @@ impl RuleMeta for TimingAllowOriginValid {
                 label: None,
                 snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: \t",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A trailing comma is an empty member"),
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https://a.example, ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A lone comma names no origin"),
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: ,",
+            },
         ]
     }
 }
@@ -172,96 +182,103 @@ impl Rule for TimingAllowOriginValid {
                 return Vec::new();
             };
 
-            let headers = &resp.headers;
-
-            let tao_count = headers.get_all("timing-allow-origin").iter().count();
-            if tao_count == 0 {
-                return Vec::new();
-            }
-
-            let mut out = Vec::new();
-
-            // Combine members across multiple header fields; list_members handles commas & whitespace.
-            // Several header fields are explicitly allowed, so this rule checks the members,
-            // not the field count — unlike Access-Control-Allow-Origin, which carries one value.
+            // One list however many lines carry it, and the resource-timing
+            // document says so in its own words: a second line is further members
+            // of the same value. So an empty `Timing-Allow-Origin:` line beside a
+            // line naming an origin is an empty *member* of that value, not a
+            // second field naming nothing.
+            //
+            // Read as the octets the sender wrote: every member derives from `*`,
+            // the case-sensitive `null` or a serialized origin, and all three are
+            // inside visible US-ASCII -- so an octet above it is a member deriving
+            // from none of them, which the origin finding below already says.
             // cite(Resource Timing § 3.5.2): "The sender MAY generate multiple Timing-Allow-Origin header fields."
             // cite(Resource Timing § 3.5.2): "The recipient MAY combine multiple Timing-Allow-Origin header fields by appending each subsequent field value to the combined field value in order, separated by a comma."
-            for hv in headers.get_all("timing-allow-origin").iter() {
-                // Read as the octets the sender wrote: every member derives from
-                // `*`, the case-sensitive `null` or a serialized origin, and all
-                // three are inside visible US-ASCII — so an octet above it is a
-                // member deriving from none of them, which the origin finding
-                // below already says.
-                let line = crate::helpers::headers::field_line_as_written(hv);
-                let s = line.as_str();
+            let Some(value) = crate::helpers::headers::combined_field_value_as_written(
+                &resp.headers,
+                "timing-allow-origin",
+            ) else {
+                return Vec::new();
+            };
 
-                // Empty header value (only whitespace) is invalid: `1#` requires at least
-                // one member.
-                // cite(Resource Timing): "Timing-Allow-Origin = 1#( origin-or-null / wildcard )"
-                if crate::helpers::headers::trim_ows(s).is_empty() {
-                    out.push(ctx.report_with(
-                        &LIST_MEMBER_MISSING,
-                        "Timing-Allow-Origin header value is empty".into(),
-                    ));
+            let mut out = Vec::new();
+            let mut saw_an_empty_member = false;
+            let mut members_present = 0usize;
+
+            // The sender's walk, which keeps the empty member. The field is
+            // written with RFC 9110's list construct, so its sender requirement
+            // is § 5.6.1.1's: every position holds an element, the last one
+            // included. A trailing comma used to be excused here on § 5.6.1.2's
+            // sentence, which has a *recipient* parse and ignore one -- the other
+            // party's requirement, and the one that erases the evidence for this
+            // one. No member admits a `quoted-string`, so the naive cut at every
+            // comma is the right one.
+            // cite(Resource Timing § 3.5.2): "The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):"
+            // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
+            // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+            for m in crate::helpers::list::sender_list_members(&value) {
+                if m.is_empty() {
+                    saw_an_empty_member = true;
+                    continue;
+                }
+                members_present += 1;
+
+                // `wildcard` and the case-sensitive lowercase `null` are the two
+                // non-origin members the grammar admits (both productions resolve
+                // into Fetch).
+                // cite(Fetch § 3.2): "origin-or-null = serialized-origin / %s"null" ; case-sensitive"
+                if m == "*" || m == "null" {
                     continue;
                 }
 
-                // Detect empty list members caused by consecutive commas or leading empty
-                // members. The header's ABNF uses RFC 9110's list construct, so its
-                // empty-element rules apply.
-                // cite(Resource Timing § 3.5.2): "The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):"
-                // One finding for the line however many gaps it holds: what
-                // § 5.6.1.1 forbids generating is an empty *element*, and a line
-                // written with three of them is one list with gaps in it.
-                let parts: Vec<&str> = s.split(',').collect();
-                let mut saw_an_empty_member = false;
-                for (i, raw_member) in parts.iter().enumerate() {
-                    if crate::helpers::headers::trim_ows(raw_member).is_empty() {
-                        // An internal/leading empty member means the sender generated an
-                        // empty list element.
-                        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-                        if parts
-                            .iter()
-                            .skip(i + 1)
-                            .any(|p| !crate::helpers::headers::trim_ows(p).is_empty())
-                        {
-                            saw_an_empty_member = true;
-                        }
-                        // Otherwise it's trailing empty member(s) (e.g., "https://a, ");
-                        // tolerated as recipient-side leniency.
-                        // cite(RFC 9110 § 5.6.1.2): "A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism"
-                    }
-                }
-                if saw_an_empty_member {
+                // Anything else must be a serialized origin, and the typed
+                // reader is what says which way it is not one — the same
+                // reader `origin_matching_for_cors` calls, so a path after
+                // the authority draws the same id here as it does there.
+                if let Err(defect) = crate::helpers::origin::validate_origin_value(m) {
                     out.push(ctx.report_with(
-                        &LIST_MEMBER_EMPTY,
-                        "Timing-Allow-Origin header contains empty member".into(),
+                        origin_defect(defect),
+                        format!(
+                            "Timing-Allow-Origin contains invalid origin: '{}' ({})",
+                            crate::helpers::shown::shown_in_finding(m),
+                            defect.message()
+                        ),
                     ));
                 }
-                for m in crate::helpers::list::list_members(s) {
-                    // `wildcard` and the case-sensitive lowercase `null` are the two
-                    // non-origin members the grammar admits (both productions resolve
-                    // into Fetch).
-                    // cite(Fetch § 3.2): "origin-or-null = serialized-origin / %s"null" ; case-sensitive"
-                    if m == "*" || m == "null" {
-                        continue;
-                    }
+            }
 
-                    // Anything else must be a serialized origin, and the typed
-                    // reader is what says which way it is not one — the same
-                    // reader `origin_matching_for_cors` calls, so a path after
-                    // the authority draws the same id here as it does there.
-                    if let Err(defect) = crate::helpers::origin::validate_origin_value(m) {
-                        out.push(ctx.report_with(
-                            origin_defect(defect),
-                            format!(
-                                "Timing-Allow-Origin contains invalid origin: '{}' ({})",
-                                crate::helpers::shown::shown_in_finding(m),
-                                defect.message()
-                            ),
-                        ));
-                    }
-                }
+            // The `1#` floor, over the combined value. § 5.6.1.2 prints the
+            // values it rejects, and they are exactly the ones whose every
+            // position was empty: the empty field value, a lone comma, and
+            // commas with only whitespace between them.
+            // cite(Resource Timing): "Timing-Allow-Origin = 1#( origin-or-null / wildcard )"
+            // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
+            if members_present == 0 {
+                out.push(ctx.report_with(
+                    &LIST_MEMBER_MISSING,
+                    format!(
+                        "Timing-Allow-Origin is `1#( origin-or-null / wildcard )` and names no origin; the response's field lines combine to '{}'",
+                        crate::helpers::shown::shown_in_finding(&value)
+                    ),
+                ));
+            }
+            // Only beside a member that *is* there: a value holding nothing else
+            // has not written a member badly, it has written none, which is the
+            // floor above saying the same defect once. One finding however many
+            // gaps the value holds -- what § 5.6.1.1 forbids generating is an
+            // empty *element*, and a value written with three of them is one list
+            // with gaps in it. The value is quoted as the combined one and the
+            // message says so, because where the gap is an empty line beside a
+            // full one the comma is the join's, and an operator grepping a
+            // capture for the quoted text would otherwise find nothing.
+            else if saw_an_empty_member {
+                out.push(ctx.report_with(
+                    &LIST_MEMBER_EMPTY,
+                    format!(
+                        "Timing-Allow-Origin holds an empty list element; the response's field lines combine to '{}'. Every position in `1#( origin-or-null / wildcard )` names an origin, the wildcard or `null`, and a comma with nothing beside it names none",
+                        crate::helpers::shown::shown_in_finding(&value)
+                    ),
+                ));
             }
 
             out
@@ -430,43 +447,75 @@ mod tests {
         assert!(v.message.contains("invalid origin"), "{}", v.message);
     }
 
-    #[test]
-    fn trailing_comma_is_allowed() {
-        // Helper parsing ignores empty members (trailing commas are tolerated); no violation expected
-        let rule = TimingAllowOriginValid;
+    /// **The list construct at both of its ends, each with the id it answers
+    /// with.** A trailing comma is an empty element the sender generated, and
+    /// used to be excused on the recipient's sentence; a value of nothing but
+    /// commas is § 5.6.1.2's own spelling of a `1#` list below its floor, and
+    /// drew nothing at all. Each finding quotes the value it was read from.
+    #[rstest]
+    #[case("https://a,  ", "list_member_empty")]
+    #[case(", https://a", "list_member_empty")]
+    #[case("*,", "list_member_empty")]
+    #[case(",", "list_member_missing")]
+    #[case(" , , ", "list_member_missing")]
+    #[case(" ", "list_member_missing")]
+    fn an_empty_position_is_reported_wherever_it_is(#[case] val: &str, #[case] id: &str) {
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
-            &[("timing-allow-origin", "https://a,  ")],
+            &[("timing-allow-origin", val)],
         );
-        let v = crate::test_helpers::run_rule(
-            &rule,
+        let found = crate::test_helpers::run_rule_all(
+            &TimingAllowOriginValid,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "timing_allow_origin_valid",
+            ]),
         );
+        assert_eq!(found.len(), 1, "one finding for '{val}': {found:?}");
+        assert_eq!(found[0].violation, id, "{val}");
         assert!(
-            v.is_none(),
-            "expected no violation for trailing comma: got {:?}",
-            v
+            found[0].message.contains(&format!("'{val}'")),
+            "the finding quotes the value: {}",
+            found[0].message
         );
     }
 
+    /// Several lines are one value, so an empty line beside an origin is an
+    /// empty member of it -- the combined value is `https://a,` -- and not a
+    /// field naming nothing, which the floor would have said.
     #[test]
-    fn empty_value_is_violation() {
-        let rule = TimingAllowOriginValid;
-        // header present but empty value -> violation
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("timing-allow-origin", " ")],
-        );
-        let v = crate::test_helpers::run_rule(
-            &rule,
+    fn an_empty_line_beside_an_origin_is_an_empty_member() {
+        use crate::test_helpers::make_headers_from_pairs;
+        use hyper::header::HeaderValue;
+
+        let mut tx = make_test_transaction();
+        let mut hdrs = make_headers_from_pairs(&[("timing-allow-origin", "https://a")]);
+        hdrs.append("timing-allow-origin", HeaderValue::from_static(""));
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hdrs,
+
+            body_length: None,
+            body_interrupted: false,
+            trailers: None,
+        });
+        let found = crate::test_helpers::run_rule_all(
+            &TimingAllowOriginValid,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "timing_allow_origin_valid",
+            ]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("empty"));
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, ["list_member_empty"], "{found:?}");
+        assert!(
+            found[0].message.contains("'https://a,'"),
+            "{}",
+            found[0].message
+        );
     }
 
     #[test]
