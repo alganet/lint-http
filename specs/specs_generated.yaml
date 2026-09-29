@@ -9307,19 +9307,19 @@ sources:
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
     cited_by:
     - file: lint-http-rules/src/helpers/field_placement.rs
-      line: 210
+      line: 220
   - label: lint-http-rules/src/helpers/field_placement.rs (2)
     section: § 11.7.3
     snippet: Proxy-Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
     cited_by:
     - file: lint-http-rules/src/helpers/field_placement.rs
-      line: 211
+      line: 221
   - label: lint-http-rules/src/helpers/field_placement.rs (3)
     section: § 14.3
     snippet: The Accept-Ranges field MAY be sent in a trailer section
     cited_by:
     - file: lint-http-rules/src/helpers/field_placement.rs
-      line: 213
+      line: 223
   - label: lint-http-rules/src/helpers/field_placement.rs (4)
     section: § 16.3.2
     snippet: If the field is allowable in trailers; by default, it will not be (see Section 6.5.1).
@@ -9331,7 +9331,7 @@ sources:
     snippet: Field names are case-insensitive
     cited_by:
     - file: lint-http-rules/src/helpers/field_placement.rs
-      line: 263
+      line: 273
     - file: lint-http-rules/src/helpers/vary.rs
       line: 78
   - label: lint-http-rules/src/helpers/field_placement.rs (6)
@@ -9375,7 +9375,7 @@ sources:
     snippet: Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics.
     cited_by:
     - file: lint-http-rules/src/helpers/field_placement.rs
-      line: 230
+      line: 240
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 50
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
@@ -9387,7 +9387,7 @@ sources:
     snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
     cited_by:
     - file: lint-http-rules/src/helpers/field_placement.rs
-      line: 265
+      line: 275
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 143
     - file: lint-http/src/proxy/exchange.rs
@@ -9399,13 +9399,13 @@ sources:
     snippet: A sender MAY send the ETag field in a trailer section
     cited_by:
     - file: lint-http-rules/src/helpers/field_placement.rs
-      line: 212
+      line: 222
     - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
       line: 124
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 125
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
-      line: 878
+      line: 880
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 5
     snippet: Fields are sent and received within the header and trailer sections of messages
@@ -14702,7 +14702,7 @@ sources:
     snippet: Content-Digest can be sent in a trailer section.
     cited_by:
     - file: lint-http-rules/src/helpers/field_placement.rs
-      line: 214
+      line: 224
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
       line: 996
   - label: lint-http-rules/src/helpers/field_placement.rs (2)
@@ -14710,7 +14710,7 @@ sources:
     snippet: Repr-Digest can be sent in a trailer section.
     cited_by:
     - file: lint-http-rules/src/helpers/field_placement.rs
-      line: 215
+      line: 225
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
       line: 997
 - label: RFC 9651

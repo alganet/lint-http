@@ -154,6 +154,16 @@ pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
     "sunset",
     "want-content-digest",
     "want-repr-digest",
+    // Retired fields, each defined by a document this crate cites and reported
+    // as retired where it is written, as `pragma` and `warning` above are:
+    // RFC 9110 § 12.5.2, RFC 1864 by way of RFC 2616, RFC 3230 twice, RFC 9163
+    // and P3P. None of their definitions mentions a trailer section.
+    "accept-charset",
+    "content-md5",
+    "digest",
+    "expect-ct",
+    "p3p",
+    "want-digest",
     // And the ones the web platform's documents define: Fetch, Fetch Metadata,
     // HTML, CSP, Permissions Policy, Referrer Policy, Network Error Logging,
     // Resource Timing, Clear Site Data and Storage Access Headers. Fetch hands a
@@ -296,6 +306,8 @@ mod tests {
             "User-Agent",
             "Via",
             "Link",
+            "Content-MD5",
+            "Digest",
         ] {
             assert!(is_prohibited_trailer_field(name), "{name}");
         }
