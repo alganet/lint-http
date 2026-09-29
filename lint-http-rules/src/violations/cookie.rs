@@ -375,7 +375,9 @@ defects! {
     /// remainder that is all DIGITs — and tells the user agent to ignore the
     /// attribute when either fails, which is why this matters more than a
     /// mistyped number usually would: the cookie does not get a bad lifetime,
-    /// it gets *no* lifetime and becomes a session cookie.
+    /// it gets *no* lifetime and becomes a session cookie. Neither gate asks
+    /// how many DIGITs there are, so a numeral of any width is a lifetime and
+    /// not this defect, and a `+` fails the first gate.
     ///
     /// A leading `-` is not this defect. The ABNF summary writes
     /// `non-zero-digit *DIGIT` and the processing algorithm admits the sign,

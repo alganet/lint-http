@@ -89,6 +89,18 @@ Set-Cookie: id=1; SameSite=None
 Set-Cookie: SID=1; Max-Age=abc
 ```
 
+### ❌ Bad — a sign a user agent does not read, so the attribute is ignored
+
+```http
+Set-Cookie: SID=1; Max-Age=+3600
+```
+
+### ✅ Good — DIGITs of any width are a lifetime; a user agent caps it
+
+```http
+Set-Cookie: SID=1; Max-Age=99999999999999999999
+```
+
 ### ❌ Bad — two cookies, two findings, each naming its own
 
 ```http

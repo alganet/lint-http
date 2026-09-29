@@ -298,19 +298,27 @@ impl CookieAttributeConsistent {
             };
             // A leading "-" is accepted on purpose: the ABNF says non-zero-digit
             // *DIGIT, but the parsing algorithm the ABNF is a summary of admits a
-            // sign, and a negative Max-Age is how a cookie is deleted.
-            // `parse::<i64>` enforces both of §5.2.2's processing gates: a
-            // valid first character *and* an all-DIGIT remainder.
+            // sign, and a negative Max-Age is how a cookie is deleted. The
+            // reader is the store's, so the attribute reported as ignored is
+            // the one the store ignores.
             // cite(RFC 6265 § 5.2.2): "If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av."
-            return value.parse::<i64>().is_err().then(|| {
-                ctx.report_with(
-                    &COOKIE_MAX_AGE_MALFORMED,
-                    about(&format!(
-                        "Set-Cookie attribute 'Max-Age' is not a valid integer: '{}'",
-                        value
-                    )),
-                )
-            });
+            if crate::helpers::cookie::max_age_seconds(value).is_some() {
+                return None;
+            }
+            // The sentence names the octet a user agent stops at: `+60` is an
+            // integer to most readers, and "not a valid integer" said nothing
+            // they could act on.
+            let digits = value.strip_prefix('-').unwrap_or(value);
+            let why = match digits.chars().find(|c| !c.is_ascii_digit()) {
+                Some(c) => format!("{c:?} is not a DIGIT"),
+                None => "it holds no DIGIT".to_string(),
+            };
+            return Some(ctx.report_with(
+                &COOKIE_MAX_AGE_MALFORMED,
+                about(&format!(
+                    "Set-Cookie attribute 'Max-Age' is '{value}': {why}, and a user agent ignores a Max-Age that is not DIGITs after an optional leading '-', so the cookie keeps no Max-Age lifetime"
+                )),
+            ));
         }
 
         if attribute.is("Expires") {
@@ -548,6 +556,16 @@ impl RuleMeta for CookieAttributeConsistent {
                 compliance: Compliance::NonCompliant,
                 label: Some("— Max-Age must be numeric"),
                 snippet: "Set-Cookie: SID=1; Max-Age=abc",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— a sign a user agent does not read, so the attribute is ignored"),
+                snippet: "Set-Cookie: SID=1; Max-Age=+3600",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— DIGITs of any width are a lifetime; a user agent caps it"),
+                snippet: "Set-Cookie: SID=1; Max-Age=99999999999999999999",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -917,6 +935,12 @@ mod tests {
     #[case("=bad; Secure", true)]
     #[case("SID=1; Max-Age=abc", true)]
     #[case("SID=1; Max-Age=10", false)]
+    // § 5.2.2's first gate refuses the sign `str::parse` accepts, and no gate
+    // asks how wide the DIGITs run.
+    #[case("SID=1; Max-Age=+60", true)]
+    #[case("SID=1; Max-Age=-", true)]
+    #[case("SID=1; Max-Age=99999999999999999999", false)]
+    #[case("SID=1; Max-Age=0060", false)]
     #[case("SID=1; Expires=NotADate", true)]
     #[case("SID=1; Expires=Wed, 21 Oct 2015 07:28:00 GMT", false)]
     #[case("SID=1; Path=login", true)]

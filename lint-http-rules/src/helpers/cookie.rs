@@ -425,10 +425,8 @@ pub fn parse_set_cookie(
                 secure = true;
             }
             "max-age" => {
-                if let Some(v) = val_opt {
-                    if let Ok(n) = v.parse::<i64>() {
-                        max_age = Some(n);
-                    }
+                if let Some(n) = val_opt.and_then(max_age_seconds) {
+                    max_age = Some(n);
                 }
             }
             // § 5.2.1 sends a user agent to § 5.1.1 for this attribute and
@@ -498,6 +496,42 @@ pub fn parse_set_cookie(
         secure,
         expiration,
         same_site,
+    })
+}
+
+/// The seconds a user agent reads out of a `Max-Age` attribute-value, or
+/// `None` where it ignores the attribute.
+///
+/// **Two gates and a conversion, which `str::parse` is not in either
+/// direction.** It takes the `+` the first gate refuses, so `Max-Age=+60`
+/// read as a minute where a user agent reads no `Max-Age` at all and the
+/// cookie keeps only whatever `Expires` says. It refuses a numeral wider
+/// than its type, and both gates pass one: twenty digits are a lifetime a
+/// user agent keeps (capped at its own age limit) and one that outranks the
+/// `Expires` beside it. So a numeral too wide for an `i64` saturates, which
+/// every question asked of it here answers the same way.
+///
+/// A lone `-` passes RFC 6265's gates and converts to nothing. The revision
+/// refuses it at the first gate, and so does this.
+// cite(RFC 6265 § 5.2.2): "If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av."
+// cite(RFC 6265 § 5.2.2): "If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av."
+// cite(RFC 6265 § 5.2.2): "Let delta-seconds be the attribute-value converted to an integer."
+// cite(draft-ietf-httpbis-rfc6265bis § 5.6.2): "If the first character of the attribute-value is neither a DIGIT, nor a "-" character followed by a DIGIT, ignore the cookie-av."
+// cite(draft-ietf-httpbis-rfc6265bis § 5.6.2): "Set delta-seconds to the smaller of its present value and cookie-age-limit."
+pub fn max_age_seconds(value: &str) -> Option<i64> {
+    let (negative, digits) = match value.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, value),
+    };
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    // Every octet is a DIGIT, so the only refusal left is the width.
+    Some(match (digits.parse::<i64>(), negative) {
+        (Ok(n), false) => n,
+        (Ok(n), true) => -n,
+        (Err(_), false) => i64::MAX,
+        (Err(_), true) => i64::MIN,
     })
 }
 
@@ -949,6 +983,40 @@ mod tests {
         let header = format!("z=1; Expires={}", exp_str);
         let c3 = parse_set_cookie(&header, "https://example.com/", &no_headers(), ts).unwrap();
         assert!(c3.expiration.is_some());
+    }
+
+    /// § 5.2.2's gates, and not `str::parse`'s: a sign the first gate
+    /// refuses, and a width no gate asks about.
+    #[rstest]
+    #[case("60", Some(60))]
+    #[case("0060", Some(60))]
+    #[case("0", Some(0))]
+    #[case("-10", Some(-10))]
+    #[case("99999999999999999999", Some(i64::MAX))]
+    #[case("-99999999999999999999", Some(i64::MIN))]
+    #[case("+60", None)]
+    #[case("-", None)]
+    #[case("", None)]
+    #[case("--5", None)]
+    #[case("6 0", None)]
+    #[case("60.0", None)]
+    #[case("soon", None)]
+    fn max_age_is_read_with_the_user_agents_gates(#[case] value: &str, #[case] want: Option<i64>) {
+        assert_eq!(max_age_seconds(value), want);
+    }
+
+    /// The `Max-Age` a user agent ignores leaves `Expires` as the lifetime,
+    /// and the one it reads outranks it however wide it is.
+    #[rstest]
+    #[case("a=1; Max-Age=+60; Expires=Thu, 01 Jan 1970 00:00:00 GMT", true)]
+    #[case(
+        "a=1; Max-Age=99999999999999999999; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+        false
+    )]
+    fn the_max_age_read_decides_whether_expires_counts(#[case] line: &str, #[case] expired: bool) {
+        let ts = chrono::Utc::now();
+        let c = parse_set_cookie(line, "https://example.com/", &no_headers(), ts).unwrap();
+        assert_eq!(c.is_expired_at(ts), expired, "{line}");
     }
 
     /// A lifetime past the last instant the date type holds is the last

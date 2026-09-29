@@ -2288,7 +2288,7 @@ enabled = "true"
         // this document's names for them. What it exports besides those two
         // splitters is a predicate, a lookup, a sentence, or one whole cookie
         // assembled out of a walk that has already happened.
-        const NOT_A_MEMBER_WALK: [&str; 30] = [
+        const NOT_A_MEMBER_WALK: [&str; 31] = [
             "quoting_is_balanced",
             "channel_allows",
             "validate_cookie_path",
@@ -2307,6 +2307,8 @@ enabled = "true"
             "pairs_handed",
             "cookie_date_is_readable",
             "cookie_date_instant",
+            // One attribute's value, read as a user agent reads it.
+            "max_age_seconds",
             "read_member",
             "field_lines",
             "has",
