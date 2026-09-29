@@ -1076,10 +1076,6 @@ severity = "info"
 # Access-Control-Allow-Origin echoes an origin that did not ask
 severity = "warn"
 
-[violations.access_control_allow_origin_credentials_conflicting]
-# The wildcard origin sits beside an Access-Control-Allow-Credentials of `true`
-severity = "warn"
-
 [violations.access_control_allow_origin_empty]
 # Access-Control-Allow-Origin is written with no value on it
 severity = "warn"

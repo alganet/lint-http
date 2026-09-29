@@ -132,40 +132,6 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[FETCH_4_10],
     }
-
-    /// `Access-Control-Allow-Origin: *` on a response whose
-    /// `Access-Control-Allow-Credentials` says `true`.
-    ///
-    /// **The wildcard is the one alternative credentials cancel.** The CORS
-    /// check short-circuits on `*` only where the request's credentials mode is
-    /// not `include`; a credentialed request falls through to the
-    /// byte-serialized comparison, which `*` can never satisfy. So the two
-    /// fields together say the response may be shared with everyone *and* with
-    /// a credentialed reader, and a browser honours only the first: a request
-    /// without credentials is shared on the wildcard and never reads the other
-    /// field, and a credentialed one is refused. This used to say a browser
-    /// honours neither, and the message called the wildcard "not allowed"; no
-    /// sentence forbids it, and deleting it is the one repair that would stop
-    /// the sharing that works.
-    ///
-    /// **`credentials` is the part because the other field is what makes it a
-    /// defect** — the same `*` on a response without one is exactly right, and
-    /// nothing about the value changed. Separate from
-    /// [`ACCESS_CONTROL_ALLOW_ORIGIN_CONFLICTING`] for the reason that entry is
-    /// separate from the malformed one: this is a deployment that meant the
-    /// wildcard and cannot have it, not one that echoed the wrong origin.
-    ///
-    /// `warn`. Every message is well formed; what fails is a check the sender
-    /// was configuring for.
-    ///
-    // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
-    ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING = {
-        id: "access_control_allow_origin_credentials_conflicting",
-        title: "The wildcard origin sits beside an Access-Control-Allow-Credentials of `true`",
-        message: "Access-Control-Allow-Origin is '*' beside Access-Control-Allow-Credentials 'true': the wildcard shares this response only with a request that carries no credentials and refuses a credentialed one, so the 'true' turns nothing on. To share with credentials, answer with the requesting origin in place of '*'",
-        default_severity: Severity::Warn,
-        spec: &[FETCH_4_10],
-    }
 }
 
 #[cfg(test)]

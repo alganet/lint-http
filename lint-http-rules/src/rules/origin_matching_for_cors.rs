@@ -5,8 +5,8 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::access_control_allow_origin::{
-    ACCESS_CONTROL_ALLOW_ORIGIN_CONFLICTING, ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING,
-    ACCESS_CONTROL_ALLOW_ORIGIN_MALFORMED, FETCH_3_3_3, FETCH_4_10,
+    ACCESS_CONTROL_ALLOW_ORIGIN_CONFLICTING, ACCESS_CONTROL_ALLOW_ORIGIN_MALFORMED, FETCH_3_3_3,
+    FETCH_4_10,
 };
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::origin::{
@@ -18,7 +18,7 @@ use crate::violations::uri::{
 };
 use crate::violations::ViolationDef;
 
-/// Ten, across four subjects, and the spread is the rule's subject matter: it
+/// Nine, across four subjects, and the spread is the rule's subject matter: it
 /// reads an `Origin` and an `Access-Control-Allow-Origin` and asks whether they
 /// agree.
 ///
@@ -26,8 +26,16 @@ use crate::violations::ViolationDef;
 /// the alphabet a URI is composed from — and the two verdicts left over are the
 /// field's own, on the `origin` subject that now holds them: a path where the
 /// production has no path component, and a value deriving from neither
-/// alternative. The response field's three are what the CORS check refuses,
+/// alternative. The response field's two are what the CORS check refuses,
 /// and the repeated field line is § 5.3's wherever it happens.
+///
+/// **A `*` beside a credentials `true` is not among them.** It had an entry
+/// here quoting the Fetch sentence `access_control_allow_credentials_when_origin`
+/// quotes for the same condition, and that rule reports it on every response
+/// where this one did, and on the ones with no `Origin` this one never reads:
+/// one fact, two findings on every exchange that carried an `Origin`. The
+/// credentials rule owns it because its field is the one whose `true` turns
+/// nothing on.
 static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_EMPTY,
     &URI_SCHEME_LEADING_LETTER_MISSING,
@@ -38,7 +46,6 @@ static DECLARED: &[&ViolationDef] = &[
     &ORIGIN_MALFORMED,
     &ACCESS_CONTROL_ALLOW_ORIGIN_MALFORMED,
     &ACCESS_CONTROL_ALLOW_ORIGIN_CONFLICTING,
-    &ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING,
 ];
 
 pub struct OriginMatchingForCors;
@@ -82,7 +89,7 @@ impl RuleMeta for OriginMatchingForCors {
     }
 
     fn description(&self) -> &'static str {
-        "When a server responds to a cross-origin request the `Access-Control-Allow-Origin`\nheader must either repeat the origin that asked or use the wildcard `*`.\nThe wildcard shares only with a request that carries no credentials, so beside\n`Access-Control-Allow-Credentials: true` it leaves that `true` turning nothing on.\n\nThis rule looks at transactions where the client supplied an `Origin` header\nand the server returned an `Access-Control-Allow-Origin` header.  It\nvalidates that the header set is semantically consistent with the request\norigin and reports a `*` beside a credentials `true`.  If the request's\n`Origin` value is syntactically invalid the rule also raises a violation.\n\n**The comparison is asymmetric, because Fetch §4.10 names two different things on its two sides.** The check compares *the result of byte-serializing the request's origin* against the response field's value as it arrived. The left-hand side is an algorithm run over an origin triple — RFC 6454 §6.2, whose port step is conditional on the port differing from the scheme's default, over a triple §4 has already lower-cased — and the right-hand side is not normalised at all. So the request's `Origin` is serialized before it is compared and the response's value is not, and the two directions are genuinely different findings: `Origin: https://a.example:443` answered with `Access-Control-Allow-Origin: https://a.example` is *correct* and draws nothing, because 443 is the `https` default port and no user agent would have serialized it; the same pair the other way round — a canonical `Origin` answered by a value that writes the port out — fails the check in every user agent and is reported.\n\nThis check applies to server responses."
+        "When a server responds to a cross-origin request the `Access-Control-Allow-Origin`\nheader must either repeat the origin that asked or use the wildcard `*`.\nThe wildcard matches every origin, so this rule has nothing to compare it against;\nbeside `Access-Control-Allow-Credentials: true` it leaves that `true` turning nothing\non, which `access_control_allow_credentials_when_origin` reports.\n\nThis rule looks at transactions where the client supplied an `Origin` header\nand the server returned an `Access-Control-Allow-Origin` header.  It\nvalidates that the header set is semantically consistent with the request\norigin.  If the request's `Origin` value is syntactically invalid the rule\nalso raises a violation.\n\n**The comparison is asymmetric, because Fetch §4.10 names two different things on its two sides.** The check compares *the result of byte-serializing the request's origin* against the response field's value as it arrived. The left-hand side is an algorithm run over an origin triple — RFC 6454 §6.2, whose port step is conditional on the port differing from the scheme's default, over a triple §4 has already lower-cased — and the right-hand side is not normalised at all. So the request's `Origin` is serialized before it is compared and the response's value is not, and the two directions are genuinely different findings: `Origin: https://a.example:443` answered with `Access-Control-Allow-Origin: https://a.example` is *correct* and draws nothing, because 443 is the `https` default port and no user agent would have serialized it; the same pair the other way round — a canonical `Origin` answered by a value that writes the port out — fails the check in every user agent and is reported.\n\nThis check applies to server responses."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -124,11 +131,6 @@ impl RuleMeta for OriginMatchingForCors {
                 compliance: Compliance::Compliant,
                 label: Some("(wildcard, no credentials)"),
                 snippet: "GET /foo HTTP/1.1\nHost: example.com\nOrigin: https://example.org\n\nHTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(`*` with credentials)"),
-                snippet: "GET /foo HTTP/1.1\nHost: example.com\nOrigin: https://example.org\n\nHTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *\nAccess-Control-Allow-Credentials: true",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -194,11 +196,11 @@ impl Rule for OriginMatchingForCors {
             //
             // **This `return` ends the reading of the response, and that is a
             // decline rather than a slip.** One finding about the client's
-            // `Origin` stands in front of four the response could have earned,
+            // `Origin` stands in front of three the response could have earned,
             // and they are attributed to the other peer — so `--about server`
             // shows nothing about this exchange. What makes it safe is not the
-            // shape of the body; it is that every one of the four is said
-            // somewhere else, and
+            // shape of the body; it is that two of the three are said
+            // somewhere else and the third cannot be computed, and
             // [`Self::the_response_side_findings_this_decline_rests_on_are_declared_elsewhere`]
             // asserts each of those declarations by name so the day one of them
             // moves, this silence becomes visible instead of staying quiet:
@@ -207,10 +209,6 @@ impl Rule for OriginMatchingForCors {
             //   malformed` are `access_control_allow_origin_valid`'s, which
             //   counts the lines and reads the value whatever the request said —
             //   and says more about each than this rule does;
-            // - `access_control_allow_origin_credentials_conflicting`'s *fact*
-            //   is `access_control_allow_credentials_when_origin`'s
-            //   `access_control_allow_credentials_conflicting`, which scans the
-            //   origin field for a `*` and never reads the request;
             // - `access_control_allow_origin_conflicting` has no second declarer
             //   and needs none here, because it cannot be computed: the check
             //   compares against the *serialization* of the request's origin,
@@ -284,36 +282,16 @@ impl Rule for OriginMatchingForCors {
             let acao_val = members.into_iter().next().unwrap();
             let acao_val = crate::helpers::headers::trim_ows(&acao_val).to_string();
 
-            // `*` shares only with a request that carries no credentials. The CORS
-            // check short-circuits on `*` *only* for a request whose credentials
-            // mode is not "include"; a credentialed one falls through to the
-            // byte-serialized comparison below, which `*` can never satisfy.
-            //
-            // So the wildcard is what stands in front of credentialed sharing only
-            // when the credentials field turns it on, and only the byte sequence
-            // `true` does: the check compares it as bytes. `TRUE` beside `*` is a
-            // response that shares with nobody's credentials whatever the origin
-            // field says, and the value's own defect is
-            // `access_control_allow_credentials_invalid`. **This comparison used
-            // to be case-insensitive**, which named the wildcard as the obstacle
-            // in a response where echoing the origin would share nothing either.
+            // `*` matches every origin, so there is nothing here to compare the
+            // request's against. Beside a credentials `true` the wildcard is what
+            // stands in front of credentialed sharing, and that pairing is
+            // `access_control_allow_credentials_when_origin`'s: it reports it on
+            // every response carrying both fields, `Origin` or not, and this rule
+            // used to report it again under an entry of its own that quoted the
+            // same Fetch sentence. `TRUE` or two `true` lines beside `*` are that
+            // rule's `_invalid`.
             // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
-            //
-            // The credentials field is *got*, every line joined with ", ", so
-            // two `true` lines are `true, true` and turn nothing on either.
-            // cite(Fetch § 4.10, label: CORS check reads the field): "Let credentials be the result of getting `Access-Control-Allow-Credentials` from response’s header list."
             if acao_val == "*" {
-                let cred = crate::helpers::headers::field_lines_as_written(
-                    &resp.headers,
-                    "access-control-allow-credentials",
-                )
-                .join(", ");
-                if crate::helpers::headers::trim_ows(&cred) == "true" {
-                    return Some(
-                        ctx.by_server()
-                            .report(&ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING),
-                    );
-                }
                 return None;
             }
 
@@ -597,35 +575,6 @@ mod tests {
     }
 
     #[rstest]
-    fn wildcard_with_credentials_violation() {
-        let rule = OriginMatchingForCors;
-        let mut tx = make_test_transaction_with_response(
-            200,
-            &[
-                ("access-control-allow-origin", "*"),
-                ("access-control-allow-credentials", "true"),
-            ],
-        );
-        tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        )
-        .unwrap();
-        assert_eq!(
-            v.violation,
-            "access_control_allow_origin_credentials_conflicting"
-        );
-        assert!(
-            v.message.contains("answer with the requesting origin"),
-            "the repair keeps the uncredentialed sharing `*` already gives: {}",
-            v.message
-        );
-    }
-
-    #[rstest]
     fn acao_mismatch_violation() {
         let rule = OriginMatchingForCors;
         let mut tx = make_test_transaction_with_response(
@@ -658,14 +607,12 @@ mod tests {
         assert!(v.is_none());
     }
 
-    /// The wildcard stands in front of credentialed sharing only when the
-    /// credentials field turns it on, and the CORS check turns it on for the
-    /// byte sequence `true` and nothing else. Every other value beside `*` is
-    /// a response that shares with no credentialed request whatever the origin
-    /// field says, so there is no pairing to report; the value is
-    /// `access_control_allow_credentials_when_origin`'s `_invalid`, which the
-    /// second half of this test asserts so the silence here is not the only
-    /// word on it.
+    /// A `*` beside any credentials value draws nothing here, and exactly one
+    /// finding from `access_control_allow_credentials_when_origin`: the
+    /// pairing for the byte sequence `true`, which is the only value that
+    /// turns credentialed sharing on, and `_invalid` for every other. This rule
+    /// reported the pairing too, under an entry of its own quoting the same
+    /// Fetch sentence, so an exchange carrying an `Origin` drew it twice.
     #[rstest]
     #[case::the_literal(&["true"], true)]
     #[case::padded_with_ows(&["  true "], true)]
@@ -674,7 +621,7 @@ mod tests {
     #[case::a_digit(&["1"], false)]
     // The check gets the field, joining its lines: `true, true`.
     #[case::two_true_lines(&["true", "true"], false)]
-    fn wildcard_pairs_only_with_the_byte_sequence_true(
+    fn wildcard_beside_credentials_is_the_credentials_rules_finding(
         #[case] credentials: &[&str],
         #[case] pairs: bool,
     ) {
@@ -687,35 +634,42 @@ mod tests {
         );
         let mut tx = make_test_transaction_with_response(200, &headers);
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
-        let v = crate::test_helpers::run_rule(
+        let v = crate::test_helpers::run_rule_all(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert_eq!(
-            v.as_ref().map(|v| v.violation.as_str()),
-            pairs.then_some("access_control_allow_origin_credentials_conflicting"),
-            "{credentials:?}: {v:?}"
-        );
+        assert!(v.is_empty(), "{credentials:?}: {v:?}");
 
         let owner = crate::rules::access_control_allow_credentials_when_origin::AccessControlAllowCredentialsWhenOrigin;
-        let by_owner = crate::test_helpers::run_rule(
+        let by_owner = crate::test_helpers::run_rule_all(
             &owner,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]),
-        )
-        .expect("the credentials rule reports every value beside `*`");
+        );
         assert_eq!(
-            by_owner.violation,
-            if pairs {
+            by_owner
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec![if pairs {
                 "access_control_allow_credentials_conflicting"
             } else {
                 "access_control_allow_credentials_invalid"
-            },
+            }],
             "{credentials:?}"
         );
+        if pairs {
+            assert!(
+                by_owner[0]
+                    .message
+                    .contains("answer with the requesting origin"),
+                "the repair keeps the uncredentialed sharing `*` already gives: {}",
+                by_owner[0].message
+            );
+        }
     }
 
     #[rstest]
@@ -937,22 +891,25 @@ mod tests {
         assert_eq!(found[0].0, "access_control_allow_origin_conflicting");
     }
 
-    /// **The decline this body makes rests on three other declarations, and a
-    /// decline resting on somebody else's declaration is only as good as an
+    /// **The two declines this body makes rest on three other declarations, and
+    /// a decline resting on somebody else's declaration is only as good as an
     /// assertion about it.**
     ///
-    /// A client's `Origin` defect ends the reading here, so the four
+    /// A client's `Origin` defect ends the reading here, so the three
     /// response-side entries below it are not asked on that exchange — and they
     /// are the *server's*, so the peer that could act on them is told nothing.
     /// That is safe exactly while each is said somewhere else, which is a fact
-    /// about two other rules' `violations()` and not about this file. Asserted
+    /// about another rule's `violations()` and not about this file. Asserted
     /// by name, in the direction that fails: remove one of these from its own
     /// rule and this test goes red rather than the silence going unnoticed.
     ///
-    /// The fourth, `access_control_allow_origin_conflicting`, is deliberately
+    /// The third, `access_control_allow_origin_conflicting`, is deliberately
     /// not in the list. It has no second declarer and needs none: the check
     /// compares against the serialization of the request's origin, and a value
     /// deriving from neither alternative of `origin-list-or-null` has none.
+    ///
+    /// The other decline is the `*`, which this rule never reports: the
+    /// wildcard beside a credentials `true` is the credentials rule's alone.
     #[test]
     fn the_response_side_findings_this_decline_rests_on_are_declared_elsewhere() {
         let by_the_field_rule: Vec<&str> =
@@ -981,8 +938,8 @@ mod tests {
         assert!(
             by_the_credentials_rule.contains(&"access_control_allow_credentials_conflicting"),
             "the wildcard-with-credentials fact is no longer stated by \
-             access_control_allow_credentials_when_origin, so a malformed Origin now hides it \
-             entirely: {by_the_credentials_rule:?}"
+             access_control_allow_credentials_when_origin, which is the only rule that states \
+             it: {by_the_credentials_rule:?}"
         );
     }
 
