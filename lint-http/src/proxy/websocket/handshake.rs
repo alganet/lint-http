@@ -85,18 +85,22 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
         }
     };
 
-    // Build the upstream handshake request. Preserve hop-by-hop headers: the
-    // WebSocket upgrade depends on `Connection`/`Upgrade` reaching the origin
-    // (the request-side analog of the 101 carve-out in
-    // `filter_response_headers`). The extension negotiation travels with them:
-    // the relay forwards bytes without decoding frames, so the frames of an
-    // accepted extension pass through it as readily as any others, and an
-    // intermediary that can carry an extension's frames has no business
-    // silencing its negotiation.
+    // Build the upstream handshake request. Hop-by-hop fields are stripped
+    // here as on every other forwarded request -- they were once all relayed so
+    // that `Connection` and `Upgrade` would reach the origin, and a client's
+    // `Proxy-Authorization`, meant for this proxy, reached it with them -- and
+    // the upgrade's own two fields go back on. The extension negotiation is not
+    // hop-by-hop and travels as it is: the relay forwards bytes without decoding
+    // frames, so the frames of an accepted extension pass through it as readily
+    // as any others, and an intermediary that can carry an extension's frames
+    // has no business silencing its negotiation.
     let upstream_req = match origin_form(&uri).and_then(|target| {
-        upstream_request_builder(&facts.method, &uri, &facts.headers, &shared, false)
-            .uri(target)
-            .body(Full::new(body_bytes.clone()))
+        let mut builder =
+            upstream_request_builder(&facts.method, &uri, &facts.headers, &shared).uri(target);
+        for (name, value) in crate::proxy::exchange::upgrade_fields(&facts.headers) {
+            builder = builder.header(name, value);
+        }
+        builder.body(Full::new(body_bytes.clone()))
     }) {
         Ok(r) => r,
         Err(e) => {
@@ -188,14 +192,13 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
         // Extract the server-side upgraded IO
         let server_upgraded = hyper::upgrade::on(&mut upstream_resp);
 
-        // Build the 101 response to send back to the client.
-        // Forward ALL headers including upgrade-related ones (Connection,
-        // Upgrade, Sec-WebSocket-Accept) — do NOT strip hop-by-hop headers for
-        // 101, and let the accepted extension negotiation through with them:
-        // the transparent relay carries an extension's frames, so the client
-        // must see what the origin accepted.
+        // Build the 101 response to send back to the client: the origin's
+        // fields less its hop-by-hop ones, with `Upgrade` and `Connection` put
+        // back, and the accepted extension negotiation through with them -- the
+        // transparent relay carries an extension's frames, so the client must
+        // see what the origin accepted.
         let mut resp_builder = Response::builder().status(101);
-        for (name, value) in headers.iter() {
+        for (name, value) in crate::proxy::exchange::filter_response_headers(&headers, 101).iter() {
             resp_builder = resp_builder.header(name, value);
         }
         let resp = resp_builder
@@ -541,8 +544,11 @@ mod tests {
     }
 
     /// What reaches the origin is an origin-form request-line, whatever form
-    /// the target URI the proxy holds is in. The origin here reads the head,
-    /// hands its first line back, and refuses the upgrade.
+    /// the target URI the proxy holds is in, and the handshake without the
+    /// fields the client meant for this hop: its `Proxy-Authorization`, and
+    /// what its `Connection` named. `Upgrade` goes on, with a `Connection` of
+    /// this proxy's own. The origin here reads the head, hands it back, and
+    /// refuses the upgrade.
     #[tokio::test]
     async fn handle_websocket_upgrade_sends_the_origin_an_origin_form_target() -> anyhow::Result<()>
     {
@@ -561,8 +567,7 @@ mod tests {
                         Ok(n) => head.extend_from_slice(&buf[..n]),
                     }
                 }
-                let text = String::from_utf8_lossy(&head);
-                let _ = line_tx.send(text.lines().next().unwrap_or_default().to_string());
+                let _ = line_tx.send(String::from_utf8_lossy(&head).into_owned());
                 let _ = socket
                     .write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n")
                     .await;
@@ -581,9 +586,21 @@ mod tests {
                 .body(Full::new(Bytes::new()).boxed())
                 .unwrap(),
         );
+        let mut client_headers = hyper::HeaderMap::new();
+        for (name, value) in [
+            ("connection", "Upgrade, X-Private"),
+            ("upgrade", "websocket"),
+            ("x-private", "for this hop"),
+            ("proxy-authorization", "Basic dXNlcjpwYXNz"),
+            ("keep-alive", "timeout=5"),
+            ("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="),
+            ("sec-websocket-version", "13"),
+        ] {
+            client_headers.append(name, value.parse()?);
+        }
         let resp = handle_websocket_upgrade(
             WsUpgradeRequest {
-                facts: test_facts(&uri, hyper::HeaderMap::new()),
+                facts: test_facts(&uri, client_headers),
                 uri: uri.clone(),
                 fallback_scheme: hyper::http::uri::Scheme::HTTP,
                 body: Bytes::new(),
@@ -596,7 +613,24 @@ mod tests {
         .await?;
 
         assert_eq!(resp.status().as_u16(), 400);
-        assert_eq!(line_rx.await?, "GET /ws?room=1 HTTP/1.1");
+        let head = line_rx.await?.to_ascii_lowercase();
+        let mut lines = head.lines();
+        assert_eq!(lines.next(), Some("get /ws?room=1 http/1.1"));
+        let fields: Vec<&str> = lines.take_while(|l| !l.is_empty()).collect();
+        for sent in [
+            "upgrade: websocket",
+            "connection: upgrade",
+            "sec-websocket-key: dghlihnhbxbszsbub25jzq==",
+            "sec-websocket-version: 13",
+        ] {
+            assert!(fields.contains(&sent), "{sent} missing from {fields:?}");
+        }
+        for name in ["proxy-authorization", "x-private", "keep-alive"] {
+            assert!(
+                !fields.iter().any(|f| f.starts_with(&format!("{name}:"))),
+                "{name} reached the origin: {fields:?}"
+            );
+        }
         let _ = server_task.await;
         let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())

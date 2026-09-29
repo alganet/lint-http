@@ -350,32 +350,26 @@ async fn forward_via_hyper(
 /// path uses a boxed [`ClientBody`], the WebSocket path a raw `Full<Bytes>` for
 /// its own upgrade connection.
 ///
-/// When `strip_hop_by_hop` is set, RFC 9110 §7.6.1 hop-by-hop request headers
-/// (and any header the client names in `Connection:`) are dropped instead of
-/// relayed to the origin — the request-side mirror of [`filter_response_headers`].
-/// The WebSocket path passes `false`: its handshake relies on `Connection` /
-/// `Upgrade` reaching the upstream, exactly as the response side preserves them
-/// for a `101`.
+/// RFC 9110 §7.6.1 hop-by-hop request headers (and any header the client names
+/// in `Connection:`) are dropped instead of relayed to the origin — the
+/// request-side mirror of [`filter_response_headers`]. That holds on the
+/// WebSocket path too, which adds back only the two fields its upgrade travels
+/// in, from [`upgrade_fields`].
 pub(super) fn upstream_request_builder(
     method: &Method,
     uri: &Uri,
     headers: &HeaderMap,
     shared: &Arc<Shared>,
-    strip_hop_by_hop: bool,
 ) -> hyper::http::request::Builder {
     let mut builder = Request::builder().method(method).uri(uri);
     let generated_host = forwarded_host(uri);
     let mut host_written = false;
-    let connection_hop_headers = if strip_hop_by_hop {
-        parse_connection_tokens(headers.get(hyper::header::CONNECTION))
-    } else {
-        std::collections::HashSet::new()
-    };
+    let connection_hop_headers = parse_connection_tokens(headers.get(hyper::header::CONNECTION));
     for (name, value) in headers.iter() {
         // `HeaderName::as_str()` is already lowercase, so it can be matched
         // against the (lowercase) hop-by-hop set directly without normalizing.
         let name_str = name.as_str();
-        if strip_hop_by_hop && is_hop_by_hop_header(name_str, &connection_hop_headers) {
+        if is_hop_by_hop_header(name_str, &connection_hop_headers) {
             continue;
         }
         if shared
@@ -429,21 +423,16 @@ pub(super) fn build_upstream_request(
     body: ClientBody,
     shared: &Arc<Shared>,
 ) -> Result<Request<ClientBody>, hyper::http::Error> {
-    upstream_request_builder(method, uri, headers, shared, true).body(body)
+    upstream_request_builder(method, uri, headers, shared).body(body)
 }
 
-/// Filter response headers before returning them to the client. For 101
-/// Switching Protocols all headers are preserved (the Connection/Upgrade
-/// headers are essential to the handshake); otherwise hop-by-hop headers are
-/// stripped. `append` preserves repeated headers (e.g. `set-cookie`).
+/// Filter response headers before returning them to the client: hop-by-hop
+/// headers, and any the origin names in `Connection:`, are stripped, and
+/// `append` preserves repeated headers (e.g. `set-cookie`). A 101 is stripped
+/// the same way and then given back the two fields its upgrade travels in, from
+/// [`upgrade_fields`]; it used to be exempt whole, which relayed every other
+/// field the origin meant for this hop alone.
 pub(super) fn filter_response_headers(headers: &HeaderMap, status: u16) -> HeaderMap {
-    // Why 101 escapes the hop-by-hop strip below: Upgrade is a connection-specific
-    // field an intermediary would normally remove, and a 101 is the one response
-    // that cannot survive losing it.
-    // cite(RFC 9110 § 15.2.2): "The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field"
-    if status == 101 {
-        return headers.clone();
-    }
     let connection_hop_headers = parse_connection_tokens(headers.get(hyper::header::CONNECTION));
     let mut out = HeaderMap::new();
     for (name, value) in headers.iter() {
@@ -452,6 +441,42 @@ pub(super) fn filter_response_headers(headers: &HeaderMap, status: u16) -> Heade
             continue;
         }
         out.append(name.clone(), value.clone());
+    }
+    // Why a 101 gets these back: Upgrade is a connection-specific field an
+    // intermediary would normally remove, and a 101 is the one response that
+    // cannot survive losing it.
+    // cite(RFC 9110 § 15.2.2): "The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field"
+    if status == 101 {
+        for (name, value) in upgrade_fields(headers) {
+            out.append(name, value);
+        }
+    }
+    out
+}
+
+/// The two fields an upgrade travels in, for a message this proxy forwards
+/// after stripping the hop-by-hop ones: the sender's `Upgrade` lines as it wrote
+/// them, and a `Connection` carrying only the `upgrade` option. Nothing when
+/// the sender wrote no `Upgrade`.
+///
+/// Both fields are this hop's, so what goes out is this proxy's own on the next
+/// hop -- the same offer, or the same answer, relayed -- and every other option
+/// the sender's `Connection` named stays behind with the field it named.
+// cite(RFC 9110 § 7.6.1): "Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message)."
+// cite(RFC 9110 § 7.8): "A sender of Upgrade MUST also send an "Upgrade" connection option in the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field."
+pub(super) fn upgrade_fields(
+    headers: &HeaderMap,
+) -> Vec<(hyper::header::HeaderName, hyper::header::HeaderValue)> {
+    let mut out: Vec<_> = headers
+        .get_all(hyper::header::UPGRADE)
+        .iter()
+        .map(|value| (hyper::header::UPGRADE, value.clone()))
+        .collect();
+    if !out.is_empty() {
+        out.push((
+            hyper::header::CONNECTION,
+            hyper::header::HeaderValue::from_static("upgrade"),
+        ));
     }
     out
 }
@@ -769,35 +794,41 @@ mod tests {
         headers.append("host", "other.example".parse()?);
         headers.append("host", "third.example".parse()?);
         headers.insert("x-app", "1".parse()?);
-        let req = upstream_request_builder(&Method::GET, &uri, &headers, &shared, true).body(())?;
+        let req = upstream_request_builder(&Method::GET, &uri, &headers, &shared).body(())?;
         let hosts: Vec<_> = req.headers().get_all("host").iter().collect();
         assert_eq!(hosts, ["example.com:8080"]);
         assert_eq!(req.headers().get("x-app").unwrap(), "1");
 
         let mut headers = HeaderMap::new();
         headers.insert("x-app", "1".parse()?);
-        let req = upstream_request_builder(&Method::GET, &uri, &headers, &shared, true).body(())?;
+        let req = upstream_request_builder(&Method::GET, &uri, &headers, &shared).body(())?;
         assert!(req.headers().get("host").is_none());
 
         let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())
     }
 
-    /// The 101 carve-out: hop-by-hop stripping would remove the very fields a
-    /// switching-protocols response cannot survive losing.
+    /// A 101 keeps the two fields its upgrade travels in and loses, like every
+    /// other response, what the origin meant for this hop alone.
     #[test]
-    fn filter_response_headers_keeps_everything_for_a_101_and_strips_otherwise() {
+    fn filter_response_headers_keeps_a_101_upgrade_and_strips_the_rest_of_the_hop() {
         let mut headers = HeaderMap::new();
-        headers.insert("connection", "upgrade".parse().unwrap());
+        headers.insert("connection", "Upgrade, X-Hop".parse().unwrap());
         headers.insert("upgrade", "websocket".parse().unwrap());
-        headers.insert("x-app", "1".parse().unwrap());
+        headers.insert("x-hop", "1".parse().unwrap());
+        headers.insert("keep-alive", "timeout=5".parse().unwrap());
+        headers.insert("sec-websocket-accept", "abc".parse().unwrap());
 
         let kept = filter_response_headers(&headers, 101);
-        assert_eq!(kept.len(), 3, "a 101 keeps every header");
+        assert_eq!(kept.get("upgrade").unwrap(), "websocket");
+        assert_eq!(kept.get("connection").unwrap(), "upgrade");
+        assert!(kept.contains_key("sec-websocket-accept"));
+        assert!(!kept.contains_key("x-hop"));
+        assert!(!kept.contains_key("keep-alive"));
 
         let stripped = filter_response_headers(&headers, 200);
         assert!(!stripped.contains_key("connection"));
         assert!(!stripped.contains_key("upgrade"));
-        assert!(stripped.contains_key("x-app"));
+        assert!(stripped.contains_key("sec-websocket-accept"));
     }
 }

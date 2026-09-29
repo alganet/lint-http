@@ -9220,6 +9220,8 @@ sources:
       line: 177
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 143
+    - file: lint-http/src/proxy/exchange.rs
+      line: 465
     - file: lint-http/src/proxy/hop_by_hop.rs
       line: 125
   - label: lint-http-rules/src/helpers/headers.rs
@@ -10185,7 +10187,7 @@ sources:
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
     cited_by:
     - file: lint-http/src/proxy/exchange.rs
-      line: 443
+      line: 448
   - label: lint-http/src/proxy/hop_by_hop.rs
     section: § 11.7.2
     snippet: Unlike Authorization, the Proxy-Authorization header field applies only to the next inbound proxy that demanded authentication using the Proxy-Authenticate header field.
@@ -10467,7 +10469,7 @@ sources:
     - file: lint-http-rules/src/violations/status.rs
       line: 1214
     - file: lint-http/src/proxy/websocket/handshake.rs
-      line: 169
+      line: 173
   - label: no_body_for_1xx_204_304 (2)
     section: § 15.3.5
     snippet: A 204 response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -11828,6 +11830,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/upgrade.rs
       line: 140
+    - file: lint-http/src/proxy/exchange.rs
+      line: 466
   - label: upgrade_and_connection_consistent
     section: § 7.6.1
     snippet: In contrast, a connection-specific field received without a corresponding connection option usually indicates that the field has been improperly forwarded by an intermediary and ought to be ignored by the recipient.
@@ -13049,7 +13053,7 @@ sources:
     - file: lint-http-rules/src/violations/host.rs
       line: 128
     - file: lint-http/src/proxy/exchange.rs
-      line: 416
+      line: 410
   - label: host_and_authority_consistent (2)
     section: § 3.2.2
     snippet: When an origin server receives a request with an absolute-form of request-target, the origin server MUST ignore the received Host header field (if any) and instead use the host information of the request-target.
@@ -13241,13 +13245,13 @@ sources:
     snippet: A proxy that forwards such a request MUST generate a new Host field value based on the received request-target rather than forward the received Host field value.
     cited_by:
     - file: lint-http/src/proxy/exchange.rs
-      line: 415
+      line: 409
   - label: lint-http/src/proxy/exchange.rs (2)
     section: § 3.2.2
     snippet: When a proxy receives a request with an absolute-form of request-target, the proxy MUST ignore the received Host header field (if any) and instead replace it with the host information of the request-target.
     cited_by:
     - file: lint-http/src/proxy/exchange.rs
-      line: 414
+      line: 408
   - label: lint-http/src/proxy/http.rs
     section: § 3.2.4
     snippet: When a client wishes to request OPTIONS for the server as a whole
@@ -13259,7 +13263,7 @@ sources:
     snippet: If the target URI's path component is empty, the client MUST send "/" as the path within the origin-form of request-target.
     cited_by:
     - file: lint-http/src/proxy/websocket/handshake.rs
-      line: 308
+      line: 311
   - label: no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -13381,7 +13385,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 515
     - file: lint-http/src/proxy/websocket/handshake.rs
-      line: 307
+      line: 310
   - label: origin-form
     section: § 3.2.1
     snippet: origin-form    = absolute-path [ "?" query ]
