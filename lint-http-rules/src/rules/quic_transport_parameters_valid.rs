@@ -231,15 +231,22 @@ impl ProtocolRule for QuicTransportParametersValid {
             // heuristics, not spec requirements — flagging resource waste, not a MUST.
             // cite(RFC 9000 § 18.2): "Idle timeout is disabled when both endpoints omit this transport parameter or specify a value of 0."
             match params.max_idle_timeout_ms {
+                // Said apart, because the repair is not the same: a value
+                // written as 0 is changed, and an absent one is added.
                 Some(0) | None => {
-                    return Some(
-                        ctx.report_with(
-                            &QUIC_IDLE_TIMEOUT_INVALID,
-                            "QUIC max_idle_timeout is 0 or absent; connections may remain \
-                         idle indefinitely, consuming server resources (RFC 9000 §18.2)"
-                                .into(),
+                    let written = if params.max_idle_timeout_ms.is_some() {
+                        "is 0"
+                    } else {
+                        "is not advertised"
+                    };
+                    return Some(ctx.report_with(
+                        &QUIC_IDLE_TIMEOUT_INVALID,
+                        format!(
+                            "QUIC max_idle_timeout {written}, which disables the idle timeout; \
+                             connections may remain idle indefinitely, consuming server \
+                             resources (RFC 9000 §18.2)"
                         ),
-                    );
+                    ));
                 }
                 Some(ms) if ms > MAX_REASONABLE_IDLE_TIMEOUT_MS => {
                     return Some(ctx.report_with(
@@ -485,7 +492,7 @@ mod tests {
             &make_config(),
         );
         assert!(result.is_some());
-        assert!(result.unwrap().message.contains("max_idle_timeout"));
+        assert!(result.unwrap().message.contains("max_idle_timeout is 0,"));
     }
 
     #[test]
@@ -501,7 +508,10 @@ mod tests {
             &make_config(),
         );
         assert!(result.is_some());
-        assert!(result.unwrap().message.contains("max_idle_timeout"));
+        assert!(result
+            .unwrap()
+            .message
+            .contains("max_idle_timeout is not advertised"));
     }
 
     #[test]
