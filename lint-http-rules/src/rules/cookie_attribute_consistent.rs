@@ -290,7 +290,7 @@ impl CookieAttributeConsistent {
         // The name is a `token` by import rather than by resemblance -- § 4.1.1
         // writes `cookie-name = token` and takes the production from the HTTP
         // document -- so both of its defects are that production's.
-        let name = name.trim();
+        let name = crate::helpers::headers::trim_ows(name);
         if name.is_empty() {
             return Some(ctx.report_with(&TOKEN_EMPTY, about("Set-Cookie cookie name is empty")));
         }
@@ -1537,6 +1537,65 @@ mod tests {
             v.message,
             "The response sets cookie 'is_gdpr_b' on 2 Set-Cookie lines, with the values 'CPLgFhD1nAMoAg==', 'CPLgFhD1nAM='"
         );
+    }
+
+    /// The value is quoted as written: an octet above %x7F that `str::trim`
+    /// would take for whitespace stays in it.
+    #[test]
+    fn a_repeated_cookie_name_keeps_the_octets_of_its_values() -> anyhow::Result<()> {
+        use crate::test_helpers::make_test_transaction_with_response;
+        use hyper::header::HeaderValue;
+        let mut tx = make_test_transaction_with_response(200, &[("set-cookie", "a=2")]);
+        let headers = &mut tx.response.as_mut().unwrap().headers;
+        let first = headers.remove("set-cookie").unwrap();
+        headers.append("set-cookie", HeaderValue::from_bytes(b"a=1\xa0")?);
+        headers.append("set-cookie", first);
+        let rule = CookieAttributeConsistent;
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let v = found
+            .iter()
+            .find(|v| v.violation == "cookie_name_duplicated")
+            .expect("a set twice");
+        assert!(v.message.contains("'1\u{a0}', '2'"), "{}", v.message);
+        Ok(())
+    }
+
+    /// An octet `str::trim` takes for whitespace and § 5.2's WSP does not is
+    /// part of the segment it ends or starts, and draws what it would draw
+    /// anywhere else in it.
+    #[rstest]
+    #[case::value_tail(b"a=1\xa0", "cookie_value_character_forbidden")]
+    #[case::value_tail_x85(b"a=1\x85", "cookie_value_character_forbidden")]
+    #[case::name_lead(b"\xa0a=1", "token_character_forbidden")]
+    fn an_obs_text_octet_at_a_segment_edge_is_read(
+        #[case] line: &[u8],
+        #[case] expected: &str,
+    ) -> anyhow::Result<()> {
+        use crate::test_helpers::make_test_transaction_with_response;
+        use hyper::header::HeaderValue;
+        let mut tx = make_test_transaction_with_response(200, &[]);
+        tx.response
+            .as_mut()
+            .unwrap()
+            .headers
+            .append("set-cookie", HeaderValue::from_bytes(line)?);
+        let rule = CookieAttributeConsistent;
+        let ids: Vec<String> = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .into_iter()
+        .map(|v| v.violation)
+        .collect();
+        assert!(ids.iter().any(|i| i == expected), "{line:?}: {ids:?}");
+        Ok(())
     }
 
     #[test]

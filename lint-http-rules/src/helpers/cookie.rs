@@ -310,9 +310,17 @@ pub fn about_cookie(name: &str, sentence: impl std::fmt::Display) -> String {
 /// could say what the other did with an empty segment. The pair comes back as
 /// written — judging it is the caller's job — and the attributes come back with
 /// the empty segments a stray `;` produces already dropped.
+///
+/// **Each segment loses its SP and HTAB and nothing else.** A line read as
+/// written carries one `char` per octet, and `str::trim` takes U+00A0 and
+/// U+0085 for whitespace — the octets %xA0 and %x85, which no `cookie-octet`,
+/// `token` or `path-value` admits. Cut that way, `a=1` followed by %xA0 was
+/// judged as `a=1` and drew nothing, where a user agent strips only WSP and
+/// stores the octet.
 // cite(RFC 6265 § 4.1.1): "set-cookie-string = cookie-pair *( ";" SP cookie-av )"
+// cite(RFC 6265 § 5.2): "Remove any leading or trailing WSP characters from the name string and the value string."
 pub fn split_set_cookie(line: &str) -> (&str, impl Iterator<Item = Attribute<'_>>) {
-    let mut segments = line.split(';').map(str::trim);
+    let mut segments = line.split(';').map(crate::helpers::headers::trim_ows);
     // `split` always yields at least one segment, so the pair is whatever
     // stands before the first `;` — possibly empty, which is a defect the
     // caller names.

@@ -153,7 +153,10 @@ impl CookiePairValid {
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
         line.split(';')
-            .map(str::trim)
+            // SP and HTAB only: `str::trim` would take the octets %xA0 and
+            // %x85 as well, and a pair ending in one is a `cookie-value`
+            // carrying an octet `cookie-octet` does not admit.
+            .map(crate::helpers::headers::trim_ows)
             // A stray `;;` or a leading/trailing `;` produces an empty
             // segment, which is this reader's own tolerance rather than a
             // pair with nothing between its delimiters — `Set-Cookie`'s
@@ -253,6 +256,46 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
         )
+    }
+
+    /// An octet `str::trim` takes for whitespace and § 5.2's WSP does not
+    /// stays on the pair it ends: the client's own is reported, and the same
+    /// octets handed to it by a `Set-Cookie` are an echo, as any other pair.
+    #[test]
+    fn an_obs_text_octet_at_a_pair_edge_is_read() -> anyhow::Result<()> {
+        use hyper::header::HeaderValue;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request
+            .headers
+            .append("cookie", HeaderValue::from_bytes(b"a=1\xa0; b=2")?);
+        let config =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_pair_valid"]);
+        let own = crate::test_helpers::run_rule_all(
+            &CookiePairValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
+        assert_eq!(
+            own.iter().map(|v| v.violation.as_str()).collect::<Vec<_>>(),
+            ["cookie_value_character_forbidden"]
+        );
+
+        let mut handing = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        handing
+            .response
+            .as_mut()
+            .unwrap()
+            .headers
+            .append("set-cookie", HeaderValue::from_bytes(b"a=1\xa0; Path=/")?);
+        let echoed = crate::test_helpers::run_rule_all(
+            &CookiePairValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![handing]),
+            &config,
+        );
+        assert!(echoed.is_empty(), "{echoed:?}");
+        Ok(())
     }
 
     /// **A pair a `Set-Cookie` handed this client is the server's.** § 5.4
