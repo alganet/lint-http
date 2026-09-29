@@ -31,7 +31,7 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 - [cookie_max_age_malformed](../violations/cookie_max_age_malformed.md) — Set-Cookie Max-Age is not a number a user agent will read
 - [cookie_max_age_missing](../violations/cookie_max_age_missing.md) — Set-Cookie Max-Age attribute carries no value
 - [cookie_name_duplicated](../violations/cookie_name_duplicated.md) — One response sets the same cookie-name on more than one Set-Cookie line
-- [cookie_pair_equals_missing](../violations/cookie_pair_equals_missing.md) — A Cookie pair is written without its '='
+- [cookie_pair_equals_missing](../violations/cookie_pair_equals_missing.md) — A cookie-pair is written without its '='
 - [cookie_pair_missing](../violations/cookie_pair_missing.md) — Set-Cookie carries no cookie-pair
 - [cookie_path_empty](../violations/cookie_path_empty.md) — Set-Cookie Path attribute is empty
 - [cookie_path_leading_slash_missing](../violations/cookie_path_leading_slash_missing.md) — Set-Cookie Path attribute is not rooted at `/`

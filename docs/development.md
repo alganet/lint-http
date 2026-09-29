@@ -294,20 +294,25 @@ strength governs it and the weaker level stands.
 **A document may weaken its own grammar, and then `Grammar` is the wrong word.**
 RFC 6265 writes the whole `Set-Cookie` grammar as "Servers SHOULD NOT send
 Set-Cookie headers that fail to conform to the following grammar", deliberately
-and for historical reasons. Its six grammar entries therefore state `Should` and
+and for historical reasons. Its grammar entries therefore state `Should` and
 cite that sentence beside the production. §2.2 supplies the `MUST` for every
 production whose document does not say otherwise; it does not overrule one that
-does.
+does. The `Cookie` request field imports `cookie-pair` from the same section and
+states no keyword of its own, so there §2.2 is the argument, and an entry
+reported in both fields is the two-sentence shape above: `cookie_value_character_forbidden`
+stands at the weaker `warn`. `no_cookie_entry_claims_the_grammar_rfc_6265_weakened`
+holds it.
 
 Two gates hold this, and the split between them is the point:
 
 - `a_stated_strength_sets_the_default_severity` compares the level against the
   mapping. An entry may depart from it, and then `departure:` carries the
-  argument — on the entry, where a reader is. Two entries carry one, both in the
-  cookie subject and both for the same reason — RFC 6265's grammar is a `SHOULD
-  NOT`, so `warn` is what every defect in a `Set-Cookie` inherits from one
-  sentence. `cookie_pair_missing` departs because what is lost is the cookie
-  rather than an attribute. The departure this key was written for is
+  argument — on the entry, where a reader is. Every one is in the cookie
+  subject, for the same reason — RFC 6265's grammar is a `SHOULD NOT`, so `warn`
+  is what every defect in a `Set-Cookie` inherits from one sentence — and each
+  argues what the reading does to the cookie: `cookie_pair_missing` departs
+  upward because what is lost is the cookie rather than an attribute, and the
+  entries a user agent reads through depart downward. The departure this key was written for is
   `cookie_path_control_character_forbidden`: RFC 6265 §4.1.1 writes its own
   grammar as "Servers SHOULD NOT send Set-Cookie headers that fail to conform",
   weakly and for historical reasons, and a control character in a cookie `Path`

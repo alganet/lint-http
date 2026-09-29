@@ -12,7 +12,7 @@ This rule measures the `Cookie` request header against RFC 6265 §4.2.1's gramma
 
 ## Violations
 
-- [cookie_pair_equals_missing](../violations/cookie_pair_equals_missing.md) — A Cookie pair is written without its '='
+- [cookie_pair_equals_missing](../violations/cookie_pair_equals_missing.md) — A cookie-pair is written without its '='
 - [cookie_value_character_forbidden](../violations/cookie_value_character_forbidden.md) — Cookie value holds a character outside cookie-octet
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
 - [token_empty](../violations/token_empty.md) — Token is written with no characters in it

@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # cookie_pair_equals_missing
 
-A Cookie pair is written without its '='
+A cookie-pair is written without its '='
 
 ## Message
 
@@ -14,7 +14,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ## Obligation
 
-**A value that does not derive from the ABNF production it cites.** The production states no keyword; what obliges it is RFC 9110 §2.2 — "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules" — which binds the sender, so a finding here reports at `error` by default.
+**No one sentence sets this level.** Nothing states a requirement about this defect; or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported; or the message cannot show that its sender is the party the keyword binds; or the defect is reported in two places that two sentences of different strength govern, and one level has to answer for both. The severity below is a judgement, argued in the catalogue entry.
 
 ## Specifications
 
@@ -24,8 +24,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.cookie_pair_equals_missing]
-# A Cookie pair is written without its '='
-# GRAMMAR obliges the sender, so this defaults to error.
+# A cookie-pair is written without its '='
 severity = "error"
 ```
 

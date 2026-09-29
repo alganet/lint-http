@@ -1430,7 +1430,7 @@ sources:
     snippet: 'Note: The name of an attribute-value pair is not case-sensitive.'
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 540
+      line: 560
   - label: cookie
     section: § 4.1.1
     snippet: samesite-value = "Strict" / "Lax" / "None"
@@ -1446,7 +1446,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
       line: 180
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 589
+      line: 609
   - label: cookie_same_site_enforced
     section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
@@ -1454,7 +1454,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
       line: 216
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 818
+      line: 838
   - label: cookie_same_site_enforced (2)
     section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax".
@@ -3298,13 +3298,13 @@ sources:
     snippet: cookie-octet      = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 483
+      line: 501
   - label: cookie (2)
     section: § 4.1.1
     snippet: cookie-value      = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 482
+      line: 500
   - label: domain-value
     section: § 4.1.1
     snippet: domain-value      = <subdomain>
@@ -3322,7 +3322,7 @@ sources:
     snippet: secure-av         = "Secure" httponly-av       = "HttpOnly"
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 502
+      line: 522
   - label: set-cookie-string
     section: § 4.1.1
     snippet: set-cookie-header = "Set-Cookie:" SP set-cookie-string set-cookie-string = cookie-pair *( ";" SP cookie-av )
@@ -3330,7 +3330,7 @@ sources:
     - file: lint-http-rules/src/violations/cookie.rs
       line: 438
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 635
+      line: 655
   - label: cookie (3)
     section: § 4.1.2.3
     snippet: Note that a leading %x2E ("."), if present, is ignored even though that character is not permitted
@@ -3342,7 +3342,7 @@ sources:
     snippet: The user agent MUST use an algorithm equivalent to
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 689
+      line: 709
   - label: cookie (5)
     section: § 5.1.3
     snippet: The string is a host name (i.e., not an IP address).
@@ -3356,20 +3356,26 @@ sources:
     snippet: 'A user agent MUST use an algorithm equivalent to the following algorithm to parse a "set-cookie-string":'
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 637
+      line: 657
   - label: cookie (7)
     section: § 5.2
     snippet: Discard the first character of the unparsed-attributes (which will be a %x3B (";") character).
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 638
+      line: 658
   - label: cookie (8)
     section: § 5.2
     snippet: Remove any leading or trailing WSP characters from the attribute-name string and the attribute-value string.
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 639
+      line: 659
   - label: cookie (9)
+    section: § 5.2
+    snippet: the (possibly empty) value string consists of the characters after the first %x3D ("=") character
+    cited_by:
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 503
+  - label: cookie (10)
     section: § 5.2.3
     snippet: Let cookie-domain be the attribute-value without the leading %x2E (".") character.
     cited_by:
@@ -3377,12 +3383,12 @@ sources:
       line: 283
     - file: lint-http-rules/src/violations/cookie.rs
       line: 314
-  - label: cookie (10)
+  - label: cookie (11)
     section: § 5.4
     snippet: The request-uri's path path-matches the cookie's path.
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 761
+      line: 781
   - label: cookie_attribute_consistent
     section: § 4.1.1
     snippet: Servers SHOULD NOT include more than one Set-Cookie header field in the same response with the same cookie-name.
@@ -3390,7 +3396,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
       line: 257
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 567
+      line: 587
   - label: cookie_attribute_consistent (2)
     section: § 4.1.1
     snippet: To maximize compatibility with user agents, servers SHOULD NOT produce two attributes with the same name in the same set-cookie-string.
@@ -3398,7 +3404,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
       line: 196
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 539
+      line: 559
   - label: expires-av
     section: § 4.1.1
     snippet: expires-av        = "Expires=" sane-cookie-date
@@ -3406,9 +3412,9 @@ sources:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
       line: 478
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 603
+      line: 623
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 687
+      line: 707
   - label: cookie_attribute_consistent (3)
     section: § 4.1.1
     snippet: extension-av      = <any CHAR except CTLs or ";">
@@ -3490,7 +3496,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
       line: 322
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 760
+      line: 780
   - label: cookie_lifecycle (4)
     section: § 5.4
     snippet: Cookies with longer paths are listed before cookies with shorter paths.
@@ -3530,13 +3536,17 @@ sources:
     - file: lint-http-rules/src/violations/cookie.rs
       line: 439
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 503
+      line: 469
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 604
+      line: 502
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 636
+      line: 523
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 688
+      line: 624
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 656
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 708
   - label: lint-http-rules/src/helpers/cookie.rs (2)
     section: § 4.1.1
     snippet: cookie-av         = expires-av / max-age-av / domain-av / path-av / secure-av / httponly-av / extension-av
@@ -3554,7 +3564,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_pair_valid.rs
       line: 174
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 462
+      line: 468
   - label: lint-http-rules/src/helpers/cookie.rs (4)
     section: § 4.1.1
     snippet: cookie-value      = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE ) cookie-octet      = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
@@ -3578,7 +3588,7 @@ sources:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 823
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 690
+      line: 710
   - label: lint-http-rules/src/helpers/cookie.rs (6)
     section: § 5.1.1
     snippet: If the year-value is greater than or equal to 70 and less than or
@@ -3671,6 +3681,8 @@ sources:
       line: 283
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 634
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 470
   - label: lint-http-rules/src/helpers/cookie.rs (19)
     section: § 5.2
     snippet: Remove any leading or trailing WSP characters from the name string and the value string.
@@ -3746,7 +3758,7 @@ sources:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 205
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 723
+      line: 743
   - label: lint-http-rules/src/helpers/cookie.rs (26)
     section: § 5.4
     snippet: Output the cookie's name, the %x3D ("=") character, and the cookie's value.

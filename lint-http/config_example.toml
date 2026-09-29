@@ -1739,8 +1739,7 @@ severity = "warn"
 severity = "warn"
 
 [violations.cookie_pair_equals_missing]
-# A Cookie pair is written without its '='
-# GRAMMAR obliges the sender, so this defaults to error.
+# A cookie-pair is written without its '='
 severity = "error"
 
 [violations.cookie_pair_missing]
@@ -1805,8 +1804,7 @@ severity = "error"
 
 [violations.cookie_value_character_forbidden]
 # Cookie value holds a character outside cookie-octet
-# GRAMMAR obliges the sender, so this defaults to error.
-severity = "error"
+severity = "warn"
 
 [violations.cookie_value_conflicting]
 # A cookie carries a value the observed exchange did not set

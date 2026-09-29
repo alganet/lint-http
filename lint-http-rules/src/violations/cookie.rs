@@ -451,22 +451,30 @@ defects! {
             recovers what the pair would have said.",
     }
 
-    /// A `Cookie` request field carries one or more `cookie-pair`s, and this is
-    /// the segment between `;`s that is not one: no `=` anywhere in it.
-    /// `cookie-pair` is not this field's own production — § 4.2.1's grammar
-    /// imports it from `Set-Cookie`'s § 4.1.1 by name — and neither section
-    /// states a keyword about the value a sender constructs, so what makes
-    /// this reportable is RFC 9110 § 2.2's MUST NOT on generating a protocol
-    /// element outside its grammar.
+    /// A `cookie-pair` with no `=` anywhere in it, in either field that
+    /// carries one: a segment of a `Cookie` request field between its `;`s,
+    /// or the start of a `Set-Cookie` line (`Set-Cookie: SID`).
+    ///
+    /// **Two sentences, and both land at `error`.** In `Cookie`, the pair is
+    /// § 4.1.1's production imported by name into § 4.2.1, which states no
+    /// keyword about the value a sender constructs, so what makes it
+    /// reportable is RFC 9110 § 2.2's MUST NOT on generating a protocol
+    /// element outside its grammar. In `Set-Cookie`, § 4.1.1 states its own
+    /// keyword, a SHOULD NOT, and § 2.2 does not overrule it; but § 5.2 has a
+    /// user agent ignore such a line entirely, so what is lost is the cookie,
+    /// which is `cookie_pair_missing`'s reason for the same level. No one
+    /// strength governs both sites, so the entry states none.
     ///
     // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
+    // cite(RFC 6265 § 5.2): "If the name-value-pair string lacks a %x3D ("=") character, ignore the set-cookie-string entirely."
     COOKIE_PAIR_EQUALS_MISSING = {
         id: "cookie_pair_equals_missing",
-        title: "A Cookie pair is written without its '='",
+        title: "A cookie-pair is written without its '='",
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6265_4_1_1],
-        strength: Strength::Grammar,
+        strength: Strength::Unstated,
     }
 
     /// A `cookie-value` octet outside `cookie-octet`: a comma, a backslash, a
@@ -475,19 +483,31 @@ defects! {
     /// before either reader reaches this check, so it reports as
     /// `cookie_pair_equals_missing` on the segment it starts rather than as
     /// this entry. `cookie-octet` is the same alphabet `Set-Cookie` writes and
-    /// `Cookie` echoes back — both fields import it from § 4.1.1 — but
-    /// nothing before this reader asked the question of the value a client
-    /// actually sent.
+    /// `Cookie` echoes back — both fields import it from § 4.1.1 — and a
+    /// value a `Set-Cookie` handed the client is the server's defect, not the
+    /// client's for sending it back.
+    ///
+    /// **`warn`, the weaker of the two sentences over its two sites.** In
+    /// `Set-Cookie`, § 4.1.1's grammar is a SHOULD NOT, and § 5.2 takes the
+    /// value whatever its octets, so the user agent stores the cookie the
+    /// server wrote and what is at stake is the compatibility the keyword
+    /// names — the level of every sibling that quotes it. In a `Cookie` the
+    /// client built itself, § 4.2.1 states no keyword and RFC 9110 § 2.2's
+    /// MUST NOT is the argument. One id answers for both, and an operator
+    /// raising it raises both, so no one strength governs it and the weaker
+    /// level stands, as it does for `content_range_missing`.
     ///
     // cite(RFC 6265 § 4.1.1): "cookie-value      = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )"
     // cite(RFC 6265 § 4.1.1): "cookie-octet      = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E"
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
+    // cite(RFC 6265 § 5.2): "the (possibly empty) value string consists of the characters after the first %x3D ("=") character"
     COOKIE_VALUE_CHARACTER_FORBIDDEN = {
         id: "cookie_value_character_forbidden",
         title: "Cookie value holds a character outside cookie-octet",
         message: "",
-        default_severity: Severity::Error,
+        default_severity: Severity::Warn,
         spec: &[RFC_6265_4_1_1],
-        strength: Strength::Grammar,
+        strength: Strength::Unstated,
     }
 
     /// A value written on `Secure` or `HttpOnly`. Both attributes are their own
@@ -970,5 +990,33 @@ mod tests {
             let def = path_defect(&defect);
             assert!(def.message.is_empty(), "{} holds a message", def.id);
         }
+    }
+
+    /// **No cookie entry states `Grammar`.** That strength is RFC 9110 § 2.2's
+    /// `MUST NOT`, inherited by a production whose own document says nothing
+    /// of its keyword, and RFC 6265 says something: § 4.1.1 writes the whole
+    /// `Set-Cookie` grammar as a `SHOULD NOT`, which § 2.2 does not overrule.
+    /// The `Cookie` request field's `cookie-pair` is the same section's
+    /// production, imported by name, so an entry reporting it in both fields
+    /// answers to two sentences at once, and states `Unstated` with the level
+    /// argued on the entry, as `content_range_missing` does for its two.
+    ///
+    /// Two entries stated `Grammar` because they were written for the `Cookie`
+    /// reader, where § 2.2 is the argument, and the `Set-Cookie` reader
+    /// reported them later without reading the level again: a comma in a
+    /// cookie value was an `error` there, beside siblings at `warn` for the
+    /// same sentence.
+    #[test]
+    fn no_cookie_entry_claims_the_grammar_rfc_6265_weakened() {
+        let claiming: Vec<&str> = crate::violations::VIOLATIONS
+            .iter()
+            .filter(|def| def.id.starts_with("cookie_"))
+            .filter(|def| def.strength == Strength::Grammar)
+            .map(|def| def.id)
+            .collect();
+        assert!(
+            claiming.is_empty(),
+            "cookie entries stating § 2.2's MUST where § 4.1.1 states a SHOULD NOT: {claiming:?}"
+        );
     }
 }

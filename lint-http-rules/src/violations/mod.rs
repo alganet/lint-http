@@ -1547,7 +1547,7 @@ mod tests {
         assert!(!opens_a_cite(&prose));
     }
 
-    /// The 44 entries that quote an RFC 2119 keyword or an ABNF production and
+    /// The entries that quote an RFC 2119 keyword or an ABNF production and
     /// state [`Strength::Unstated`] anyway.
     ///
     /// **Every one has been read, and each says on its own page what the
@@ -1584,7 +1584,9 @@ mod tests {
         "conditional_date_redundant",
         "content_range_missing",
         "content_range_numeral_invalid",
+        "cookie_pair_equals_missing",
         "cookie_scope_ignored",
+        "cookie_value_character_forbidden",
         "date_missing",
         "early_data_duplicated",
         "expires_conflicting",
