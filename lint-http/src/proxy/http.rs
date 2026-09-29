@@ -1136,6 +1136,76 @@ mod tests {
         Ok(())
     }
 
+    /// An origin that reads one request to the end of its chunked content, or
+    /// until it goes quiet, hands back every octet it read, and answers `204`.
+    async fn recording_origin() -> anyhow::Result<(String, tokio::sync::oneshot::Receiver<Vec<u8>>)>
+    {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        tokio::spawn(async move {
+            let Ok((mut sock, _)) = listener.accept().await else {
+                return;
+            };
+            let mut read = Vec::new();
+            let mut buf = [0u8; 1024];
+            // A request framed some other way never ends in the terminator, so
+            // the reading also stops at a quiet second and the test fails on
+            // what arrived instead of waiting for what will not.
+            let quiet = std::time::Duration::from_secs(1);
+            while !read.ends_with(b"0\r\n\r\n") {
+                match tokio::time::timeout(quiet, sock.read(&mut buf)).await {
+                    Ok(Ok(n)) if n > 0 => read.extend_from_slice(&buf[..n]),
+                    _ => break,
+                }
+            }
+            let _ = sock.write_all(b"HTTP/1.1 204 No Content\r\n\r\n").await;
+            let _ = tx.send(read);
+        });
+        Ok((format!("http://{addr}/coded"), rx))
+    }
+
+    /// The request half: the client connection undoes the chunked framing and
+    /// nothing beneath it, so a `gzip, chunked` request reached the origin as a
+    /// gzip member under a bare `chunked`. The codings the client applied are
+    /// forwarded, and the upstream connection frames them with its own
+    /// `chunked`.
+    #[tokio::test]
+    async fn handle_request_forwards_the_request_transfer_codings_it_did_not_undo(
+    ) -> anyhow::Result<()> {
+        let (uri, received) = recording_origin().await?;
+        let cfg = StdArc::new(crate::config::Config::default());
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
+        let req = Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header("content-type", "text/plain")
+            .header("transfer-encoding", "gzip, chunked")
+            .body(Full::new(Bytes::from_static(b"\x1f\x8b\x08\x00")).boxed())?;
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let resp =
+            handle_request(req, shared, conn_metadata, hyper::http::uri::Scheme::HTTP).await?;
+        assert_eq!(resp.status().as_u16(), 204);
+
+        let read = received.await?;
+        let head = String::from_utf8_lossy(&read).to_ascii_lowercase();
+        assert!(
+            head.contains("transfer-encoding: gzip, chunked\r\n"),
+            "{head:?}"
+        );
+        assert!(
+            read.ends_with(b"\r\n\r\n4\r\n\x1f\x8b\x08\x00\r\n0\r\n\r\n"),
+            "{head:?}"
+        );
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
     #[tokio::test]
     async fn handle_request_ca_cert_endpoint_without_tls_returns_404() -> anyhow::Result<()> {
         let cfg = StdArc::new(crate::config::Config::default()); // TLS disabled by default

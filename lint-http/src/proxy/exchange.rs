@@ -237,13 +237,13 @@ async fn forward_upstream(
     // No H3 client configured is the ordinary H1/H2 path and says nothing; the
     // other reasons an origin is skipped are the policy's to log.
     let Some(h3) = shared.upstream.h3.as_ref() else {
-        return forward_via_hyper(shared, req).await;
+        return forward_via_hyper(shared, req, &facts.headers).await;
     };
     let (authority, route) = match h3.policy().select(uri) {
         H3Selection::Attempt { authority, route } => (authority, route),
         H3Selection::Skip(skip) => {
             skip.log();
-            return forward_via_hyper(shared, req).await;
+            return forward_via_hyper(shared, req, &facts.headers).await;
         }
     };
 
@@ -278,7 +278,7 @@ async fn recover_from_h3(
             note,
         } => {
             warn!(%authority, error = %error, "{note}");
-            forward_via_hyper(shared, *request).await
+            forward_via_hyper(shared, *request, &facts.headers).await
         }
         H3Action::Fail(error) => Err(error),
     }
@@ -336,10 +336,25 @@ fn spawn_commit(
 /// Send `req` through the hyper H1/H2 client, boxing its response body into the
 /// shared [`ResponseBody`] shape. Used both for non-H3 origins and as the H3
 /// fall-back path, so the two produce an identical result type.
+///
+/// The request is given back the transfer codings the client applied beneath
+/// its chunked framing, which the client connection undid and nothing else did:
+/// a `gzip, chunked` request reached the origin as a gzip member under a bare
+/// `chunked`, labelled as whatever its `Content-Type` named. It is added here
+/// and not where the request is built because only this client can carry it:
+/// over HTTP/1.1 it frames the codings with its own `chunked`, and over HTTP/2
+/// it removes the field as connection-specific, which leaves that hop where it
+/// was. The HTTP/3 client is never handed one.
+// cite(RFC 9112 § 6.1): "Any recipient along the request/response chain MAY decode the received transfer coding(s) or apply additional transfer coding(s) to the message body, assuming that corresponding changes are made to the Transfer-Encoding field value."
 async fn forward_via_hyper(
     shared: &Arc<Shared>,
-    req: Request<ClientBody>,
+    mut req: Request<ClientBody>,
+    client_headers: &HeaderMap,
 ) -> Result<hyper::Response<ResponseBody>, String> {
+    if let Some(codings) = transfer_codings_not_undone(client_headers) {
+        req.headers_mut()
+            .insert(hyper::header::TRANSFER_ENCODING, codings);
+    }
     shared
         .upstream
         .client
