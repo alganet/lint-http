@@ -284,17 +284,26 @@ impl Rule for OriginMatchingForCors {
             let acao_val = members.into_iter().next().unwrap();
             let acao_val = crate::helpers::headers::trim_ows(&acao_val).to_string();
 
-            // `*` is permitted only when credentials are not allowed. The CORS check short-
-            // circuits on `*` *only* for a request that does not carry credentials; a
-            // credentialed one falls through to the byte-serialized comparison below, which
-            // `*` can never satisfy.
+            // `*` shares only with a request that carries no credentials. The CORS
+            // check short-circuits on `*` *only* for a request whose credentials
+            // mode is not "include"; a credentialed one falls through to the
+            // byte-serialized comparison below, which `*` can never satisfy.
+            //
+            // So the wildcard is what stands in front of credentialed sharing only
+            // when the credentials field turns it on, and only the byte sequence
+            // `true` does: the check compares it as bytes. `TRUE` beside `*` is a
+            // response that shares with nobody's credentials whatever the origin
+            // field says, and the value's own defect is
+            // `access_control_allow_credentials_invalid`. **This comparison used
+            // to be case-insensitive**, which named the wildcard as the obstacle
+            // in a response where echoing the origin would share nothing either.
             // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
             if acao_val == "*" {
                 if let Some(cred) = crate::helpers::headers::get_header_str(
                     &resp.headers,
                     "access-control-allow-credentials",
                 ) {
-                    if cred.trim().eq_ignore_ascii_case("true") {
+                    if crate::helpers::headers::trim_ows(cred) == "true" {
                         return Some(
                             ctx.by_server()
                                 .report(&ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING),
@@ -637,14 +646,30 @@ mod tests {
         assert!(v.is_none());
     }
 
+    /// The wildcard stands in front of credentialed sharing only when the
+    /// credentials field turns it on, and the CORS check turns it on for the
+    /// byte sequence `true` and nothing else. Every other value beside `*` is
+    /// a response that shares with no credentialed request whatever the origin
+    /// field says, so there is no pairing to report; the value is
+    /// `access_control_allow_credentials_when_origin`'s `_invalid`, which the
+    /// second half of this test asserts so the silence here is not the only
+    /// word on it.
     #[rstest]
-    fn wildcard_with_credentials_case_insensitive_violation() {
+    #[case::the_literal("true", true)]
+    #[case::padded_with_ows("  true ", true)]
+    #[case::upper_case("TRUE", false)]
+    #[case::title_case("True", false)]
+    #[case::a_digit("1", false)]
+    fn wildcard_pairs_only_with_the_byte_sequence_true(
+        #[case] credentials: &str,
+        #[case] pairs: bool,
+    ) {
         let rule = OriginMatchingForCors;
         let mut tx = make_test_transaction_with_response(
             200,
             &[
                 ("access-control-allow-origin", "*"),
-                ("access-control-allow-credentials", "TRUE"),
+                ("access-control-allow-credentials", credentials),
             ],
         );
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
@@ -653,9 +678,30 @@ mod tests {
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(
+            v.as_ref().map(|v| v.violation.as_str()),
+            pairs.then_some("access_control_allow_origin_credentials_conflicting"),
+            "{credentials:?}: {v:?}"
+        );
+
+        let owner = crate::rules::access_control_allow_credentials_when_origin::AccessControlAllowCredentialsWhenOrigin;
+        let by_owner = crate::test_helpers::run_rule(
+            &owner,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]),
         )
-        .unwrap();
-        assert!(v.message.contains("'*' is not allowed"));
+        .expect("the credentials rule reports every value beside `*`");
+        assert_eq!(
+            by_owner.violation,
+            if pairs {
+                "access_control_allow_credentials_conflicting"
+            } else {
+                "access_control_allow_credentials_invalid"
+            },
+            "{credentials:?}"
+        );
     }
 
     #[rstest]

@@ -98,7 +98,7 @@ sources:
     snippet: If request’s credentials mode is not "include" and origin is `*`, then return success.
     cited_by:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 291
+      line: 300
     - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
       line: 154
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
@@ -108,7 +108,7 @@ sources:
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 338
+      line: 347
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
       line: 127
   - label: refresh_header_syntax
@@ -3513,7 +3513,7 @@ sources:
     - file: lint-http-rules/src/helpers/origin.rs
       line: 214
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 339
+      line: 348
   - label: lint-http-rules/src/helpers/origin.rs (5)
     section: § 6.2
     snippet: Otherwise, let result be the scheme part of the origin triple.
