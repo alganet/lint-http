@@ -1054,7 +1054,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "digest_credentials_nc_malformed",
     "digest_credentials_parameter_empty",
     "digest_equals_missing",
-    "digest_field_obsolete",
     "digest_member_empty",
     "digest_preference_invalid",
     "digest_preference_malformed",

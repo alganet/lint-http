@@ -10,6 +10,9 @@ use crate::violations::digest::{
     DIGEST_PREFERENCE_INVALID, DIGEST_PREFERENCE_MALFORMED, DIGEST_VALUE_EMPTY,
     DIGEST_VALUE_MALFORMED, RFC_3230_4_2, RFC_7231_APPENDIX_B, RFC_9530, RFC_9530_2, RFC_9530_4,
 };
+use crate::violations::qvalue::{
+    QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_DUPLICATED, WEIGHT_MALFORMED, WEIGHT_MISSING,
+};
 use crate::violations::structured_fields::{
     RFC_9651_4_2_2, RFC_9651_4_2_3_3, STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY,
 };
@@ -22,15 +25,24 @@ use base64::Engine;
 
 pub struct DigestHeaderSyntax;
 
-/// Sixteen defects, seven of them productions this rule borrows and nine
+/// Eighteen defects, ten of them productions this rule borrows and eight
 /// statements the digest documents make — about their own members, and about
 /// the two fields that no longer exist.
+/// `the_census_above_is_the_declared_list` holds the two numbers.
 ///
 /// RFC 3230 § 4.1.1 writes `digest-algorithm = token` and takes `token` from
 /// RFC 2616, whose character set is § 5.6.2's — the fourth reading of that
 /// equivalence in this catalogue, and the answer has not changed. So a `Digest`
 /// or a `Want-Digest` naming an algorithm no `tchar` admits reports what a
 /// `Vary` member and a method do.
+///
+/// **`Want-Digest` borrows a second production after the algorithm.** § 4.3.1
+/// writes `#(digest-algorithm [ ";" "q" "=" qvalue])`, the bracket RFC 9110
+/// § 12.4.2 now calls `weight`, so a dangling `;`, a parameter that is not `q`,
+/// a second weight and a number that is no `qvalue` are the four defects every
+/// field carrying a weight answers with. This reader took the member whole for
+/// the algorithm for as long as it existed, and reported each weighted one —
+/// the section's own example among them — as a `token` holding a `;`.
 ///
 /// **The RFC 9530 half borrows one thing, and it is the interesting half.**
 /// `Content-Digest` and its three siblings are Structured Field Dictionaries,
@@ -77,13 +89,19 @@ static DECLARED: &[&ViolationDef] = &[
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &QVALUE_MALFORMED,
+    &WEIGHT_MISSING,
+    &WEIGHT_MALFORMED,
+    &WEIGHT_DUPLICATED,
 ];
 
 /// One finding from the reading, and the defect it reports as where the
 /// catalogue names that defect.
 ///
-/// Two of this rule's twenty-one findings are a borrowed production's; the rest
-/// are RFC 3230's list, RFC 9530's Dictionary, and four fields being obsolete.
+/// Most of this rule's findings are statements RFC 3230 and RFC 9530 make about
+/// their own members and about fields that are gone; the rest are the
+/// productions it borrows — `token`, `key`, base64 and the weight — and those
+/// answer with the entry the production's own subject declares.
 struct Defect {
     def: &'static ViolationDef,
     message: String,
@@ -121,6 +139,13 @@ const RFC_3230_4_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Historical `Digest` / `Want-Digest`, obsoleted by RFC 9530: `digest-algorithm = token`, case-insensitive — which is why uppercase is valid there and not in the structured fields",
 };
 
+const RFC_3230_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3230",
+    section: Some("4.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc3230.html#section-4.3.1",
+    note: "Historical `Want-Digest`, obsoleted by RFC 9530: `#(digest-algorithm [ \";\" \"q\" \"=\" qvalue])` — each algorithm may carry a weight, in RFC 2616's notation, which lets whitespace stand around the `;` and the `=`",
+};
+
 /// Which side of the exchange a field is read on.
 #[derive(Clone, Copy)]
 enum Side {
@@ -155,7 +180,9 @@ enum Syntax {
     /// RFC 3230's `Digest`: `alg=base64`, and the algorithm is an ordinary
     /// case-insensitive token rather than a structured-field key.
     LegacyDigest,
-    /// RFC 3230's `Want-Digest`: a list of algorithm tokens.
+    /// RFC 3230's `Want-Digest`: a list of algorithm tokens, each with an
+    /// optional weight after it.
+    // cite(RFC 3230 § 4.3.1): "Want-Digest = "Want-Digest" ":" #(digest-algorithm [ ";" "q" "=" qvalue])"
     LegacyWantDigest,
     /// RFC 9530's `Content-Digest` / `Repr-Digest`: a Dictionary of
     /// algorithm key to Byte Sequence. The two fields differ only in *what* is
@@ -182,14 +209,7 @@ impl Syntax {
     fn defects(self, value: &str) -> Vec<Defect> {
         match self {
             Syntax::LegacyDigest => legacy_digest_defect(value),
-            Syntax::LegacyWantDigest => {
-                token_list(
-                    value,
-                    "Want-Digest header contains empty member",
-                    "Want-Digest algorithm '{member}' contains invalid character: '{char}'",
-                )
-                .1
-            }
+            Syntax::LegacyWantDigest => legacy_want_digest_defect(value),
             Syntax::StructuredDigest => structured_digest_defect(value),
             Syntax::WantPreference => want_preference_defect(value),
             Syntax::Anything => Vec::new(),
@@ -409,9 +429,28 @@ fn key_value_members(
     (members, out)
 }
 
-/// Split a comma-separated list of bare tokens.
-fn token_list(value: &str, empty_member: &str, invalid_token: &str) -> (Vec<String>, Vec<Defect>) {
-    let mut members = Vec::new();
+/// The RFC 3230 preference shape: an algorithm token, and an optional weight.
+///
+/// **The weight is the part a bare token list cannot see.** § 4.3.1 brackets
+/// `";" "q" "=" qvalue` after each algorithm, and the section's own example is
+/// `MD5;q=0.3, sha;q=1` — so a reader taking the member whole for the
+/// algorithm reports the `;` as a character no `token` admits, and does it for
+/// every weighted member a sender writes.
+///
+/// **The bracket is RFC 9110's `weight` under its older spelling**, which is
+/// why the defects are the ones every field carrying a weight answers with:
+/// RFC 3230 takes `qvalue` from RFC 2616, whose production is the one § 12.4.2
+/// prints now, the same equivalence the algorithm's `token` rests on. What the
+/// older spelling does *not* carry is § 12.4.2's single `"q="` literal. RFC
+/// 2616's notation lets linear white space stand between any two words and
+/// separators, and `";" "q" "=" qvalue` is four of them, so `sha ; q = 0.5`
+/// derives and `weight_equals_whitespace_forbidden` is not an entry this field
+/// can draw.
+///
+/// A member's checks are a chain — the weight is read only once the algorithm
+/// is one — and the member boundary is not, as in the `Digest` walk below.
+fn legacy_want_digest_defect(value: &str) -> Vec<Defect> {
+    use crate::helpers::headers::trim_ows;
     let mut out = Vec::new();
     let mut saw_an_empty_member = false;
     for member in value.split(',') {
@@ -420,31 +459,106 @@ fn token_list(value: &str, empty_member: &str, invalid_token: &str) -> (Vec<Stri
             saw_an_empty_member = true;
             continue;
         }
-        // `digest-algorithm = token`, and the caller supplies only the wording:
-        // which of the two `token` ids answers is decided by the character, the
-        // way it is at every other reader of this production. The wording names
-        // the member as well as the character, because two algorithms in one
-        // list can fail on the same octet and a sentence saying only which
-        // octet would arrive twice, word for word.
+        let mut segments = member.split(';');
+        // `split` yields at least one segment, the empty one for an empty
+        // string; the member was refused above for being empty, so this is the
+        // text in front of the first `;`, or all of it.
+        let algorithm = trim_ows(segments.next().unwrap_or_default());
+
+        // `token = 1*tchar` derives no empty string, and a scan for an invalid
+        // character finds none in one — so a member that begins at its `;` is
+        // named by the floor, not the scan.
         // cite(RFC 3230 § 4.1.1): "digest-algorithm = token"
-        if let Some(c) = crate::helpers::token::find_invalid_token_char(member) {
+        if algorithm.is_empty() {
             out.push(Defect::named(
-                token_character(c),
-                invalid_token
-                    .replace("{member}", member)
-                    .replace("{char}", &c.to_string()),
+                &TOKEN_EMPTY,
+                format!("Want-Digest member '{member}' has empty algorithm"),
             ));
             continue;
         }
-        members.push(member.to_string());
+        // The wording names the algorithm as well as the character, because
+        // two algorithms in one list can fail on the same octet and a sentence
+        // saying only which octet would arrive twice, word for word.
+        if let Some(c) = crate::helpers::token::find_invalid_token_char(algorithm) {
+            out.push(Defect::named(
+                token_character(c),
+                format!("Want-Digest algorithm '{algorithm}' contains invalid character: '{c}'"),
+            ));
+            continue;
+        }
+
+        // Everything after the algorithm is the weight or nothing: the
+        // bracket holds one `";" "q" "=" qvalue` and no parameter list. So the
+        // walk reports the first segment that is not that and ends the member,
+        // since whatever follows is more of the one thing that did not derive.
+        let mut weight_seen = false;
+        for segment in segments {
+            let segment = trim_ows(segment);
+            // Not an empty parameter slot, because there are no parameter
+            // slots: the `;` is the weight's first word, and the member stops
+            // before writing the rest of it.
+            if segment.is_empty() {
+                out.push(Defect::named(
+                    &WEIGHT_MISSING,
+                    format!("Want-Digest member '{member}' has a ';' with no weight after it"),
+                ));
+                break;
+            }
+            let (name, qv) = match segment.split_once('=') {
+                Some((name, qv)) => (trim_ows(name), Some(trim_ows(qv))),
+                None => (segment, None),
+            };
+            // RFC 2616 § 2.1 makes quoted literal text case-insensitive unless
+            // a production says otherwise, and this one does not.
+            if !name.eq_ignore_ascii_case("q") {
+                out.push(Defect::named(
+                    &WEIGHT_MALFORMED,
+                    format!(
+                        "'{segment}' is not a weight, and a weight is the only thing a Want-Digest member may carry after its algorithm (member '{member}')"
+                    ),
+                ));
+                break;
+            }
+            // The bracket is written once, so a second weight derives from
+            // nothing — and a recipient reading the first and one reading the
+            // last disagree about the preference. The message names the
+            // section because the shared entry cannot.
+            if weight_seen {
+                out.push(Defect::named(
+                    &WEIGHT_DUPLICATED,
+                    format!(
+                        "More than one weight in Want-Digest member '{member}': RFC 3230 §4.3.1 brackets one"
+                    ),
+                ));
+                break;
+            }
+            weight_seen = true;
+            let Some(qv) = qv else {
+                out.push(Defect::named(
+                    &WEIGHT_MALFORMED,
+                    format!(
+                        "'{name}' is not a weight in Want-Digest member '{member}': the weight writes \"=\" and a qvalue after the \"q\", and this member stops at the name"
+                    ),
+                ));
+                break;
+            };
+            // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
+            if !crate::helpers::qvalue::valid_qvalue(qv) {
+                out.push(Defect::named(
+                    &QVALUE_MALFORMED,
+                    format!("Invalid qvalue '{qv}' in Want-Digest member '{member}'"),
+                ));
+                break;
+            }
+        }
     }
     if saw_an_empty_member {
         out.push(Defect::named(
             &DIGEST_MEMBER_EMPTY,
-            empty_member.to_string(),
+            "Want-Digest header contains empty member".to_string(),
         ));
     }
-    (members, out)
+    out
 }
 
 /// The RFC 3230 shape: an ordinary token and bare base64, with no `:`
@@ -684,7 +798,7 @@ impl RuleMeta for DigestHeaderSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest` (for message content), `Repr-Digest` (for representation data) and their preference counterparts `Want-Content-Digest` / `Want-Repr-Digest`. This rule validates:\n\n- **Legacy** `Digest` / `Want-Digest` header syntax (alg=base64) and flags their use as obsoleted by RFC 9530.\n- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64.\n- **Integrity preference** fields (`Want-Content-Digest`, `Want-Repr-Digest`) use algorithm=weight pairs where weight is an integer in 0..=10.\n- **Obsolete field**: presence of `Content-MD5` is flagged. It was removed from HTTP by RFC 7231 (not by RFC 9530, which does not mention it); prefer `Content-Digest`.\n\nAlgorithm names in the RFC 9530 fields are structured-field Dictionary keys and so must be lowercase (`sha-256`, not the `SHA-256` spelling used by the obsolete `Digest` field, whose algorithm token is case-insensitive)."
+        "RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest` (for message content), `Repr-Digest` (for representation data) and their preference counterparts `Want-Content-Digest` / `Want-Repr-Digest`. This rule validates:\n\n- **Legacy** `Digest` (`alg=base64`) and `Want-Digest` (algorithms, each with an optional `;q=` weight) header syntax, and flags their use as obsoleted by RFC 9530.\n- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64.\n- **Integrity preference** fields (`Want-Content-Digest`, `Want-Repr-Digest`) use algorithm=weight pairs where weight is an integer in 0..=10.\n- **Obsolete field**: presence of `Content-MD5` is flagged. It was removed from HTTP by RFC 7231 (not by RFC 9530, which does not mention it); prefer `Content-Digest`.\n\nAlgorithm names in the RFC 9530 fields are structured-field Dictionary keys and so must be lowercase (`sha-256`, not the `SHA-256` spelling used by the obsolete `Digest` field, whose algorithm token is case-insensitive)."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -693,6 +807,7 @@ impl RuleMeta for DigestHeaderSyntax {
             RFC_9530_3,
             RFC_9530_4,
             RFC_3230_4_1_1,
+            RFC_3230_4_3_1,
             RFC_7231_APPENDIX_B,
             RFC_9110_5_6_2,
             RFC_9651_4_2_3_3,
@@ -700,6 +815,7 @@ impl RuleMeta for DigestHeaderSyntax {
             RFC_4648_3_3,
             RFC_3230_4_2,
             RFC_9530,
+            RFC_9110_12_4_2,
         ]
     }
 
@@ -732,6 +848,11 @@ impl RuleMeta for DigestHeaderSyntax {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "Digest: SHA-256=not-base64!  # legacy Digest is obsoleted by RFC 9530 and will be reported",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— RFC 3230's own example: the field is obsolete, and a `;q=` weight after each algorithm is well formed"),
+                snippet: "Want-Digest: MD5;q=0.3, sha;q=1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -944,6 +1065,53 @@ mod tests {
         } else {
             assert!(v.is_none(), "did not expect violation for '{}'", value);
         }
+    }
+
+    /// The count the rule's doc states, read from the list it describes: a
+    /// sentence counting entries is a census, and a census nothing checks was
+    /// sixteen over a list of fourteen here for as long as it was written.
+    #[test]
+    fn the_census_above_is_the_declared_list() {
+        let own = DECLARED
+            .iter()
+            .filter(|d| d.id.starts_with("digest_") || d.id.starts_with("content_md5_"))
+            .count();
+        assert_eq!((DECLARED.len() - own, own), (10, 8));
+    }
+
+    /// RFC 3230 § 4.3.1's member is `digest-algorithm [ ";" "q" "=" qvalue ]`,
+    /// so what follows the `;` is read as a weight. The section's own example,
+    /// and the same weight spaced out under RFC 2616's implied LWS, are values
+    /// that read and earn the obsolescence and nothing else; each way the
+    /// bracket fails to derive is its own id — never the algorithm's `token`
+    /// entries, which is what a reader taking the `;` for part of the algorithm
+    /// answered every weighted member with. Every finding, not the first, so a
+    /// row cannot pass with a second id riding behind the one it names.
+    #[rstest]
+    #[case::the_sections_own_example("MD5;q=0.3, sha;q=1", &["digest_field_obsolete"])]
+    #[case::spaced_under_implied_lws("sha-256 ; q = 0.5", &["digest_field_obsolete"])]
+    #[case::upper_case_q("sha-256;Q=1.000", &["digest_field_obsolete"])]
+    #[case::zero_weight("contentMD5;q=0", &["digest_field_obsolete"])]
+    #[case::qvalue_out_of_range("sha-256;q=11", &["qvalue_malformed"])]
+    #[case::qvalue_not_a_number("sha-256;q=abc", &["qvalue_malformed"])]
+    #[case::separator_alone("sha-256;", &["weight_missing"])]
+    #[case::not_the_weight("sha-256;charset=utf-8", &["weight_malformed"])]
+    #[case::q_without_equals("sha-256;q", &["weight_malformed"])]
+    #[case::two_weights("sha-256;q=0.5;q=0.8", &["weight_duplicated"])]
+    #[case::weight_and_no_algorithm(";q=0.5", &["token_empty"])]
+    #[case::bad_algorithm_before_a_weight("sha@1;q=0.5", &["token_character_forbidden"])]
+    #[case::each_member_on_its_own("sha;q=2, md5;", &["qvalue_malformed", "weight_missing"])]
+    fn want_digest_members_carry_a_weight(#[case] value: &str, #[case] expected: &[&str]) {
+        let found: Vec<String> = crate::test_helpers::run_rule_all(
+            &DigestHeaderSyntax,
+            &make_req_want_digest(value),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]),
+        )
+        .into_iter()
+        .map(|v| v.violation)
+        .collect();
+        assert_eq!(found, expected, "{value}");
     }
 
     #[test]

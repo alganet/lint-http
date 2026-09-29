@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! The `qvalue` production — one entry, and five fields asking for it.
+//! The `qvalue` production — one entry, and six fields asking for it.
 //!
 //! A weight is how a request says which of several acceptable things it would
 //! rather have, and RFC 9110 § 12.4.2 writes the number once for all of them:
@@ -20,6 +20,18 @@
 //! fields, one number" and "four fields, one literal" — counted the rules that
 //! existed and called the answer a property of the specification. A census of
 //! what a document says is taken from the document.
+//!
+//! **And the five were one document's.** RFC 3230 § 4.3.1 writes
+//! `#(digest-algorithm [ ";" "q" "=" qvalue])` for `Want-Digest`: RFC 2616's
+//! spelling of the same bracket, whose `qvalue` is the production § 12.4.2
+//! prints now, the equivalence the algorithm's `token` already rests on. That
+//! field had a reader, and the reader took each member whole for a `token`, so
+//! every weighted member — the section's own `MD5;q=0.3, sha;q=1` included —
+//! was reported as an algorithm holding a `;`. A census of the fields carrying
+//! a construct, taken from RFC 9110, cannot see a field another document
+//! defines. The one entry here that field does not share is the whitespace
+//! one: RFC 2616's notation lets linear white space stand between `;`, `q` and
+//! `=`, where § 12.4.2 writes `"q="` as one literal.
 //!
 //! **The assembly around the weight is here too, and the paragraph this
 //! replaces said it was not.** That paragraph reasoned that a `;` with no
@@ -142,14 +154,15 @@ defects! {
     /// requires it.
     ///
     /// **The same octet conforms in an `Accept` and in a `TE`**, and that is
-    /// the whole reason this entry is shared by three of the five fields that
+    /// the whole reason this entry is shared by four of the six fields that
     /// carry a weight rather than by all of them.
     /// `parameters = *( OWS ";" OWS [ parameter ] )` brackets the parameter, so
     /// `text/plain;` is a zero-parameter repetition and derives; a
     /// `transfer-coding` prints the same repetition. Only where the field's own
     /// production puts `[ weight ]` and nothing else after the primary is a
     /// dangling `;` a defect, and then it is this one — which is true of
-    /// § 12.5.2, § 12.5.3 and § 12.5.4, and of neither of the other two.
+    /// § 12.5.2, § 12.5.3, § 12.5.4 and RFC 3230 § 4.3.1, and of neither of the
+    /// other two.
     ///
     /// **It said two fields, and the third was one nothing read.** A count of
     /// the fields sharing an entry is a count of the rules that declare it, and
@@ -181,8 +194,8 @@ defects! {
     /// and the difference is which field is being read.** `te_header_valid`
     /// reports a segment with no `=` under that id, correctly: a `TE` member may
     /// carry `transfer-parameter`s, so § 5.6.6's `name "=" value` is a
-    /// production the segment could have been trying to write. These two fields
-    /// have no parameter list at all — nothing but a weight derives here — so
+    /// production the segment could have been trying to write. The fields
+    /// declaring this entry have no parameter list at all — nothing but a weight derives here — so
     /// naming a `parameter` requirement would cite a construct the field does
     /// not have.
     ///
@@ -208,8 +221,9 @@ defects! {
     ///
     /// **Uncited, and for a reason none of the other uncited entries has.** The
     /// bracket is written once per field — RFC 9110 § 10.1.4, § 12.5.1, § 12.5.2,
-    /// § 12.5.3 and § 12.5.4 each print it for their own — and one entry is
-    /// declared by the rules that read those fields.
+    /// § 12.5.3 and § 12.5.4 each print it for their own, and RFC 3230 § 4.3.1
+    /// printed it for `Want-Digest` before the construct had a name — and one
+    /// entry is declared by the rules that read those fields.
     ///
     /// **This list named four sections and the specification prints five.** The
     /// missing one was § 12.5.2, whose field no rule read; an enumeration of
@@ -287,7 +301,7 @@ mod tests {
     }
 
     /// The one entry in this subject that names no sentence, and the assertion
-    /// is what keeps the reason honest: five sections print `[ weight ]`, one
+    /// is what keeps the reason honest: six sections print `[ weight ]`, one
     /// per field, and a shared entry may only cite what every declarer states.
     /// If a single sentence is ever found that bounds the repetition for all of
     /// them, this is the test that has to change first.
@@ -297,7 +311,7 @@ mod tests {
         assert!(!WEIGHT_MISSING.spec.is_empty());
     }
 
-    /// The doc above names five sections; this names the five rules, and the
+    /// The doc above names six sections; this names the six rules, and the
     /// two lists are one claim read from opposite ends. It was three for as
     /// long as nobody read it that way: a count of the fields sharing an entry
     /// taken from the entry's prose says what the specification prints, and a
@@ -326,6 +340,8 @@ mod tests {
                 "accept_header_media_type_syntax",
                 // RFC 9110 § 12.5.4
                 "accept_language_weight_valid",
+                // RFC 3230 § 4.3.1, `Want-Digest`, obsoleted by RFC 9530
+                "digest_header_syntax",
                 // RFC 9110 § 10.1.4, through `t-codings`
                 "te_header_valid",
             ],
