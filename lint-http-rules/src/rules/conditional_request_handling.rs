@@ -716,7 +716,30 @@ impl ConditionalRequestHandling {
         let since = crate::http_date::header_timestamp(&tx.request.headers, "if-modified-since")?;
         let last_modified = crate::http_date::header_timestamp(&resp.headers, "last-modified")?;
 
-        (last_modified <= since).then(|| ctx.by_server().report_with(&STATUS_304_MISSING, format!("Conditional GET/HEAD used If-Modified-Since but server returned {} even though Last-Modified indicates the resource was not modified; RFC 9110 \u{a7}13.1.3 says such a response SHOULD be a 304 (Not Modified)", what_was_sent_instead(resp.status))))
+        if last_modified > since {
+            return None;
+        }
+        // Both dates as written, so the operator sees the comparison the
+        // finding rests on rather than a sentence every value would share.
+        let written = |headers: &hyper::HeaderMap, name: &str| {
+            crate::helpers::headers::field_lines_as_written(headers, name)
+                .into_iter()
+                .next()
+                .map(|line| crate::helpers::shown::shown_in_finding(&line))
+                .unwrap_or_default()
+        };
+        Some(ctx.by_server().report_with(
+            &STATUS_304_MISSING,
+            format!(
+                "{} carried If-Modified-Since: {}, and the response's Last-Modified: {} is no \
+                 later, so the condition was false; the server answered {} where RFC 9110 \
+                 \u{a7}13.1.3 says the response SHOULD be a 304 (Not Modified)",
+                tx.request.method,
+                written(&tx.request.headers, "if-modified-since"),
+                written(&resp.headers, "last-modified"),
+                what_was_sent_instead(resp.status)
+            ),
+        ))
     }
 
     /// A `GET` or `HEAD` whose only precondition was `If-None-Match`, answered
@@ -1770,11 +1793,16 @@ mod tests {
                 "conditional_request_handling",
             ]),
         );
-        assert_eq!(
-            found.iter().any(|v| v.violation == "status_304_missing"),
-            expected,
-            "{status}: {found:?}"
-        );
+        let hit = found.iter().find(|v| v.violation == "status_304_missing");
+        assert_eq!(hit.is_some(), expected, "{status}: {found:?}");
+        if let Some(hit) = hit {
+            assert!(
+                hit.message
+                    .contains("If-Modified-Since: Mon, 01 Sep 2025 00:00:00 GMT, and the response's Last-Modified: Mon, 01 Sep 2025 00:00:00 GMT"),
+                "the finding names both dates it compared: {}",
+                hit.message
+            );
+        }
     }
 
     /// An entity tag may carry `obs-text`, so the response's validator is read
