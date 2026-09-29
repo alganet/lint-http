@@ -857,11 +857,13 @@ pub enum AuthorizationDefect<'a> {
     SchemeCharacter(char),
     /// A scheme with nothing after it, or nothing but whitespace.
     MissingCredentials,
-    /// A control octet in the credentials, read before the alternative is
-    /// chosen. Both alternatives refuse it — `token68`'s alphabet holds no
-    /// control octet and neither does a `token` or the `qdtext` of a
-    /// `quoted-string` — so this is the one verdict about the value that does
-    /// not need to know which of the two was written.
+    /// A control octet other than HTAB in the credentials, read before the
+    /// alternative is chosen. Both alternatives refuse it — `token68`'s
+    /// alphabet holds no control octet and neither does a `token` or the
+    /// `qdtext` of a `quoted-string` — so this is the one verdict about the
+    /// value that does not need to know which of the two was written. HTAB is
+    /// left to the production, because `#auth-param`'s `OWS` and `qdtext` both
+    /// admit it.
     CredentialsControlCharacter,
     /// What § 11.4's `[ 1*SP ( token68 / #auth-param ) ]` failed to be, read by
     /// the same function that reads § 11.3's.
@@ -960,7 +962,17 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDef
         // verdict that does not depend on which alternative was written. Moving
         // it behind `validate_scheme_tail` would trade an id an operator has
         // configured for one that says the same thing about a narrower half.
-        if rest.chars().any(|c| (c as u32) < 0x20 || c == '\x7f') {
+        //
+        // **Except HTAB, which is a control octet and not refused.** `#auth-param`
+        // prints `OWS` beside every comma and `qdtext` names HTAB outright, so
+        // `realm="x",<HTAB>nonce="n"` conforms. It is also the one control
+        // octet a field value can carry, so counting it here meant this was
+        // the only way to reach the entry, and every finding it gave was false.
+        // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+        if rest
+            .chars()
+            .any(|c| ((c as u32) < 0x20 && c != '\t') || c == '\x7f')
+        {
             return Err(AuthorizationDefect::CredentialsControlCharacter);
         }
         // `Side::Credentials`, and the reason is not that the ambiguity is
@@ -1426,6 +1438,21 @@ mod tests {
         assert_eq!(
             validate_authorization_syntax("Bearer \u{0001}"),
             Err(AuthorizationDefect::CredentialsControlCharacter)
+        );
+    }
+
+    /// HTAB is a control octet and `OWS`: beside an `#auth-param` comma and
+    /// inside a `quoted-string` it conforms, and it is left to the production
+    /// rather than counted among the octets both alternatives refuse.
+    #[test]
+    fn a_tab_where_the_production_admits_one_is_not_a_control_octet() {
+        assert_eq!(
+            validate_authorization_syntax("Digest username=\"u\",\trealm=\"x\""),
+            Ok(())
+        );
+        assert_eq!(
+            validate_authorization_syntax("Digest username=\"u\"\t,\trealm=\"a\tb\""),
+            Ok(())
         );
     }
 

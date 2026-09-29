@@ -94,7 +94,9 @@ defects! {
     /// every other subject's invisible defect earns it: neither alternative of
     /// the production admits one — `token68`'s alphabet has none and an
     /// `auth-param` is tokens and quoted-strings — so an octet below %x20 in a
-    /// value this shape is something that happened to it in transit.
+    /// value this shape is something that happened to it in transit. HTAB is
+    /// the exception and is not reported: `#auth-param`'s `OWS` and `qdtext`
+    /// both admit it.
     ///
     // cite(RFC 9110 § 11.4): "credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
     CREDENTIALS_CONTROL_CHARACTER_FORBIDDEN = {
@@ -104,10 +106,10 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9110_11_4],
         strength: Strength::Grammar,
-        unreachable: "the octet this names is a control octet, and no route carries one to \
-                      the rules: on the wire the parser refuses the message before there is \
-                      a transaction, and from a capture file `HeaderValue` refuses the \
-                      record -- 0x7f with the rest of the class",
+        unreachable: "the octet this names is a control octet other than HTAB, and no route \
+                      carries one to the rules: on the wire the parser refuses the message \
+                      before there is a transaction, and from a capture file `HeaderValue` \
+                      refuses the record -- 0x7f with the rest of the class",
     }
 }
 

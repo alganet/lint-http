@@ -352,6 +352,9 @@ mod tests {
     #[case("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==", None)]
     #[case("Bearer abc123", None)]
     #[case("Digest username=\"Mufasa\", realm=\"test\"", None)]
+    // HTAB is `OWS` beside an `#auth-param` comma, and not a control octet
+    // either alternative refuses.
+    #[case("Digest username=\"Mufasa\",\trealm=\"test\"", None)]
     #[case("", Some("credentials_empty"))]
     #[case(" ", Some("credentials_empty"))]
     #[case("Basic", Some("credentials_missing"))]

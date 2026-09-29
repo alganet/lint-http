@@ -2589,7 +2589,7 @@ sources:
     snippet: Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1059
+      line: 1071
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 249
     - file: lint-http-rules/src/violations/base64.rs
@@ -4327,7 +4327,7 @@ sources:
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1151
+      line: 1163
 - label: RFC 6797
   url: https://www.rfc-editor.org/rfc/rfc6797.html
   fragments:
@@ -5186,7 +5186,7 @@ sources:
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1287
+      line: 1299
     - file: lint-http-rules/src/violations/digest_credentials.rs
       line: 233
 - label: RFC 7617
@@ -5203,7 +5203,7 @@ sources:
     snippet: The user-id and password MUST NOT contain any control characters
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1072
+      line: 1084
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 61
   - label: basic-credentials base64
@@ -5211,13 +5211,13 @@ sources:
     snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1056
+      line: 1068
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 2
     snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1064
+      line: 1076
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 46
 - label: RFC 7838
@@ -8138,6 +8138,8 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_date.rs
       line: 176
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 971
     - file: lint-http-rules/src/helpers/headers.rs
       line: 343
     - file: lint-http-rules/src/helpers/headers.rs
@@ -8471,7 +8473,7 @@ sources:
     snippet: It uses a case-insensitive token to identify the authentication scheme
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 939
+      line: 941
     - file: lint-http-rules/src/registries/mod.rs
       line: 30
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
@@ -8501,7 +8503,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 639
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1243
+      line: 1255
     - file: lint-http-rules/src/violations/auth_param.rs
       line: 88
     - file: lint-http-rules/src/violations/auth_param.rs
@@ -8547,13 +8549,13 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 599
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 951
+      line: 953
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
       line: 278
     - file: lint-http-rules/src/violations/credentials.rs
       line: 68
     - file: lint-http-rules/src/violations/credentials.rs
-      line: 99
+      line: 101
   - label: lint-http-rules/src/helpers/auth.rs (6)
     section: § 11.5
     snippet: For historical reasons, a sender MUST only generate the quoted-string syntax.
@@ -8611,7 +8613,7 @@ sources:
     snippet: Proxy-Authorization = credentials
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 885
+      line: 887
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 64
   - label: 1#element expansion
@@ -8659,7 +8661,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 715
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1244
+      line: 1256
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 141
     - file: lint-http-rules/src/helpers/cache_control.rs
