@@ -501,15 +501,52 @@ impl Rule for ContentLocationAndUriConsistent {
 
                     // This is the one branch in the rule that reports something the
                     // spec permits, which is why it ships as an advisory. §8.7 gives
-                    // the difference a meaning rather than forbidding it, and the
-                    // first of the three meanings it lists — a negotiated variant —
-                    // is the header's primary use. What makes it worth a human's
-                    // glance is the sentence after: the claim is unverifiable.
+                    // the difference a meaning rather than forbidding it. What makes
+                    // it worth a human's glance is the sentence after: the claim is
+                    // unverifiable.
                     // cite(RFC 9110 § 8.7): "If Content-Location is included in a 2xx (Successful) response message and its field value refers to a URI that differs from the target URI, then the origin server claims that the URI is an identifier for a different resource corresponding to the enclosed representation."
-                    // cite(RFC 9110 § 8.7): "For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation."
                     // cite(RFC 9110 § 8.7): "Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP."
                     if !matches {
-                        return Some(ctx.report_with(&CONTENT_LOCATION_AMBIGUOUS, "Content-Location identifies a different resource than the request target; RFC 9110 §8.7 permits this (a negotiated variant, a 201 pointing at the created resource, or a report on a POST), so confirm it is deliberate".into()));
+                        let method = tx.request.method.as_str();
+                        // **The meaning is the exchange's, and there is one per
+                        // shape.** §8.7 reads the same difference three ways by
+                        // what was asked and what answered, so a sentence listing
+                        // all three told an operator what the value might mean
+                        // rather than what this response says with it -- and an
+                        // `OPTIONS` answer carrying a negotiated page's name is
+                        // claiming the third reading, which is the one worth a look.
+                        // cite(RFC 9110 § 8.7): "For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation."
+                        // cite(RFC 9110 § 8.7): "For a 201 (Created) response to a state-changing method, a Content-Location field value that is identical to the Location field value indicates that this content is a current representation of the newly created resource."
+                        // cite(RFC 9110 § 8.7): "Otherwise, such a Content-Location indicates that this content is a representation reporting on the requested action's status and that the same report is available (for future access with GET) at the given URI."
+                        let location = resp
+                            .headers
+                            .get("location")
+                            .map(crate::helpers::headers::field_line_as_written);
+                        let names_the_location =
+                            location.as_deref().map(crate::helpers::headers::trim_ows)
+                                == Some(crate::helpers::headers::trim_ows(s));
+                        let reading = if method == "GET" || method == "HEAD" {
+                            format!(
+                                "for a response to {method}, RFC 9110 §8.7 reads that as the target being subject to content negotiation and '{}' identifying the representation selected",
+                                crate::helpers::shown::shown_in_finding(s)
+                            )
+                        } else if resp.status == 201 && names_the_location {
+                            "for a 201 whose Location names the same URI, RFC 9110 §8.7 reads that as this content being the current representation of the resource just created".to_string()
+                        } else {
+                            format!(
+                                "for a {} response to {method}, RFC 9110 §8.7 reads that as this content being a report on the action's status, and the same report being available to a later GET at '{}'",
+                                resp.status,
+                                crate::helpers::shown::shown_in_finding(s)
+                            )
+                        };
+                        return Some(ctx.report_with(
+                            &CONTENT_LOCATION_AMBIGUOUS,
+                            format!(
+                                "Content-Location '{}' names a different resource than the request target '{}': {reading}. The claim can only be trusted if both identifiers share a resource owner, which HTTP cannot establish, so confirm it is deliberate",
+                                crate::helpers::shown::shown_in_finding(s),
+                                crate::helpers::shown::shown_in_finding(&tx.request.uri)
+                            ),
+                        ));
                     }
                 }
             }
@@ -546,6 +583,49 @@ mod tests {
             trailers: None,
         });
         tx
+    }
+
+    /// **One reading per exchange shape, and the finding names the one its own
+    /// exchange makes.** § 8.7 gives a differing value three meanings, chosen by
+    /// the method and the status: a negotiated variant for GET and HEAD, the
+    /// created resource for a 201 whose `Location` names the same URI, and a
+    /// retrievable status report otherwise. The sentence used to list all three
+    /// for every value, so an `OPTIONS` answer naming a page's variant read the
+    /// same as the `GET` that negotiated it.
+    #[rstest]
+    #[case::get("GET", 200, None, "subject to content negotiation")]
+    #[case::head("HEAD", 200, None, "subject to content negotiation")]
+    #[case::created("POST", 201, Some("/items/7"), "the resource just created")]
+    #[case::created_elsewhere("POST", 201, Some("/items/8"), "a report on the action's status")]
+    #[case::options("OPTIONS", 200, None, "a report on the action's status")]
+    fn the_reading_is_the_exchanges(
+        #[case] method: &str,
+        #[case] status: u16,
+        #[case] location: Option<&str>,
+        #[case] reading: &str,
+    ) {
+        let mut headers = vec![("content-location", "/items/7")];
+        if let Some(location) = location {
+            headers.push(("location", location));
+        }
+        let mut tx = make_tx_with_req_uri("http://example.com/items", status, &headers);
+        tx.request.method = method.into();
+        let v = crate::test_helpers::run_rule(
+            &ContentLocationAndUriConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "content_location_and_uri_consistent",
+            ]),
+        )
+        .expect("a differing Content-Location on a 2xx is reported");
+        assert_eq!(v.violation, "content_location_ambiguous");
+        assert!(v.message.contains(reading), "{}", v.message);
+        assert!(
+            v.message.contains("'/items/7'") && v.message.contains("'http://example.com/items'"),
+            "the finding names the value and the target: {}",
+            v.message
+        );
     }
 
     /// The four findings that are the field's own, and three kinds between
