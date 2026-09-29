@@ -2075,6 +2075,11 @@ severity = "error"
 # Response carries a Forwarded field
 severity = "error"
 
+[violations.host_conflicting]
+# A Host names another authority than the absolute-form target beside it
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.host_missing]
 # A request names its authority in neither Host nor :authority
 # MUST obliges the sender, so this defaults to error.

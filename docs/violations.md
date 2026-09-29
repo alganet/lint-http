@@ -248,6 +248,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [forwarded_pair_value_empty](violations/forwarded_pair_value_empty.md) — Forwarded pair is written with no value after its '='
 - [forwarded_parameter_duplicated](violations/forwarded_parameter_duplicated.md) — Forwarded element names one parameter more than once
 - [forwarded_response_forbidden](violations/forwarded_response_forbidden.md) — Response carries a Forwarded field
+- [host_conflicting](violations/host_conflicting.md) — A Host names another authority than the absolute-form target beside it
 - [host_missing](violations/host_missing.md) — A request names its authority in neither Host nor :authority
 - [host_userinfo_forbidden](violations/host_userinfo_forbidden.md) — A Host field value carries the userinfo subcomponent
 - [http3_goaway_identifier_invalid](violations/http3_goaway_identifier_invalid.md) — A GOAWAY identifier is larger than one already sent

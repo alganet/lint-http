@@ -137,13 +137,19 @@ impl HostAndAuthorityConsistent {
 use crate::violations::authority::{
     AUTHORITY_CONFLICTING, AUTHORITY_VALUE_CONFLICTING, RFC_9113_8_3_1, RFC_9114_4_3_1,
 };
+use crate::violations::host::{HOST_CONFLICTING, RFC_9112_3_2};
 use crate::violations::ViolationDef;
 
-/// Two, and the second exists because the two documents do not define the
+/// Three. The second exists because the two documents do not define the
 /// comparison the same way: one pair of values is conforming over HTTP/2 and
 /// refused over HTTP/3, and an operator on one version silences a thing the
-/// other cannot.
-static DECLARED: &[&ViolationDef] = &[&AUTHORITY_CONFLICTING, &AUTHORITY_VALUE_CONFLICTING];
+/// other cannot. The third is HTTP/1.1's own statement of the disagreement,
+/// under its own document, as each version's `Host` entries are.
+static DECLARED: &[&ViolationDef] = &[
+    &AUTHORITY_CONFLICTING,
+    &AUTHORITY_VALUE_CONFLICTING,
+    &HOST_CONFLICTING,
+];
 const RFC_9110_4_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("4.2.3"),
@@ -185,13 +191,13 @@ const RFC_9110_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("7.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
-    note: "Which versions carry the two fields at once: in HTTP/2 and HTTP/3 the `Host` field is supplanted by `:authority`, which is why the rule is gated to those two",
+    note: "In HTTP/2 and HTTP/3 the `Host` field is supplanted by `:authority`, which is the authority those versions carry beside it",
 };
 const RFC_9112_3_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9112",
     section: Some("3.2.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.2",
-    note: "Why HTTP/1.1 is not measured: an absolute-form target beside a `Host` is answered by having the recipient ignore the field, not by calling the sender wrong",
+    note: "An absolute-form target's authority is the one every recipient uses, ignoring `Host` -- which is what makes a `Host` that names another one a request routed by whichever of the two a component reads",
 };
 
 impl RuleMeta for HostAndAuthorityConsistent {
@@ -209,7 +215,7 @@ impl RuleMeta for HostAndAuthorityConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "Reports an HTTP/2 or HTTP/3 request whose `Host` header field and `:authority` pseudo-header field do not name the same authority.\n\n**Two documents state this requirement, and neither is a copy of the other.** RFC 9113 §8.3.1: \"Clients MUST NOT generate a request with a Host header field that differs from the \\\":authority\\\" pseudo-header field.\" — followed by what such a message costs: \"A server SHOULD treat a request as malformed if it contains a Host header field that identifies an entity that differs from the entity in the \\\":authority\\\" pseudo-header field.\" RFC 9114 §4.3.1 puts it as a property of the request: \"If both fields are present, they MUST contain the same value.\" A mismatch is a routing disagreement inside one message — whichever field a recipient trusts decides which resource it serves, which is why this shape turns up in request-smuggling and cache-poisoning reports. Each finding is worded from the document that governs the version it was found on.\n\n**The two versions do not define the comparison the same way, and this rule does not harmonise them.** RFC 9113 continues: \"The values of fields need to be normalized to compare them (see Section 6.2 of [RFC3986]). An origin server can apply any normalization method, whereas other servers MUST perform scheme-based normalization (see Section 6.2.3 of [RFC3986]) of the two fields.\" RFC 9114 asks for the same value and names no normalization — the word appears nowhere in that document. So over **HTTP/2** two values that normalization makes one authority are the same value and are not reported, while over **HTTP/3** they are reported, with the finding printing the normal form both share and saying which sentence decided it. A difference no normalization removes is reported on both.\n\n**What scheme-based normalization is here.** RFC 9110 §4.2.3 is where the steps for an \"http\" or \"https\" URI are written down, and this rule performs the three that can apply to an authority: a port equal to the scheme's default is omitted, the host is compared without regard to case, and a percent-encoded octet standing for an unreserved character is decoded (\"Characters other than those in the 'reserved' set are equivalent to their percent-encoded octets\"). The fourth step is about a path component, which an authority does not have. So over HTTP/2 `example.com:443` and `example.com` on an `https` request are one authority, and so are `Example.COM` and `example.com`, and `exam%70le.com` and `example.com`.\n\n**What is never folded.** The same sentence says \"all other components are compared in a case-sensitive manner\", so a userinfo subcomponent is carried through as written. Both versions forbid one in an `:authority` only **for \"http\" and \"https\" schemed URIs**, and both say `:scheme` is not restricted to those two — so an authority under another scheme may carry userinfo, and its case is part of it. Where a userinfo does appear under `http` or `https`, `http2_pseudo_headers_valid` reports it; the HTTP/3 pseudo-header rule does not check it today.\n\n**An empty `Host` beside an `:authority`** is a difference like any other and is reported on both versions. RFC 9114 §4.3.1 also states it outright — \"If these fields are present, they MUST NOT be empty\" — though that sentence's antecedent is a request whose `:scheme` identifies a scheme with a mandatory authority component, which a CONNECT does not send.\n\n**Not reported, because the two fields are not both there.** A request whose target carries no authority is nothing to compare against, and whether it should have carried one is a question about the pseudo-header itself — `http2_pseudo_headers_valid` and `http3_pseudo_headers_valid` own it. A request with no `Host` field is the other half of §4.3.1's either-or and is `host_header`'s question. A request with **two** `Host` field lines names no single authority: `Host` is not a list field, so RFC 9110 §5.3 forbids the repetition and `host_header` reports the message.\n\n**Not reported: an asterisk-form OPTIONS.** The capture records the target as the string form of a URI rebuilt from the pseudo-headers, and a `:path` of `*` leaves no delimiter before it — `https://example.com*` is what both an `OPTIONS *` for `example.com` and an origin whose name ends in `*` come back as, since `*` is a `sub-delims` character a `reg-name` admits. An `OPTIONS` whose recorded authority ends in `*` is therefore left alone rather than reported for a difference the capture invented.\n\n**Not reported: whether either value is a well-formed authority.** `Host = uri-host [ \":\" port ]` is `host_header`'s check, and the `:authority`'s shape — its userinfo, and the port a CONNECT must name — belongs to the pseudo-header rule for each version. This rule asks only whether the two agree, so two values that are equally malformed agree and are silent here.\n\n**Scope and version.** Only HTTP/2 and HTTP/3 requests are measured, because only they have an `:authority` (RFC 9110 §7.2). That is not a narrowing of the requirement: over HTTP/1.1 an absolute-form request-target carries an authority beside a `Host` too, and RFC 9112 §3.2.2 answers that pair the other way round — \"the origin server MUST ignore the received Host header field (if any) and instead use the host information of the request-target\", with a proxy told to replace it. There the disagreement is a recipient's to resolve, not a sender's defect.\n\n**Where the values come from, and what that costs on HTTP/3.** A capture records the request target as the URI these versions reassemble. Over HTTP/2 the authority in it is the `:authority` and nothing else — the library this proxy uses builds it from that pseudo-header alone and never reads `Host`. **Over HTTP/3 it is not**: that library takes the authority from the `Host` field when both are present, and rejects the request at the transport when the two differ as strings. So no HTTP/3 mismatch this proxy captured itself can reach this rule, and its HTTP/3 findings are for captures written by other tools and read back through `lint-captures` — while the same transport's byte comparison is itself a reading of RFC 9114's \"same value\" that agrees with this rule's. The `Host` field is read as octets rather than through a UTF-8 decode, so a value carrying `obs-text` is compared rather than skipped."
+        "Reports a request whose `Host` header field names another authority than the one its target carries: the `:authority` pseudo-header field of an HTTP/2 or HTTP/3 request, and the absolute-form request-target of an HTTP/1.1 one.\n\n**Over HTTP/1.1 the requirement is RFC 9112 §3.2's**: \"If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its \\\"@\\\" delimiter\". An absolute-form target is the target URI (§3.3), and every recipient takes the authority from it and ignores `Host` (§3.2.2) — so a component that reads only `Host` serves the request from a site the client did not name, the same disagreement the later versions forbid. The finding is `host_conflicting`. Only an absolute-form target is compared: an origin-form one has no authority of its own, and a CONNECT's authority-form target is not held to it, as RFC 9110 §9.3.6's own example — `CONNECT server.example.com:80` with `Host: server.example.com` — shows. A `Host` that scheme-based normalization makes the target's is not reported over HTTP/1.1: nothing is misrouted by a spelling, and \"identical\" read as octets is the question the HTTP/3 entry below answers with a `warn` of its own.\n\n**Over HTTP/2 and HTTP/3 two documents state this requirement, and neither is a copy of the other.** RFC 9113 §8.3.1: \"Clients MUST NOT generate a request with a Host header field that differs from the \\\":authority\\\" pseudo-header field.\" — followed by what such a message costs: \"A server SHOULD treat a request as malformed if it contains a Host header field that identifies an entity that differs from the entity in the \\\":authority\\\" pseudo-header field.\" RFC 9114 §4.3.1 puts it as a property of the request: \"If both fields are present, they MUST contain the same value.\" A mismatch is a routing disagreement inside one message — whichever field a recipient trusts decides which resource it serves, which is why this shape turns up in request-smuggling and cache-poisoning reports. Each finding is worded from the document that governs the version it was found on.\n\n**The two versions do not define the comparison the same way, and this rule does not harmonise them.** RFC 9113 continues: \"The values of fields need to be normalized to compare them (see Section 6.2 of [RFC3986]). An origin server can apply any normalization method, whereas other servers MUST perform scheme-based normalization (see Section 6.2.3 of [RFC3986]) of the two fields.\" RFC 9114 asks for the same value and names no normalization — the word appears nowhere in that document. So over **HTTP/2** two values that normalization makes one authority are the same value and are not reported, while over **HTTP/3** they are reported, with the finding printing the normal form both share and saying which sentence decided it. A difference no normalization removes is reported on both.\n\n**What scheme-based normalization is here.** RFC 9110 §4.2.3 is where the steps for an \"http\" or \"https\" URI are written down, and this rule performs the three that can apply to an authority: a port equal to the scheme's default is omitted, the host is compared without regard to case, and a percent-encoded octet standing for an unreserved character is decoded (\"Characters other than those in the 'reserved' set are equivalent to their percent-encoded octets\"). The fourth step is about a path component, which an authority does not have. So over HTTP/2 `example.com:443` and `example.com` on an `https` request are one authority, and so are `Example.COM` and `example.com`, and `exam%70le.com` and `example.com`.\n\n**What is never folded.** The same sentence says \"all other components are compared in a case-sensitive manner\", so a userinfo subcomponent is carried through as written. Both versions forbid one in an `:authority` only **for \"http\" and \"https\" schemed URIs**, and both say `:scheme` is not restricted to those two — so an authority under another scheme may carry userinfo, and its case is part of it. Where a userinfo does appear under `http` or `https`, `http2_pseudo_headers_valid` reports it; the HTTP/3 pseudo-header rule does not check it today.\n\n**An empty `Host` beside an `:authority`** is a difference like any other and is reported on both versions. RFC 9114 §4.3.1 also states it outright — \"If these fields are present, they MUST NOT be empty\" — though that sentence's antecedent is a request whose `:scheme` identifies a scheme with a mandatory authority component, which a CONNECT does not send.\n\n**Not reported, because the two fields are not both there.** A request whose target carries no authority is nothing to compare against, and whether it should have carried one is a question about the pseudo-header itself — `http2_pseudo_headers_valid` and `http3_pseudo_headers_valid` own it. A request with no `Host` field is the other half of §4.3.1's either-or and is `host_header`'s question. A request with **two** `Host` field lines names no single authority: `Host` is not a list field, so RFC 9110 §5.3 forbids the repetition and `host_header` reports the message.\n\n**Not reported: an asterisk-form OPTIONS.** The capture records the target as the string form of a URI rebuilt from the pseudo-headers, and a `:path` of `*` leaves no delimiter before it — `https://example.com*` is what both an `OPTIONS *` for `example.com` and an origin whose name ends in `*` come back as, since `*` is a `sub-delims` character a `reg-name` admits. An `OPTIONS` whose recorded authority ends in `*` is therefore left alone rather than reported for a difference the capture invented.\n\n**Not reported: whether either value is a well-formed authority.** `Host = uri-host [ \":\" port ]` is `host_header`'s check, and the `:authority`'s shape — its userinfo, and the port a CONNECT must name — belongs to the pseudo-header rule for each version. This rule asks only whether the two agree, so two values that are equally malformed agree and are silent here.\n\n**Scope and version.** HTTP/1.1 and later minor versions, where the target is in absolute-form, and HTTP/2 and HTTP/3, which have an `:authority` (RFC 9110 §7.2). HTTP/1.0 predates both requirements.\n\n**Where the values come from, and what that costs on HTTP/3.** A capture records the request target as the URI these versions reassemble. Over HTTP/2 the authority in it is the `:authority` and nothing else — the library this proxy uses builds it from that pseudo-header alone and never reads `Host`. **Over HTTP/3 it is not**: that library takes the authority from the `Host` field when both are present, and rejects the request at the transport when the two differ as strings. So no HTTP/3 mismatch this proxy captured itself can reach this rule, and its HTTP/3 findings are for captures written by other tools and read back through `lint-captures` — while the same transport's byte comparison is itself a reading of RFC 9114's \"same value\" that agrees with this rule's. The `Host` field is read as octets rather than through a UTF-8 decode, so a value carrying `obs-text` is compared rather than skipped."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -223,6 +229,7 @@ impl RuleMeta for HostAndAuthorityConsistent {
             RFC_9110_4_2_1,
             RFC_9110_4_2_2,
             RFC_9110_7_2,
+            RFC_9112_3_2,
             RFC_9112_3_2_2,
         ]
     }
@@ -289,6 +296,16 @@ impl RuleMeta for HostAndAuthorityConsistent {
                 label: Some("Both fields present, one of them naming no authority"),
                 snippet: ":method: GET\n:scheme: https\n:authority: example.com\n:path: /resource\nhost:",
             },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("HTTP/1.1: an absolute-form target, repeated in Host without its userinfo"),
+                snippet: "GET http://user@example.com/resource HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("HTTP/1.1: an absolute-form target and a Host naming another authority"),
+                snippet: "GET http://example.com/resource HTTP/1.1\nHost: other.example",
+            },
         ]
     }
 }
@@ -303,23 +320,36 @@ impl Rule for HostAndAuthorityConsistent {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // Two fields can only disagree where both exist, and only HTTP/2 and
-            // HTTP/3 carry an `:authority`. This is not a narrowing of either
-            // sentence: over HTTP/1.1 an absolute-form request-target also holds an
-            // authority beside a `Host`, and the sentence about that pair says the
-            // recipient ignores the field rather than that the sender was wrong.
+            // Two fields can only disagree where both exist. HTTP/2 and HTTP/3
+            // carry an `:authority`; an HTTP/1.1 request carries an authority
+            // beside its `Host` only when its target is in absolute-form, which
+            // is then the target URI itself, and § 3.2 holds the field to it.
+            // The sentence about what a recipient does with that pair --
+            // ignore the field -- was read here as excusing the sender, and it
+            // is the reason the pair matters: whichever of the two a component
+            // reads decides where the request goes.
             //
-            // The major digit is what "in HTTP/2 and HTTP/3" means; `http_version`
-            // owns the production that reads it, and a version deriving from no
-            // production names no syntax — `http_version_syntax`'s
-            // finding rather than a third answer here.
+            // The scheme is what marks an absolute-form target, and it decides
+            // which port normalization elides. A CONNECT's authority-form target
+            // carries none, which is why this is an `Option` rather than a
+            // default, and RFC 9110 § 9.3.6's own example writes that target's
+            // `Host` without its port, so it is not compared over HTTP/1.1.
+            //
+            // A version deriving from no production names no syntax --
+            // `http_version_syntax`'s finding rather than a third answer here.
             //
             // cite(RFC 9110 § 7.2): "In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data."
+            // cite(RFC 9112 § 3.3): "The target URI is the request-target when the request-target is in absolute-form."
+            // cite(RFC 9112 § 3.2): "If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its "@" delimiter (Section 4.2 of [HTTP])."
             // cite(RFC 9112 § 3.2.2): "When an origin server receives a request with an absolute-form of request-target, the origin server MUST ignore the received Host header field (if any) and instead use the host information of the request-target."
-            let version = crate::http_version::major(&tx.request.version)?;
-            if !matches!(version, 2 | 3) {
-                return None;
-            }
+            let parsed = crate::http_version::parse(&tx.request.version).ok()?;
+            let scheme = crate::helpers::scheme::scheme_authority_marker(&tx.request.uri)
+                .map(|marker| &tx.request.uri[..marker]);
+            let version = match parsed.major {
+                2 | 3 => parsed.major,
+                1 if parsed.minor >= 1 && scheme.is_some() => 1,
+                _ => return None,
+            };
 
             // The capture keeps the authority of the request's target URI, which is
             // where the cited sentence says `:authority` came from. **What the two
@@ -339,6 +369,16 @@ impl Rule for HostAndAuthorityConsistent {
             let authority = crate::helpers::request_target::extract_authority_from_request_target(
                 &tx.request.uri,
             )?;
+            // § 3.2 excludes the target's userinfo from what `Host` must repeat.
+            // The later versions forbid a userinfo in `:authority` for the two
+            // schemes they are used with, and carry one through as written where
+            // they allow it, so only this version drops it before comparing.
+            let authority = match version {
+                1 => crate::helpers::authority::split_userinfo(&authority)
+                    .1
+                    .to_string(),
+                _ => authority,
+            };
 
             // An asterisk-form OPTIONS is unreadable here, and the tell is that `*`
             // is a legal `sub-delim` — so `example.com*` is a `reg-name` and the
@@ -418,18 +458,17 @@ impl Rule for HostAndAuthorityConsistent {
             // cite(RFC 9114 § 4.3.1): "If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field."
             // cite(RFC 9114 § 4.3.1): "If these fields are present, they MUST NOT be empty."
             if host.is_empty() {
-                return violation(&AUTHORITY_CONFLICTING, format!(
-                    "The request's Host field value is empty while its ':authority' is '{}': both fields are present and one of them names no authority",
-                    shown_in_finding(&authority)
-                ));
+                return match version {
+                    1 => violation(&HOST_CONFLICTING, format!(
+                        "The request's Host field value is empty while its absolute-form target names '{}': a target that carries an authority is repeated in Host, and an empty one is what a target without one is sent with",
+                        shown_in_finding(&authority)
+                    )),
+                    _ => violation(&AUTHORITY_CONFLICTING, format!(
+                        "The request's Host field value is empty while its ':authority' is '{}': both fields are present and one of them names no authority",
+                        shown_in_finding(&authority)
+                    )),
+                };
             }
-
-            // The scheme decides which port is the one normalization elides, and it
-            // is read from the same recorded target the authority came from. A
-            // CONNECT's target is an authority and carries no scheme, which is why
-            // this is an `Option` rather than a default.
-            let scheme = crate::helpers::scheme::scheme_authority_marker(&tx.request.uri)
-                .map(|marker| &tx.request.uri[..marker]);
 
             match Self::compare(&authority, host, scheme) {
                 Comparison::Same => None,
@@ -475,6 +514,11 @@ impl Rule for HostAndAuthorityConsistent {
                 // cite(RFC 9113 § 8.3.1): "Clients MUST NOT generate a request with a Host header field that differs from the ":authority" pseudo-header field."
                 // cite(RFC 9113 § 8.3.1): "A server SHOULD treat a request as malformed if it contains a Host header field that identifies an entity that differs from the entity in the ":authority" pseudo-header field."
                 // cite(RFC 9114 § 4.3.1): "If both fields are present, they MUST contain the same value."
+                Comparison::Different if version == 1 => violation(&HOST_CONFLICTING, format!(
+                    "The absolute-form target names the authority '{}' and Host names '{}': a client must send a Host identical to its target's authority, and a recipient takes the target's and ignores Host, so anything reading Host sends this request elsewhere",
+                    shown_in_finding(&authority),
+                    shown_in_finding(host)
+                )),
                 Comparison::Different => violation(&AUTHORITY_CONFLICTING, format!(
                     "':authority' '{}' and Host '{}' name different authorities: {}",
                     shown_in_finding(&authority),
@@ -749,18 +793,48 @@ mod tests {
         assert!(check("HTTP/2.0", "*", &[b"example.com"]).is_none());
     }
 
-    /// The versions that have no `:authority` are not measured, and the pair
-    /// this rule reports is answered there by having the recipient ignore the
-    /// field rather than by calling the sender wrong.
+    /// HTTP/1.0 predates both requirements, and a version that derives from no
+    /// production names no syntax; the rule that reports the value is
+    /// `http_version_syntax`.
     #[rstest]
-    #[case("HTTP/1.1")]
     #[case("HTTP/1.0")]
-    // A version that derives from no production names no syntax; the rule that
-    // reports the value is `http_version_syntax`.
     #[case("HTTP/2x")]
     #[case("")]
-    fn only_the_versions_with_an_authority_pseudo_header_are_measured(#[case] version: &str) {
+    fn a_version_neither_requirement_covers_is_not_measured(#[case] version: &str) {
         assert!(check(version, "https://example.com/path", &[b"other.com"]).is_none());
+    }
+
+    /// Over HTTP/1.1 an absolute-form target's authority, less its userinfo, is
+    /// what `Host` must repeat. A spelling normalization removes is not this
+    /// entry's, and neither an origin-form target nor a CONNECT's authority-form
+    /// one has an absolute-form authority to compare.
+    #[rstest]
+    #[case("http://example.com/p", b"example.org", Some("host_conflicting"))]
+    #[case(
+        "http://example.com:8080/p",
+        b"example.com:9090",
+        Some("host_conflicting")
+    )]
+    #[case("http://example.com/p", b"", Some("host_conflicting"))]
+    #[case("http://example.com/p", b"example.com", None)]
+    #[case("http://user@example.com/p", b"example.com", None)]
+    #[case("http://example.com:80/p", b"example.com", None)]
+    #[case("http://Example.COM/p", b"example.com", None)]
+    #[case("example.com:443", b"example.com", None)]
+    #[case("/p", b"other.example", None)]
+    fn an_http11_absolute_form_target_is_repeated_in_host(
+        #[case] uri: &str,
+        #[case] host: &[u8],
+        #[case] expected: Option<&str>,
+    ) {
+        for version in ["HTTP/1.1", "HTTP/1.2"] {
+            let found = check(version, uri, &[host]);
+            assert_eq!(
+                found.as_ref().map(|v| v.violation.as_str()),
+                expected,
+                "{version} {uri} {host:?}: {found:?}"
+            );
+        }
     }
 
     #[test]
@@ -783,6 +857,33 @@ mod tests {
             let mut authority = None;
             let mut path = None;
             let mut host: Option<&str> = None;
+
+            // An HTTP/1.1 example is a request-line and its `Host`, asserted on
+            // that version alone.
+            if let Some(("GET", rest)) = example
+                .snippet
+                .lines()
+                .next()
+                .and_then(|l| l.split_once(' '))
+            {
+                let (target, version) = rest.rsplit_once(' ').expect("a request-line");
+                let host = example
+                    .snippet
+                    .lines()
+                    .find_map(|l| l.strip_prefix("Host: "))
+                    .expect("every example carries a host line");
+                let violation = check(version, target, &[host.as_bytes()]);
+                match example.compliance {
+                    Compliance::Compliant => {
+                        assert!(violation.is_none(), "{}: {violation:?}", example.snippet)
+                    }
+                    Compliance::NonCompliant => {
+                        assert!(violation.is_some(), "not reported: {}", example.snippet);
+                        asserted_a_finding = true;
+                    }
+                }
+                continue;
+            }
 
             for line in example.snippet.lines() {
                 // Split on the colon that follows the name, not on the one

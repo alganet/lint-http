@@ -104,14 +104,46 @@ defects! {
         spec: &[RFC_9112_3_2],
         strength: Strength::Must,
     }
+
+    /// An HTTP/1.1 request whose absolute-form target names one authority and
+    /// whose `Host` names another.
+    ///
+    /// **The HTTP/1.1 half of the routing disagreement**, and the pair of
+    /// [`AUTHORITY_CONFLICTING`](crate::violations::authority::AUTHORITY_CONFLICTING):
+    /// that one is `Host` against `:authority`, which only the later versions
+    /// have, and this one is `Host` against the authority an absolute-form
+    /// target carries, which is the target URI's (§ 3.3). § 3.2 asks for the two
+    /// to be *identical*, excluding the target's userinfo. § 3.2.2 has every
+    /// recipient take the target's and ignore the field -- which is why a
+    /// recipient that does otherwise, or a component further along that reads
+    /// only `Host`, serves the request from a site the client did not name.
+    ///
+    /// A value that scheme-based normalization makes the target's (a default
+    /// port, a case difference) is not reported under this id: nothing is
+    /// misrouted by a spelling, and whether "identical" asks for the octets is
+    /// the reading the HTTP/3 pair made a `warn` of its own.
+    ///
+    /// `error`, the level of its pair and of the MUST it breaks.
+    ///
+    // cite(RFC 9112 § 3.2): "If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its "@" delimiter (Section 4.2 of [HTTP])."
+    HOST_CONFLICTING = {
+        id: "host_conflicting",
+        title: "A Host names another authority than the absolute-form target beside it",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9112_3_2],
+        strength: Strength::Must,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::violations::authority::{AUTHORITY_MISSING, AUTHORITY_USERINFO_FORBIDDEN};
+    use crate::violations::authority::{
+        AUTHORITY_CONFLICTING, AUTHORITY_MISSING, AUTHORITY_USERINFO_FORBIDDEN,
+    };
 
-    /// The two pairs, and the assertion that keeps the split honest: each
+    /// The three pairs, and the assertion that keeps the split honest: each
     /// version's entry names its own document, which is the whole reason there
     /// are two of each. If a sentence is ever found that states either
     /// requirement for both versions at once, this is the test to revisit.
@@ -120,6 +152,7 @@ mod tests {
         for (mine, theirs) in [
             (&HOST_MISSING, &AUTHORITY_MISSING),
             (&HOST_USERINFO_FORBIDDEN, &AUTHORITY_USERINFO_FORBIDDEN),
+            (&HOST_CONFLICTING, &AUTHORITY_CONFLICTING),
         ] {
             for ours in mine.spec {
                 assert!(

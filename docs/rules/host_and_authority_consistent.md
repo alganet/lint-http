@@ -8,9 +8,11 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Reports an HTTP/2 or HTTP/3 request whose `Host` header field and `:authority` pseudo-header field do not name the same authority.
+Reports a request whose `Host` header field names another authority than the one its target carries: the `:authority` pseudo-header field of an HTTP/2 or HTTP/3 request, and the absolute-form request-target of an HTTP/1.1 one.
 
-**Two documents state this requirement, and neither is a copy of the other.** RFC 9113 §8.3.1: "Clients MUST NOT generate a request with a Host header field that differs from the \":authority\" pseudo-header field." — followed by what such a message costs: "A server SHOULD treat a request as malformed if it contains a Host header field that identifies an entity that differs from the entity in the \":authority\" pseudo-header field." RFC 9114 §4.3.1 puts it as a property of the request: "If both fields are present, they MUST contain the same value." A mismatch is a routing disagreement inside one message — whichever field a recipient trusts decides which resource it serves, which is why this shape turns up in request-smuggling and cache-poisoning reports. Each finding is worded from the document that governs the version it was found on.
+**Over HTTP/1.1 the requirement is RFC 9112 §3.2's**: "If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its \"@\" delimiter". An absolute-form target is the target URI (§3.3), and every recipient takes the authority from it and ignores `Host` (§3.2.2) — so a component that reads only `Host` serves the request from a site the client did not name, the same disagreement the later versions forbid. The finding is `host_conflicting`. Only an absolute-form target is compared: an origin-form one has no authority of its own, and a CONNECT's authority-form target is not held to it, as RFC 9110 §9.3.6's own example — `CONNECT server.example.com:80` with `Host: server.example.com` — shows. A `Host` that scheme-based normalization makes the target's is not reported over HTTP/1.1: nothing is misrouted by a spelling, and "identical" read as octets is the question the HTTP/3 entry below answers with a `warn` of its own.
+
+**Over HTTP/2 and HTTP/3 two documents state this requirement, and neither is a copy of the other.** RFC 9113 §8.3.1: "Clients MUST NOT generate a request with a Host header field that differs from the \":authority\" pseudo-header field." — followed by what such a message costs: "A server SHOULD treat a request as malformed if it contains a Host header field that identifies an entity that differs from the entity in the \":authority\" pseudo-header field." RFC 9114 §4.3.1 puts it as a property of the request: "If both fields are present, they MUST contain the same value." A mismatch is a routing disagreement inside one message — whichever field a recipient trusts decides which resource it serves, which is why this shape turns up in request-smuggling and cache-poisoning reports. Each finding is worded from the document that governs the version it was found on.
 
 **The two versions do not define the comparison the same way, and this rule does not harmonise them.** RFC 9113 continues: "The values of fields need to be normalized to compare them (see Section 6.2 of [RFC3986]). An origin server can apply any normalization method, whereas other servers MUST perform scheme-based normalization (see Section 6.2.3 of [RFC3986]) of the two fields." RFC 9114 asks for the same value and names no normalization — the word appears nowhere in that document. So over **HTTP/2** two values that normalization makes one authority are the same value and are not reported, while over **HTTP/3** they are reported, with the finding printing the normal form both share and saying which sentence decided it. A difference no normalization removes is reported on both.
 
@@ -26,7 +28,7 @@ Reports an HTTP/2 or HTTP/3 request whose `Host` header field and `:authority` p
 
 **Not reported: whether either value is a well-formed authority.** `Host = uri-host [ ":" port ]` is `host_header`'s check, and the `:authority`'s shape — its userinfo, and the port a CONNECT must name — belongs to the pseudo-header rule for each version. This rule asks only whether the two agree, so two values that are equally malformed agree and are silent here.
 
-**Scope and version.** Only HTTP/2 and HTTP/3 requests are measured, because only they have an `:authority` (RFC 9110 §7.2). That is not a narrowing of the requirement: over HTTP/1.1 an absolute-form request-target carries an authority beside a `Host` too, and RFC 9112 §3.2.2 answers that pair the other way round — "the origin server MUST ignore the received Host header field (if any) and instead use the host information of the request-target", with a proxy told to replace it. There the disagreement is a recipient's to resolve, not a sender's defect.
+**Scope and version.** HTTP/1.1 and later minor versions, where the target is in absolute-form, and HTTP/2 and HTTP/3, which have an `:authority` (RFC 9110 §7.2). HTTP/1.0 predates both requirements.
 
 **Where the values come from, and what that costs on HTTP/3.** A capture records the request target as the URI these versions reassemble. Over HTTP/2 the authority in it is the `:authority` and nothing else — the library this proxy uses builds it from that pseudo-header alone and never reads `Host`. **Over HTTP/3 it is not**: that library takes the authority from the `Host` field when both are present, and rejects the request at the transport when the two differ as strings. So no HTTP/3 mismatch this proxy captured itself can reach this rule, and its HTTP/3 findings are for captures written by other tools and read back through `lint-captures` — while the same transport's byte comparison is itself a reading of RFC 9114's "same value" that agrees with this rule's. The `Host` field is read as octets rather than through a UTF-8 decode, so a value carrying `obs-text` is compared rather than skipped.
 
@@ -34,6 +36,7 @@ Reports an HTTP/2 or HTTP/3 request whose `Host` header field and `:authority` p
 
 - [authority_conflicting](../violations/authority_conflicting.md) — A request's :authority and Host name different authorities
 - [authority_value_conflicting](../violations/authority_value_conflicting.md) — An :authority and Host are one authority in two spellings
+- [host_conflicting](../violations/host_conflicting.md) — A Host names another authority than the absolute-form target beside it
 
 ## Specifications
 
@@ -45,8 +48,9 @@ Reports an HTTP/2 or HTTP/3 request whose `Host` header field and `:authority` p
 - [RFC 3986 §6.2.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.3): Scheme-based normalization, and the sentence that keeps an empty delimiter where no scheme licenses removing it — which is why nothing is elided from an authority-form target
 - [RFC 9110 §4.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1): The default port for an "http" URI is 80 — one of the two numbers scheme-based normalization needs, and the reason the scheme is read from the recorded target rather than assumed
 - [RFC 9110 §4.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2): The default port for an "https" URI is 443
-- [RFC 9110 §7.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2): Which versions carry the two fields at once: in HTTP/2 and HTTP/3 the `Host` field is supplanted by `:authority`, which is why the rule is gated to those two
-- [RFC 9112 §3.2.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.2): Why HTTP/1.1 is not measured: an absolute-form target beside a `Host` is answered by having the recipient ignore the field, not by calling the sender wrong
+- [RFC 9110 §7.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2): In HTTP/2 and HTTP/3 the `Host` field is supplanted by `:authority`, which is the authority those versions carry beside it
+- [RFC 9112 §3.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2): Request Target — a `Host` in every HTTP/1.1 request, a value identical to the target URI's authority *excluding* the userinfo and its `@`, an empty value where the target has no authority, and the 400 a server owes a request with none or with two
+- [RFC 9112 §3.2.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.2): An absolute-form target's authority is the one every recipient uses, ignoring `Host` -- which is what makes a `Host` that names another one a request routed by whichever of the two a component reads
 
 ## Configuration
 
@@ -133,4 +137,18 @@ host: example.com:9090
 :authority: example.com
 :path: /resource
 host:
+```
+
+### ✅ Good HTTP/1.1: an absolute-form target, repeated in Host without its userinfo
+
+```http
+GET http://user@example.com/resource HTTP/1.1
+Host: example.com
+```
+
+### ❌ Bad HTTP/1.1: an absolute-form target and a Host naming another authority
+
+```http
+GET http://example.com/resource HTTP/1.1
+Host: other.example
 ```
