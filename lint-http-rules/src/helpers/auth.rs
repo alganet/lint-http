@@ -1430,7 +1430,19 @@ pub fn parse_auth_params(
     std::collections::HashMap<String, String>,
     Vec<AuthParamsDefect<'_>>,
 ) {
-    let mut out = std::collections::HashMap::new();
+    let (pairs, defects) = parse_auth_params_in_order(s);
+    (pairs.into_iter().collect(), defects)
+}
+
+/// [`parse_auth_params`] in the order the members were written: each name
+/// once, lowercased, with its first value.
+///
+/// A reader that reports per parameter walks this rather than the map, because
+/// a hash map's order is its own: a walk over one answers with whichever
+/// parameter the hasher put first, and a sender told about two defects is told
+/// in an order that changes between runs.
+pub fn parse_auth_params_in_order(s: &str) -> (Vec<(String, String)>, Vec<AuthParamsDefect<'_>>) {
+    let mut out: Vec<(String, String)> = Vec::new();
     let mut defects = Vec::new();
     // split comma-separated params respecting quoted-strings
     for part in split_commas_respecting_quotes(s) {
@@ -1453,8 +1465,10 @@ pub fn parse_auth_params(
             defects.push(AuthParamsDefect::NameCharacter(inv));
             continue;
         }
-        out.entry(name.to_ascii_lowercase())
-            .or_insert_with(|| val.to_string());
+        let name = name.to_ascii_lowercase();
+        if !out.iter().any(|(seen, _)| *seen == name) {
+            out.push((name, val.to_string()));
+        }
     }
     (out, defects)
 }

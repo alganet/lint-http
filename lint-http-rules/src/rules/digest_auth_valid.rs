@@ -162,277 +162,322 @@ impl Rule for DigestAuthValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Read as octets: an octet outside visible US-ASCII belongs to
-            // whichever of this scheme's parts it landed in -- an `auth-param`
-            // name that is a `token`, a value that is a `quoted-string` -- and
-            // the reader that refused the value outright reported it as the
-            // field's encoding instead.
-            // Both fields § 11 writes as `credentials`. RFC 7616 § 3.8 gives
-            // the scheme's proxy half a section of its own and says the
-            // credential is the one § 3.4 already describes: the client "MUST
-            // then reissue the request with a Proxy-Authorization header field,
-            // with parameters as specified for the Authorization header field".
-            // cite(RFC 7616 § 3.8): "The Digest Authentication scheme can also be used for authenticating users to proxies, proxies to proxies, or proxies to origin servers by use of the Proxy-Authenticate and Proxy-Authorization header fields."
-            for (shown, s) in crate::helpers::auth::credentials_field_lines(&tx.request.headers) {
-                let s = crate::helpers::headers::trim_ows(&s);
-                if s.is_empty() {
-                    continue;
-                }
-                // Only care about the Digest scheme; auth-scheme names are
-                // matched case-insensitively.
-                // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-                let (scheme, tail) = crate::helpers::auth::split_scheme_and_tail(s);
-                if !scheme.eq_ignore_ascii_case("digest") {
-                    continue;
-                }
-                let rest = match tail {
-                    Some(r) => r,
-                    None => {
-                        return Some(ctx.report_with(
-                            &DIGEST_CREDENTIALS_PARAMETER_MISSING,
-                            format!("{shown} Digest scheme missing parameters"),
-                        ))
-                    }
+        let mut out = Vec::new();
+        // Read as octets: an octet outside visible US-ASCII belongs to
+        // whichever of this scheme's parts it landed in -- an `auth-param`
+        // name that is a `token`, a value that is a `quoted-string` -- and
+        // the reader that refused the value outright reported it as the
+        // field's encoding instead.
+        // Both fields § 11 writes as `credentials`. RFC 7616 § 3.8 gives
+        // the scheme's proxy half a section of its own and says the
+        // credential is the one § 3.4 already describes: the client "MUST
+        // then reissue the request with a Proxy-Authorization header field,
+        // with parameters as specified for the Authorization header field".
+        // cite(RFC 7616 § 3.8): "The Digest Authentication scheme can also be used for authenticating users to proxies, proxies to proxies, or proxies to origin servers by use of the Proxy-Authenticate and Proxy-Authorization header fields."
+        for (shown, s) in crate::helpers::auth::credentials_field_lines(&tx.request.headers) {
+            let s = crate::helpers::headers::trim_ows(&s);
+            if s.is_empty() {
+                continue;
+            }
+            // Only care about the Digest scheme; auth-scheme names are
+            // matched case-insensitively.
+            // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
+            let (scheme, tail) = crate::helpers::auth::split_scheme_and_tail(s);
+            if !scheme.eq_ignore_ascii_case("digest") {
+                continue;
+            }
+            let Some(rest) = tail else {
+                out.push(ctx.report_with(
+                    &DIGEST_CREDENTIALS_PARAMETER_MISSING,
+                    format!("{shown} Digest scheme missing parameters"),
+                ));
+                continue;
+            };
+            out.extend(credential_defects(shown, rest, ctx));
+        }
+        out
+    }
+}
+
+/// Every defect of one Digest credential's parameter list, in the order the
+/// parameters were written.
+///
+/// **A malformed member does not end the reading.** The parse sets it aside
+/// and this answers for the rest, which is the other half of what the body
+/// returning at its first finding hid: `username="u", realm=r, flag` was a
+/// finding about `flag` alone. The malformed members are the framework
+/// reader's, which reports each of them; this names the first, the sentence it
+/// has always had, and whether it should name any is the double report's own
+/// question.
+///
+/// **A parameter written without its `=` is malformed and not missing**, and
+/// the required-parameter walk says so by skipping it: `Digest username,
+/// realm="r", …` has a `username`, and telling the sender to add one would
+/// send them to write it twice.
+fn credential_defects(
+    shown: &str,
+    rest: &str,
+    ctx: &crate::rules::RuleContext<'_>,
+) -> Vec<Violation> {
+    let mut out = Vec::new();
+    let (pairs, defects) = crate::helpers::auth::parse_auth_params_in_order(rest);
+    let map: std::collections::HashMap<&str, &str> = pairs
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+    // The reader is typed and its mapping is total: an empty
+    // member is the list's, an empty name and a bad character
+    // are the `token`'s, and a member with no `=` is
+    // `auth-param`'s own — § 11.2's sentence rather than
+    // § 5.6.6's, which describes a construct with no `BWS` in
+    // it.
+    if let Some(defect) = defects.first().copied() {
+        let message = format!("Invalid Digest auth parameters: {}", defect.message());
+        out.push(ctx.report_with(auth_param_member(defect), message));
+    }
+    let written_without_value = |k: &str| {
+        defects.iter().any(|d| {
+            matches!(d, crate::helpers::auth::AuthParamsDefect::ValueMissing(n) if n.eq_ignore_ascii_case(k))
+        })
+    };
+    // Names reported empty below, so the per-parameter reading does not also
+    // tell the sender how to spell a value that is not there.
+    let mut answered: Vec<&str> = Vec::new();
+
+    // Required fields: username, realm, nonce, uri, response. §3.4 lists the
+    // parameters and names the consequence for missing required ones, but
+    // labels no "required" set; these five are the ones the response
+    // computation (§3.4.1) cannot be verified without whatever the
+    // credential's vintage. cnonce and nc are demanded below, behind the
+    // observable line that keeps RFC 2617-style credentials checkable.
+    // cite(RFC 7616 § 3.4): "If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code."
+    let required = ["username", "realm", "nonce", "uri", "response"];
+    for &k in &required {
+        // **`username*` is how § 3.4 says to send a username
+        // the `quoted-string` production cannot hold**, so a
+        // credential carrying it carries the parameter. Asked
+        // for `username` by name, this walk reported the one
+        // shape the section prescribes — and the repair it
+        // named, adding a `username` beside the `username*`,
+        // is the shape the same paragraph calls an error.
+        //
+        // Sending both is that error and is not reported here
+        // yet; what this says is only that the extended
+        // spelling satisfies the requirement, which is the
+        // half § 3.4 states about a credential carrying one.
+        //
+        // cite(RFC 7616 § 3.4, label: username-quoted): "If the username contains characters not allowed inside the ABNF quoted-string production, the username* parameter can be used."
+        if k == "username" && map.contains_key("username*") {
+            continue;
+        }
+        if written_without_value(k) {
+            continue;
+        }
+        match map.get(k) {
+            Some(v) => {
+                // treat empty unquoted values or quoted-strings with empty inner content
+                let is_empty = if v.is_empty() {
+                    true
+                } else if v.starts_with('"') {
+                    // if quoted-string is syntactically invalid, default to 'false' so
+                    // it will be reported by the later quoted-string validation
+                    crate::helpers::quoted_string::quoted_string_inner_trimmed_is_empty(v)
+                        .unwrap_or_default()
+                } else {
+                    false
                 };
 
-                // parse auth-param list into map
-                // The parse reads past a malformed member now, and this rule
-                // still answers with the first one before grading the rest --
-                // the order it has always had.
-                let (map, defects) = crate::helpers::auth::parse_auth_params(rest);
-                match defects.first().copied() {
-                    None => {
-                        // Required fields: username, realm, nonce, uri, response. §3.4 lists the
-                        // parameters and names the consequence for missing required ones, but
-                        // labels no "required" set; these five are the ones the response
-                        // computation (§3.4.1) cannot be verified without whatever the
-                        // credential's vintage. cnonce and nc are demanded below, behind the
-                        // observable line that keeps RFC 2617-style credentials checkable.
-                        // cite(RFC 7616 § 3.4): "If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code."
-                        let required = ["username", "realm", "nonce", "uri", "response"];
-                        for &k in &required {
-                            // **`username*` is how § 3.4 says to send a username
-                            // the `quoted-string` production cannot hold**, so a
-                            // credential carrying it carries the parameter. Asked
-                            // for `username` by name, this walk reported the one
-                            // shape the section prescribes — and the repair it
-                            // named, adding a `username` beside the `username*`,
-                            // is the shape the same paragraph calls an error.
-                            //
-                            // Sending both is that error and is not reported here
-                            // yet; what this says is only that the extended
-                            // spelling satisfies the requirement, which is the
-                            // half § 3.4 states about a credential carrying one.
-                            //
-                            // cite(RFC 7616 § 3.4, label: username-quoted): "If the username contains characters not allowed inside the ABNF quoted-string production, the username* parameter can be used."
-                            if k == "username" && map.contains_key("username*") {
-                                continue;
-                            }
-                            match map.get(k) {
-                                Some(v) => {
-                                    // treat empty unquoted values or quoted-strings with empty inner content
-                                    let is_empty = if v.is_empty() {
-                                        true
-                                    } else if v.starts_with('"') {
-                                        // if quoted-string is syntactically invalid, default to 'false' so
-                                        // it will be reported by the later quoted-string validation
-                                        crate::helpers::quoted_string::quoted_string_inner_trimmed_is_empty(v).unwrap_or_default()
-                                    } else {
-                                        false
-                                    };
-
-                                    if is_empty {
-                                        return Some(ctx.report_with(&DIGEST_CREDENTIALS_PARAMETER_EMPTY, format!(
-                                                "Digest {shown} sends required parameter '{}' with nothing in it",
-                                                k
-                                            )))
-                                    }
-                                }
-                                None => {
-                                    return Some(ctx.report_with(&DIGEST_CREDENTIALS_PARAMETER_MISSING, format!(
-                                            "Digest {shown} is missing required parameter '{}' (RFC 7616 \u{a7}3.4)",
-                                            k
-                                        )))
-                                }
-                            }
-                        }
-                        // The two parameters RFC 7616 §3.4 marks "MUST be used by all
-                        // implementations", demanded where the credential's own qop makes
-                        // the demand observable. RFC 2617 computes a qop-less response
-                        // without either, so requiring them of every Digest credential
-                        // would reject that document's otherwise-checkable shape — but a
-                        // credential that *carries* qop is inside both documents' MUSTs at
-                        // once: RFC 2617's conditional is met by the message itself, and
-                        // both compute the response value over cnonce and nc, so their
-                        // absence leaves the response unverifiable by the recipient it was
-                        // written for. The qop-less decline is published in
-                        // `description()`.
-                        // cite(RFC 7616 § 3.4, label: cnonce): "This parameter MUST be used by all implementations."
-                        // cite(RFC 2617 § 3.2.2): "This MUST be specified if a qop directive is sent (see above), and MUST NOT be specified if the server did not send a qop directive in the WWW-Authenticate header field."
-                        if map.contains_key("qop") {
-                            for &k in &["cnonce", "nc"] {
-                                if !map.contains_key(k) {
-                                    return Some(ctx.report_with(&DIGEST_CREDENTIALS_PARAMETER_MISSING, format!(
-                                            "Digest {shown} sends 'qop' and no '{k}': RFC 7616 \u{a7}3.4 marks the parameter \"MUST be used by all implementations\", RFC 2617 \u{a7}3.2.2 requires it whenever a qop directive is sent, and both documents compute the response value over it, so without it the credential cannot be verified"
-                                        )));
-                                }
-                            }
-                        }
-
-                        // validate tokensexp and quoted values basic syntax
-                        for (k, v) in map.iter() {
-                            // param names must be tokens
-                            // An `auth-param` name is a `token`, which is
-                            // § 5.6.2's production imported unchanged --
-                            // so the two ids here are the ones every
-                            // other reader of it answers with.
-                            //
-                            // **This branch still cannot fire**, and the
-                            // reason is two lines up rather than anywhere
-                            // in this document: `parse_auth_params`
-                            // measures the name against the same reader
-                            // and returns `Err` first, so a `user@name`
-                            // is answered there. It is kept because the
-                            // two answers now agree by construction --
-                            // the helper's mapping hands back this same
-                            // id -- and because a reader that stopped
-                            // measuring the name would leave this the
-                            // only check of it.
-                            if let Some(inv) = crate::helpers::token::find_invalid_token_char(k) {
-                                return Some(ctx.report_with(
-                                    token_character(inv),
-                                    format!(
-                                        "Invalid character '{}' in Digest auth-param name",
-                                        inv
-                                    ),
-                                ));
-                            }
-                            // §3.4's two per-parameter quoting MUSTs, enforced in both
-                            // directions. The historical reason is the point: recipients
-                            // of these parameters were deployed against one spelling each,
-                            // so the wrong spelling is a credential some verifiers will
-                            // not read. The seven-name list is why the old `uri` branch —
-                            // which deliberately accepted an unquoted value — is gone: an
-                            // unquoted uri is exactly what the first sentence forbids.
-                            // `username*`, `userhash` and unknown extensions are in
-                            // neither list, and only their present spelling is judged.
-                            // cite(RFC 7616 § 3.4): "For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque."
-                            // cite(RFC 7616 § 3.4): "For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc."
-                            const MUST_QUOTE: &[&str] = &[
-                                "username", "realm", "nonce", "uri", "response", "cnonce", "opaque",
-                            ];
-                            const MUST_NOT_QUOTE: &[&str] = &["algorithm", "qop", "nc"];
-
-                            let quoted = v.starts_with('"');
-                            if MUST_QUOTE.contains(&k.as_str()) && !quoted {
-                                return Some(ctx.report_with(&DIGEST_CREDENTIALS_QUOTING_INVALID, format!(
-                                        "Digest {shown} sends '{k}' unquoted, and RFC 7616 \u{a7}3.4 admits only the quoted string syntax for it (\"a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque\")"
-                                    )));
-                            }
-                            if MUST_NOT_QUOTE.contains(&k.as_str()) && quoted {
-                                return Some(ctx.report_with(&DIGEST_CREDENTIALS_QUOTING_INVALID, format!(
-                                        "Digest {shown} sends '{k}' as a quoted string, and RFC 7616 \u{a7}3.4 forbids that spelling for it (\"a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc\")"
-                                    )));
-                            }
-
-                            // `username*` carries "the extended notation defined in
-                            // [RFC5987]", which RFC 8187 obsoletes with the same
-                            // `ext-value`, `value-chars`, `pct-encoded` and `attr-char`
-                            // productions byte for byte — and RFC 8187's own
-                            // implementation report names this field as one of the four
-                            // that use the encoding, so the document in force is the one
-                            // read here. The parameter was excluded from both quoting
-                            // lists above and then measured as a `token`, which is what
-                            // `UTF-8''%zz` is: every octet an `ext-value` prints is a
-                            // `tchar`, so the token walk could never refuse one.
-                            //
-                            // **By name, and `Link`'s reading is by shape**, which is the
-                            // difference between the two documents rather than an
-                            // inconsistency here: RFC 8187 § 3.2.1 says the trailing
-                            // asterisk is "just a convention" and that a field has to
-                            // specify the extended value in its own definition. RFC 8288
-                            // does that for every parameter at once, in its parsing
-                            // algorithm; RFC 7616 does it for this one parameter, in
-                            // prose. So a Digest `foo*` is an ordinary extension
-                            // parameter and stays unread.
-                            //
-                            // cite(RFC 7616 § 3.4, label: username-star): "If the userhash parameter value is set "false" and the username contains characters not allowed inside the ABNF quoted-string production, the user's name can be sent with this parameter, using the extended notation defined in [RFC5987]."
-                            // cite(RFC 8187 § B): ""Authorization" (as used in HTTP Digest Authentication, defined in [RFC7616]),"
-                            if k == "username*" {
-                                if let Err(why) = crate::helpers::parameter::validate_ext_value(v) {
-                                    return Some(ctx.report_with(
-                                        &EXT_VALUE_MALFORMED,
-                                        format!(
-                                            "Digest {shown} sends username*='{v}', which \
-                                             does not derive from ext-value: {why}"
-                                        ),
-                                    ));
-                                }
-                                if let Some(charset) =
-                                    crate::helpers::parameter::ext_value_charset_reserved(v)
-                                {
-                                    return Some(ctx.report_with(
-                                        &EXT_VALUE_CHARSET_FORBIDDEN,
-                                        format!(
-                                            "Digest {shown} sends username*='{v}', naming \
-                                             the character encoding '{charset}', which RFC 8187 \
-                                             §3.2.1 reserves for future use and forbids a \
-                                             producer to write; a recipient built to that \
-                                             document decodes UTF-8 alone"
-                                        ),
-                                    ));
-                                }
-                            }
-
-                            // A value that opens with a quote is validated as a quoted-string
-                            // (grammar helper-owned, RFC 9110 §5.6.4).
-                            if quoted {
-                                if let Err(defect) =
-                                    crate::helpers::quoted_string::check_quoted_string(v)
-                                {
-                                    return Some(ctx.report_with(
-                                        quoted_string_defect(defect),
-                                        format!(
-                                            "Invalid quoted-string in Digest auth-param '{}': {}",
-                                            k,
-                                            defect.message(v)
-                                        ),
-                                    ));
-                                }
-                            } else {
-                                // Unquoted values are tokens. The `uri` carve-out that
-                                // stood here (allow anything without control characters)
-                                // is unreachable now: an unquoted `uri` returns above.
-                                if let Some(inv) = crate::helpers::token::find_invalid_token_char(v)
-                                {
-                                    return Some(ctx.report_with(token_character(inv), format!(
-                                            "Invalid character '{}' in Digest auth-param value for '{}'",
-                                            inv, k
-                                        )));
-                                }
-                            }
-                        }
-                    }
-                    // The reader is typed and its mapping is total: an empty
-                    // member is the list's, an empty name and a bad character
-                    // are the `token`'s, and a member with no `=` is
-                    // `auth-param`'s own — § 11.2's sentence rather than
-                    // § 5.6.6's, which describes a construct with no `BWS` in
-                    // it.
-                    Some(defect) => {
-                        let message =
-                            format!("Invalid Digest auth parameters: {}", defect.message());
-                        return Some(ctx.report_with(auth_param_member(defect), message));
-                    }
+                if is_empty {
+                    answered.push(k);
+                    out.push(ctx.report_with(
+                        &DIGEST_CREDENTIALS_PARAMETER_EMPTY,
+                        format!("Digest {shown} sends required parameter '{k}' with nothing in it"),
+                    ));
                 }
             }
-            None
-        };
-        Vec::from_iter(finding())
+            None => out.push(ctx.report_with(
+                &DIGEST_CREDENTIALS_PARAMETER_MISSING,
+                format!("Digest {shown} is missing required parameter '{k}' (RFC 7616 \u{a7}3.4)"),
+            )),
+        }
     }
+    // The two parameters RFC 7616 §3.4 marks "MUST be used by all
+    // implementations", demanded where the credential's own qop makes
+    // the demand observable. RFC 2617 computes a qop-less response
+    // without either, so requiring them of every Digest credential
+    // would reject that document's otherwise-checkable shape — but a
+    // credential that *carries* qop is inside both documents' MUSTs at
+    // once: RFC 2617's conditional is met by the message itself, and
+    // both compute the response value over cnonce and nc, so their
+    // absence leaves the response unverifiable by the recipient it was
+    // written for. The qop-less decline is published in
+    // `description()`.
+    // cite(RFC 7616 § 3.4, label: cnonce): "This parameter MUST be used by all implementations."
+    // cite(RFC 2617 § 3.2.2): "This MUST be specified if a qop directive is sent (see above), and MUST NOT be specified if the server did not send a qop directive in the WWW-Authenticate header field."
+    if map.contains_key("qop") {
+        for &k in &["cnonce", "nc"] {
+            if !map.contains_key(k) && !written_without_value(k) {
+                out.push(ctx.report_with(&DIGEST_CREDENTIALS_PARAMETER_MISSING, format!(
+                    "Digest {shown} sends 'qop' and no '{k}': RFC 7616 \u{a7}3.4 marks the parameter \"MUST be used by all implementations\", RFC 2617 \u{a7}3.2.2 requires it whenever a qop directive is sent, and both documents compute the response value over it, so without it the credential cannot be verified"
+                )));
+            }
+        }
+    }
+
+    // Every parameter, in the order written: the walk used to be over the map,
+    // and a hash map's order is its own, so which of two defects a sender was
+    // told about was the hasher's choice.
+    for (k, v) in &pairs {
+        if answered.contains(&k.as_str()) {
+            continue;
+        }
+        out.extend(parameter_defect(shown, k, v, ctx));
+    }
+    out
+}
+
+/// The first thing one parameter of a Digest credential fails to be, or
+/// `None`: its name's `token`, § 3.4's spelling of it, `username*`'s
+/// `ext-value`, and its value's own production.
+///
+/// **One parameter, one finding**, and every parameter asked: the body used
+/// to return from the whole credential at the first parameter that failed, so
+/// `realm=r, nonce=n` was one finding and the second arrived once the first was
+/// fixed. The checks here are about one value and an earlier one answers for
+/// it: a `nonce` written unquoted is not also asked whether its octets are a
+/// `token`.
+fn parameter_defect(
+    shown: &str,
+    k: &str,
+    v: &str,
+    ctx: &crate::rules::RuleContext<'_>,
+) -> Option<Violation> {
+    // param names must be tokens
+    // An `auth-param` name is a `token`, which is
+    // § 5.6.2's production imported unchanged --
+    // so the two ids here are the ones every
+    // other reader of it answers with.
+    //
+    // **This branch still cannot fire**, and the
+    // reason is in the parse rather than anywhere
+    // in this document: `parse_auth_params`
+    // measures the name against the same reader
+    // and sets the member aside, so a `user@name`
+    // is answered there and never reaches the map. It is kept because the
+    // two answers now agree by construction --
+    // the helper's mapping hands back this same
+    // id -- and because a reader that stopped
+    // measuring the name would leave this the
+    // only check of it.
+    if let Some(inv) = crate::helpers::token::find_invalid_token_char(k) {
+        return Some(ctx.report_with(
+            token_character(inv),
+            format!("Invalid character '{}' in Digest auth-param name", inv),
+        ));
+    }
+    // §3.4's two per-parameter quoting MUSTs, enforced in both
+    // directions. The historical reason is the point: recipients
+    // of these parameters were deployed against one spelling each,
+    // so the wrong spelling is a credential some verifiers will
+    // not read. The seven-name list is why the old `uri` branch —
+    // which deliberately accepted an unquoted value — is gone: an
+    // unquoted uri is exactly what the first sentence forbids.
+    // `username*`, `userhash` and unknown extensions are in
+    // neither list, and only their present spelling is judged.
+    // cite(RFC 7616 § 3.4): "For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque."
+    // cite(RFC 7616 § 3.4): "For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc."
+    const MUST_QUOTE: &[&str] = &[
+        "username", "realm", "nonce", "uri", "response", "cnonce", "opaque",
+    ];
+    const MUST_NOT_QUOTE: &[&str] = &["algorithm", "qop", "nc"];
+
+    let quoted = v.starts_with('"');
+    if MUST_QUOTE.contains(&k) && !quoted {
+        return Some(ctx.report_with(&DIGEST_CREDENTIALS_QUOTING_INVALID, format!(
+                "Digest {shown} sends '{k}' unquoted, and RFC 7616 \u{a7}3.4 admits only the quoted string syntax for it (\"a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque\")"
+            )));
+    }
+    if MUST_NOT_QUOTE.contains(&k) && quoted {
+        return Some(ctx.report_with(&DIGEST_CREDENTIALS_QUOTING_INVALID, format!(
+                "Digest {shown} sends '{k}' as a quoted string, and RFC 7616 \u{a7}3.4 forbids that spelling for it (\"a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc\")"
+            )));
+    }
+
+    // `username*` carries "the extended notation defined in
+    // [RFC5987]", which RFC 8187 obsoletes with the same
+    // `ext-value`, `value-chars`, `pct-encoded` and `attr-char`
+    // productions byte for byte — and RFC 8187's own
+    // implementation report names this field as one of the four
+    // that use the encoding, so the document in force is the one
+    // read here. The parameter was excluded from both quoting
+    // lists above and then measured as a `token`, which is what
+    // `UTF-8''%zz` is: every octet an `ext-value` prints is a
+    // `tchar`, so the token walk could never refuse one.
+    //
+    // **By name, and `Link`'s reading is by shape**, which is the
+    // difference between the two documents rather than an
+    // inconsistency here: RFC 8187 § 3.2.1 says the trailing
+    // asterisk is "just a convention" and that a field has to
+    // specify the extended value in its own definition. RFC 8288
+    // does that for every parameter at once, in its parsing
+    // algorithm; RFC 7616 does it for this one parameter, in
+    // prose. So a Digest `foo*` is an ordinary extension
+    // parameter and stays unread.
+    //
+    // cite(RFC 7616 § 3.4, label: username-star): "If the userhash parameter value is set "false" and the username contains characters not allowed inside the ABNF quoted-string production, the user's name can be sent with this parameter, using the extended notation defined in [RFC5987]."
+    // cite(RFC 8187 § B): ""Authorization" (as used in HTTP Digest Authentication, defined in [RFC7616]),"
+    if k == "username*" {
+        if let Err(why) = crate::helpers::parameter::validate_ext_value(v) {
+            return Some(ctx.report_with(
+                &EXT_VALUE_MALFORMED,
+                format!(
+                    "Digest {shown} sends username*='{v}', which \
+                     does not derive from ext-value: {why}"
+                ),
+            ));
+        }
+        if let Some(charset) = crate::helpers::parameter::ext_value_charset_reserved(v) {
+            return Some(ctx.report_with(
+                &EXT_VALUE_CHARSET_FORBIDDEN,
+                format!(
+                    "Digest {shown} sends username*='{v}', naming \
+                     the character encoding '{charset}', which RFC 8187 \
+                     §3.2.1 reserves for future use and forbids a \
+                     producer to write; a recipient built to that \
+                     document decodes UTF-8 alone"
+                ),
+            ));
+        }
+    }
+
+    // A value that opens with a quote is validated as a quoted-string
+    // (grammar helper-owned, RFC 9110 §5.6.4).
+    if quoted {
+        if let Err(defect) = crate::helpers::quoted_string::check_quoted_string(v) {
+            return Some(ctx.report_with(
+                quoted_string_defect(defect),
+                format!(
+                    "Invalid quoted-string in Digest auth-param '{}': {}",
+                    k,
+                    defect.message(v)
+                ),
+            ));
+        }
+    } else {
+        // Unquoted values are tokens. The `uri` carve-out that
+        // stood here (allow anything without control characters)
+        // is unreachable now: an unquoted `uri` returns above.
+        if let Some(inv) = crate::helpers::token::find_invalid_token_char(v) {
+            return Some(ctx.report_with(
+                token_character(inv),
+                format!(
+                    "Invalid character '{}' in Digest auth-param value for '{}'",
+                    inv, k
+                ),
+            ));
+        }
+    }
+    None
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -1173,5 +1218,60 @@ mod tests {
     fn needs_no_response() {
         let rule = DigestAuthValid;
         assert!(!rule.needs_response());
+    }
+
+    /// **Every parameter of a credential, not the first.** The body returned
+    /// at the first parameter it found wrong, and it walked a hash map to find
+    /// it, so which of two defects a sender was told about was the hasher's
+    /// choice and the other arrived once the first was repaired. A malformed
+    /// member ended the reading of every well-formed one beside it. Each row
+    /// carries defects in two parameters and draws both, in the order the
+    /// parameters were written; the last two rows are the controls the repair
+    /// keeps -- a parameter written without its `=` is malformed and not
+    /// missing, and one reported empty is not also told how to spell itself.
+    #[rstest]
+    #[case(
+        r#"Digest realm=r, nonce="n", uri="/", response="0""#,
+        &["digest_credentials_parameter_missing", "digest_credentials_quoting_invalid"]
+    )]
+    #[case(
+        r#"Digest username="u", realm=r, nonce=n, uri="/", response="0""#,
+        &["digest_credentials_quoting_invalid", "digest_credentials_quoting_invalid"]
+    )]
+    #[case(
+        r#"Digest username="u", realm=r, nonce="n", uri="/", response="0", flag"#,
+        &["auth_param_equals_missing", "digest_credentials_quoting_invalid"]
+    )]
+    #[case(
+        r#"Digest username*=bogus, realm=r, nonce="n", uri="/", response="0""#,
+        &["ext_value_malformed", "digest_credentials_quoting_invalid"]
+    )]
+    #[case(
+        r#"Digest username="u", realm="r", nonce="n", uri="/", response="0", qop=auth, nc=00000001, opaque=x"#,
+        &["digest_credentials_parameter_missing", "digest_credentials_quoting_invalid"]
+    )]
+    #[case(
+        r#"Digest username, realm="r", nonce="n", uri="/", response="0""#,
+        &["auth_param_equals_missing"]
+    )]
+    #[case(
+        r#"Digest username=, realm="r", nonce="n", uri="/", response="0""#,
+        &["digest_credentials_parameter_empty"]
+    )]
+    fn every_parameter_of_a_credential_is_answered_about(
+        #[case] value: &str,
+        #[case] expected: &[&str],
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("authorization", value)]);
+        let all = crate::test_helpers::run_rule_all(
+            &DigestAuthValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["digest_auth_valid"]),
+        );
+        let ids: Vec<&str> = all.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, expected, "{value}: {all:?}");
     }
 }
