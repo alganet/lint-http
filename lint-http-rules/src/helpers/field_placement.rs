@@ -68,6 +68,14 @@ pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
     "if-none-match",
     "if-range",
     "if-unmodified-since",
+    // Request modifiers — content negotiation (RFC 9110 § 12.5)
+    "accept",
+    "accept-encoding",
+    "accept-language",
+    // Request context (RFC 9110 § 10.1), read to decide how to answer
+    "from",
+    "referer",
+    "user-agent",
     // Authentication (RFC 9110 §11). `Authentication-Info` and
     // `Proxy-Authentication-Info` are the two that §11 takes back out again, and
     // they are not here.
@@ -84,11 +92,23 @@ pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
     "retry-after",
     "vary",
     "warning",
+    // Response context (RFC 9110 § 10.2). `Accept-Ranges` is the one § 14.3
+    // grants the trailer section, and it is not here.
+    "allow",
+    "server",
     // Payload processing
     "content-encoding",
     "content-range",
     "content-type",
     "trailer",
+    // Representation metadata (RFC 9110 § 8). `ETag` is the one § 8.8.3 grants
+    // the trailer section, and it is not here.
+    "content-language",
+    "content-location",
+    "last-modified",
+    // Forwarding (RFC 9110 § 7.6.3), appended by each hop as it passes the
+    // message on, which is before the content.
+    "via",
     // Connection-specific (RFC 9110 §7.6.1). The section's own list is bullets
     // too short to cite; the citable form is RFC 9113's parenthetical, a
     // published reading of that list, and it names `Proxy-Connection` in it —
@@ -109,6 +129,65 @@ pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
     // both, and is reported here.
     // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
     "early-data",
+    // The fields the other documents this crate cites define, each for the
+    // header section and with no sentence about a trailer section. RFC 9530
+    // grants the section to `Content-Digest` and `Repr-Digest` by name, and not
+    // to the two preference fields beside them.
+    "accept-patch",
+    "alt-svc",
+    "alt-used",
+    "content-disposition",
+    "cookie",
+    "deprecation",
+    "link",
+    "origin",
+    "prefer",
+    "preference-applied",
+    "priority",
+    "sec-websocket-accept",
+    "sec-websocket-extensions",
+    "sec-websocket-key",
+    "sec-websocket-protocol",
+    "sec-websocket-version",
+    "set-cookie",
+    "strict-transport-security",
+    "sunset",
+    "want-content-digest",
+    "want-repr-digest",
+    // And the ones the web platform's documents define: Fetch, Fetch Metadata,
+    // HTML, CSP, Permissions Policy, Referrer Policy, Network Error Logging,
+    // Resource Timing, Clear Site Data and Storage Access Headers. Fetch hands a
+    // response's header list to the platform and has no trailer list at all.
+    "access-control-allow-credentials",
+    "access-control-allow-headers",
+    "access-control-allow-methods",
+    "access-control-allow-origin",
+    "access-control-expose-headers",
+    "access-control-max-age",
+    "access-control-request-headers",
+    "access-control-request-method",
+    "activate-storage-access",
+    "clear-site-data",
+    "content-security-policy",
+    "content-security-policy-report-only",
+    "cross-origin-embedder-policy",
+    "cross-origin-embedder-policy-report-only",
+    "cross-origin-opener-policy",
+    "cross-origin-opener-policy-report-only",
+    "cross-origin-resource-policy",
+    "nel",
+    "origin-agent-cluster",
+    "permissions-policy",
+    "referrer-policy",
+    "refresh",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-storage-access",
+    "sec-fetch-user",
+    "timing-allow-origin",
+    "x-content-type-options",
+    "x-frame-options",
 ];
 
 /// Whether `name` cannot appear in a trailer section because of what it is.
@@ -123,8 +202,17 @@ pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
 /// condition is not on the wire; a name the RFC permits at all does not belong in a
 /// table of names the RFC forbids.
 ///
+/// Four more are granted the section outright, and a table that grew to every
+/// field a cited document defines had to leave each of them out by name: `ETag`,
+/// for a tag computed while the content streams; `Accept-Ranges`; and the two
+/// digests RFC 9530 computes over content that has not finished arriving.
+///
 // cite(RFC 9110 § 11.6.3): "Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this."
 // cite(RFC 9110 § 11.7.3): "Proxy-Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this."
+// cite(RFC 9110 § 8.8.3): "A sender MAY send the ETag field in a trailer section"
+// cite(RFC 9110 § 14.3): "The Accept-Ranges field MAY be sent in a trailer section"
+// cite(RFC 9530 § 2): "Content-Digest can be sent in a trailer section."
+// cite(RFC 9530 § 3): "Repr-Digest can be sent in a trailer section."
 pub fn is_prohibited_trailer_field(name: &str) -> bool {
     let name_l = name.trim().to_ascii_lowercase();
     PROHIBITED_TRAILER_FIELDS.contains(&name_l.as_str())
@@ -200,6 +288,28 @@ mod tests {
         assert!(is_prohibited_trailer_field("date"));
         // A Trailer field inside a trailer section announces nothing.
         assert!(is_prohibited_trailer_field("trailer"));
+        // Every field a cited document defines for the header section alone.
+        for name in [
+            "Last-Modified",
+            "Set-Cookie",
+            "Cookie",
+            "User-Agent",
+            "Via",
+            "Link",
+        ] {
+            assert!(is_prohibited_trailer_field(name), "{name}");
+        }
+        // The six whose own definitions grant the section.
+        for name in [
+            "ETag",
+            "Accept-Ranges",
+            "Authentication-Info",
+            "Proxy-Authentication-Info",
+            "Content-Digest",
+            "Repr-Digest",
+        ] {
+            assert!(!is_prohibited_trailer_field(name), "{name}");
+        }
         // An extension field is not prohibited by what it is.
         assert!(!is_prohibited_trailer_field("x-foo"));
         assert!(!is_prohibited_trailer_field("x-checksum"));
