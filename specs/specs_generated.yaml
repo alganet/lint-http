@@ -10185,7 +10185,7 @@ sources:
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
     cited_by:
     - file: lint-http/src/proxy/exchange.rs
-      line: 411
+      line: 443
   - label: lint-http/src/proxy/hop_by_hop.rs
     section: § 11.7.2
     snippet: Unlike Authorization, the Proxy-Authorization header field applies only to the next inbound proxy that demanded authentication using the Proxy-Authenticate header field.
@@ -10467,7 +10467,7 @@ sources:
     - file: lint-http-rules/src/violations/status.rs
       line: 1214
     - file: lint-http/src/proxy/websocket/handshake.rs
-      line: 168
+      line: 169
   - label: no_body_for_1xx_204_304 (2)
     section: § 15.3.5
     snippet: A 204 response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -13058,6 +13058,8 @@ sources:
       line: 240
     - file: lint-http-rules/src/violations/host.rs
       line: 98
+    - file: lint-http/src/proxy/exchange.rs
+      line: 416
   - label: authority-form
     section: § 3.2.3
     snippet: authority-form = uri-host ":" port
@@ -13224,6 +13226,18 @@ sources:
       line: 180
     - file: lint-http-rules/src/violations/method.rs
       line: 527
+  - label: lint-http/src/proxy/exchange.rs
+    section: § 3.2.2
+    snippet: A proxy that forwards such a request MUST generate a new Host field value based on the received request-target rather than forward the received Host field value.
+    cited_by:
+    - file: lint-http/src/proxy/exchange.rs
+      line: 415
+  - label: lint-http/src/proxy/exchange.rs (2)
+    section: § 3.2.2
+    snippet: When a proxy receives a request with an absolute-form of request-target, the proxy MUST ignore the received Host header field (if any) and instead replace it with the host information of the request-target.
+    cited_by:
+    - file: lint-http/src/proxy/exchange.rs
+      line: 414
   - label: lint-http/src/proxy/http.rs
     section: § 3.2.4
     snippet: When a client wishes to request OPTIONS for the server as a whole
@@ -13235,7 +13249,7 @@ sources:
     snippet: If the target URI's path component is empty, the client MUST send "/" as the path within the origin-form of request-target.
     cited_by:
     - file: lint-http/src/proxy/websocket/handshake.rs
-      line: 307
+      line: 308
   - label: no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -13357,7 +13371,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 515
     - file: lint-http/src/proxy/websocket/handshake.rs
-      line: 306
+      line: 307
   - label: origin-form
     section: § 3.2.1
     snippet: origin-form    = absolute-path [ "?" query ]

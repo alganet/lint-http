@@ -364,6 +364,8 @@ pub(super) fn upstream_request_builder(
     strip_hop_by_hop: bool,
 ) -> hyper::http::request::Builder {
     let mut builder = Request::builder().method(method).uri(uri);
+    let generated_host = forwarded_host(uri);
+    let mut host_written = false;
     let connection_hop_headers = if strip_hop_by_hop {
         parse_connection_tokens(headers.get(hyper::header::CONNECTION))
     } else {
@@ -385,9 +387,39 @@ pub(super) fn upstream_request_builder(
         {
             continue;
         }
+        if name == hyper::header::HOST {
+            if let Some(host) = &generated_host {
+                if !std::mem::replace(&mut host_written, true) {
+                    builder = builder.header(name, host.clone());
+                }
+                continue;
+            }
+        }
         builder = builder.header(name, value);
     }
     builder
+}
+
+/// The `Host` a forwarded request carries in place of the one the client wrote:
+/// the target URI's authority, less any userinfo and its `@`.
+///
+/// A target the client sent in absolute-form is the target URI, and a recipient
+/// takes the authority from it and ignores `Host`; forwarding the client's field
+/// beside it sent the origin a request whose `Host` named a different authority
+/// from the one it was dialled for, which an origin reading `Host` serves from
+/// whichever site that names. A target in origin-form was reconstructed from
+/// `Host` in the first place, so the value generated here is the one received.
+/// Only a request that carried the field has it replaced: one that did not is
+/// given its `Host` by the client connection, from the same URI.
+// cite(RFC 9112 § 3.2.2): "When a proxy receives a request with an absolute-form of request-target, the proxy MUST ignore the received Host header field (if any) and instead replace it with the host information of the request-target."
+// cite(RFC 9112 § 3.2.2): "A proxy that forwards such a request MUST generate a new Host field value based on the received request-target rather than forward the received Host field value."
+// cite(RFC 9112 § 3.2): "If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its "@" delimiter (Section 4.2 of [HTTP])."
+fn forwarded_host(uri: &Uri) -> Option<hyper::header::HeaderValue> {
+    let authority = uri.authority()?.as_str();
+    let host = authority
+        .rsplit_once('@')
+        .map_or(authority, |(_, host)| host);
+    hyper::header::HeaderValue::from_str(host).ok()
 }
 
 pub(super) fn build_upstream_request(
@@ -704,6 +736,51 @@ mod tests {
         );
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         assert_eq!(&body[..], b"upstream error: nope");
+    }
+
+    #[rstest::rstest]
+    #[case("http://example.com/x", Some("example.com"))]
+    #[case("http://example.com:8080/x", Some("example.com:8080"))]
+    #[case("https://user:pass@example.com/x", Some("example.com"))]
+    #[case("/x", None)]
+    fn forwarded_host_is_the_target_authority_without_userinfo(
+        #[case] target: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let uri: Uri = target.parse().unwrap();
+        assert_eq!(
+            forwarded_host(&uri).as_ref().map(|v| v.to_str().unwrap()),
+            expected
+        );
+    }
+
+    /// A client's `Host` naming another authority than its absolute-form target
+    /// does not reach the origin: the forwarded request carries one `Host`, the
+    /// target's, and a request that sent none is left for the client connection.
+    #[tokio::test]
+    async fn a_forwarded_request_carries_the_host_its_target_names() -> anyhow::Result<()> {
+        let cfg = Arc::new(crate::config::Config::default());
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) =
+            crate::proxy::test_support::make_shared_with_cfg(cfg, None, &mut temp).await?;
+        let uri: Uri = "http://example.com:8080/x".parse()?;
+
+        let mut headers = HeaderMap::new();
+        headers.append("host", "other.example".parse()?);
+        headers.append("host", "third.example".parse()?);
+        headers.insert("x-app", "1".parse()?);
+        let req = upstream_request_builder(&Method::GET, &uri, &headers, &shared, true).body(())?;
+        let hosts: Vec<_> = req.headers().get_all("host").iter().collect();
+        assert_eq!(hosts, ["example.com:8080"]);
+        assert_eq!(req.headers().get("x-app").unwrap(), "1");
+
+        let mut headers = HeaderMap::new();
+        headers.insert("x-app", "1".parse()?);
+        let req = upstream_request_builder(&Method::GET, &uri, &headers, &shared, true).body(())?;
+        assert!(req.headers().get("host").is_none());
+
+        let _ = tokio::fs::remove_file(&tmp).await;
+        Ok(())
     }
 
     /// The 101 carve-out: hop-by-hop stripping would remove the very fields a

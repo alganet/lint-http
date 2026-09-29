@@ -94,7 +94,8 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
     // intermediary that can carry an extension's frames has no business
     // silencing its negotiation.
     let upstream_req = match origin_form(&uri).and_then(|target| {
-        upstream_request_builder(&facts.method, &target, &facts.headers, &shared, false)
+        upstream_request_builder(&facts.method, &uri, &facts.headers, &shared, false)
+            .uri(target)
             .body(Full::new(body_bytes.clone()))
     }) {
         Ok(r) => r,
