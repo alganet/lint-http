@@ -322,7 +322,10 @@ enabled = true
          `X-Frame-Options`, `X-Content-Type-Options`, `X-XSS-Protection`, the three \
          `Cross-Origin-*-Policy` fields, the five `Sec-Fetch-*` fields, \
          `Origin-Agent-Cluster`, `Deprecation`, `Refresh`, \
-         `Access-Control-Allow-Origin` and `Alt-Used`, whose `alt_used_valid` counts it for \
+         `Access-Control-Allow-Origin`, `Access-Control-Max-Age` (in \
+         `cors_response_header_syntax`, since Fetch's extraction fails on a repeated \
+         single-value field and the preflight then caches for five seconds) and `Alt-Used`, \
+         whose `alt_used_valid` counts it for \
          the same reason `host_header` does: RFC 7838 §5 writes the field as `uri-host [ \":\" \
          port ]`, which prints no `#`, so two lines of it are not one value.\n\n\
          **That list is a census and a census goes stale**, which this one had: it said \
@@ -550,6 +553,7 @@ mod tests {
             "content_disposition_token_valid",
             "content_location_and_uri_consistent",
             "content_type_valid",
+            "cors_response_header_syntax",
             "cross_origin_embedder_policy_valid",
             "cross_origin_opener_policy_valid",
             "cross_origin_resource_policy_valid",

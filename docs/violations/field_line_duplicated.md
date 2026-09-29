@@ -37,6 +37,7 @@ severity = "error"
 - [content_disposition_token_valid](../rules/content_disposition_token_valid.md)
 - [content_location_and_uri_consistent](../rules/content_location_and_uri_consistent.md)
 - [content_type_valid](../rules/content_type_valid.md)
+- [cors_response_header_syntax](../rules/cors_response_header_syntax.md)
 - [cross_origin_embedder_policy_valid](../rules/cross_origin_embedder_policy_valid.md)
 - [cross_origin_opener_policy_valid](../rules/cross_origin_opener_policy_valid.md)
 - [cross_origin_resource_policy_valid](../rules/cross_origin_resource_policy_valid.md)

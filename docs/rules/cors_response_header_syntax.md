@@ -22,6 +22,7 @@ What this rule does not decide: whether the fields should be present at all (`op
 
 - [delta_seconds_character_forbidden](../violations/delta_seconds_character_forbidden.md) — A time in seconds holds an octet DIGIT does not admit
 - [delta_seconds_empty](../violations/delta_seconds_empty.md) — A time in seconds is stated with no digits
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
 - [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
 - [method_case_invalid](../violations/method_case_invalid.md) — A method is a standardized name written in another case
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
@@ -31,6 +32,7 @@ What this rule does not decide: whether the fields should be present at all (`op
 
 - [Fetch §3.3.4](https://fetch.spec.whatwg.org/#http-new-header-syntax): ABNF for the CORS protocol's header values. The four response fields read here — `Access-Control-Expose-Headers = #field-name`, `Access-Control-Allow-Headers = #field-name`, `Access-Control-Allow-Methods = #method` and `Access-Control-Max-Age = delta-seconds` — name productions three other documents define, and none of the four adds punctuation of its own
 - [Fetch §3.3.3](https://fetch.spec.whatwg.org/#http-responses): Which of these fields a CORS response may carry, and that `*` counts as a wildcard in the three list-valued ones for requests without credentials — which needs no arm in the reading, `tchar` admitting the asterisk
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 - [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 - [RFC 9110 §9.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1): `method = token`, the token's case-sensitivity, the convention that standardized methods are defined in all-uppercase US-ASCII letters, and the 501 an origin server gives an unrecognized method

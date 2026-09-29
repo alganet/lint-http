@@ -53,6 +53,18 @@ sources:
       line: 60
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
       line: 82
+  - label: cors_response_header_syntax
+    section: § 2.2.2
+    snippet: If the ABNF for name allows a single header and list contains more than one, then return failure.
+    cited_by:
+    - file: lint-http-rules/src/rules/cors_response_header_syntax.rs
+      line: 319
+  - label: cors_response_header_syntax (2)
+    section: § 4.8
+    snippet: If max-age is failure or null, then set max-age to 5.
+    cited_by:
+    - file: lint-http-rules/src/rules/cors_response_header_syntax.rs
+      line: 320
   - label: cross_origin_resource_policy_valid
     section: § 3.7
     snippet: Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive
@@ -6543,7 +6555,7 @@ sources:
     - file: lint-http-rules/src/rules/cors_request_header_syntax.rs
       line: 257
     - file: lint-http-rules/src/rules/cors_response_header_syntax.rs
-      line: 283
+      line: 286
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 92
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
@@ -9241,7 +9253,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
       line: 110
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 464
+      line: 467
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
       line: 269
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
@@ -9291,7 +9303,7 @@ sources:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 287
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 466
+      line: 469
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.5
     snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
@@ -9299,7 +9311,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 473
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 467
+      line: 470
   - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.5
     snippet: field-content  = field-vchar [ 1*( SP / HTAB / field-vchar ) field-vchar ]
@@ -11165,7 +11177,7 @@ sources:
     snippet: 'such as an ABNF rule of #(values) defined in Section 5.6.1'
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 465
+      line: 468
   - label: singleton_fields_not_repeated (4)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated, having the same semantics as the Origination Date Field (orig-date) defined in Section 3.6.1 of [RFC5322].

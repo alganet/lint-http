@@ -8,6 +8,7 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::delta_seconds::{
     DELTA_SECONDS_CHARACTER_FORBIDDEN, DELTA_SECONDS_EMPTY, RFC_9111_1_2_2,
 };
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::method::{METHOD_CASE_INVALID, RFC_9110_9_1};
 use crate::violations::token::{
@@ -46,6 +47,7 @@ static DECLARED: &[&ViolationDef] = &[
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
     &METHOD_CASE_INVALID,
+    &FIELD_LINE_DUPLICATED,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -99,6 +101,7 @@ registered_methods = ["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTION
         &[
             FETCH_3_3_4,
             FETCH_3_3_3,
+            RFC_9110_5_3,
             RFC_9110_5_6_1_1,
             RFC_9110_5_6_2,
             RFC_9110_9_1,
@@ -305,7 +308,35 @@ fn max_age_findings(
     headers: &hyper::HeaderMap,
 ) -> Vec<Violation> {
     let mut out = Vec::new();
-    for line in crate::helpers::headers::field_lines_as_written(headers, "access-control-max-age") {
+    let lines = crate::helpers::headers::field_lines_as_written(headers, "access-control-max-age");
+
+    // One `delta-seconds` has no list form, so a second line is § 5.3's
+    // repetition, and Fetch says what it costs: the preflight extracts the
+    // field, extraction fails on a single-value field written more than once,
+    // and a failed max-age is five seconds. Each line's value is read below all
+    // the same, since a sender repairing the repetition keeps one of them.
+    //
+    // cite(Fetch § 2.2.2): "If the ABNF for name allows a single header and list contains more than one, then return failure."
+    // cite(Fetch § 4.8): "If max-age is failure or null, then set max-age to 5."
+    if lines.len() > 1 {
+        let written: Vec<String> = lines
+            .iter()
+            .map(|l| {
+                let value = crate::helpers::headers::trim_ows(l);
+                format!("'{}'", crate::helpers::shown::shown_in_finding(value))
+            })
+            .collect();
+        let message = format!(
+            "Access-Control-Max-Age is written on {} field lines ({}); the field is one \
+             `delta-seconds`, and a preflight that finds it repeated caches its answer for \
+             the 5-second default",
+            lines.len(),
+            written.join(", ")
+        );
+        out.push(ctx.report_with(&FIELD_LINE_DUPLICATED, message));
+    }
+
+    for line in lines {
         let s = crate::helpers::headers::trim_ows(&line);
         if s.is_empty() {
             out.push(
@@ -434,6 +465,40 @@ mod tests {
     #[case::max_age_empty(&[("access-control-max-age", "")], "delta_seconds_empty")]
     fn each_defect_names_its_production(#[case] headers: &[(&str, &str)], #[case] expected: &str) {
         assert_eq!(ids(headers), vec![expected.to_string()], "for {headers:?}");
+    }
+
+    /// **One `delta-seconds`, and a preflight that finds two caches for five
+    /// seconds.** Fetch's extraction fails on a single-value field written
+    /// more than once, whatever the lines say, so two identical lines are the
+    /// repetition and nothing else; a defective line is still its own finding.
+    #[rstest]
+    #[case::identical(&["60", "60"], &["field_line_duplicated"])]
+    #[case::disagreeing(&["60", "600"], &["field_line_duplicated"])]
+    #[case::one_defective(
+        &["60", "abc"],
+        &["field_line_duplicated", "delta_seconds_character_forbidden"]
+    )]
+    #[case::one_line(&["60"], &[])]
+    fn a_repeated_max_age_is_the_five_second_default(
+        #[case] lines: &[&str],
+        #[case] expected: &[&str],
+    ) {
+        let headers: Vec<_> = lines
+            .iter()
+            .map(|l| ("access-control-max-age", *l))
+            .collect();
+        assert_eq!(ids(&headers), expected, "for {lines:?}");
+        if lines.len() == 2 {
+            assert_eq!(
+                run(&headers)[0].message,
+                format!(
+                    "Access-Control-Max-Age is written on 2 field lines ('{}', '{}'); the field \
+                     is one `delta-seconds`, and a preflight that finds it repeated caches its \
+                     answer for the 5-second default",
+                    lines[0], lines[1]
+                )
+            );
+        }
     }
 
     /// The value the counted web actually carries: a server that meant to
