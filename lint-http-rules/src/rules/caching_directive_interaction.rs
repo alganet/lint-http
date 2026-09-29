@@ -211,6 +211,23 @@ impl Rule for CachingDirectiveInteraction {
                         } else {
                             s
                         };
+                        // A numeral is compared as the number it writes, so
+                        // `060` beside `60` is one lifetime written twice and
+                        // not two. Only the leading zeros go: two numerals past
+                        // § 1.2.2's clamp still differ, because a cache is free
+                        // to represent the larger one. A value that is no
+                        // numeral stays as written, and is the directive
+                        // grammar's to report.
+                        // cite(RFC 9111 § 1.2.2): "The delta-seconds rule specifies a non-negative integer, representing time in seconds."
+                        let inner =
+                            if !inner.is_empty() && inner.bytes().all(|b| b.is_ascii_digit()) {
+                                match inner.trim_start_matches('0') {
+                                    "" => "0",
+                                    digits => digits,
+                                }
+                            } else {
+                                inner
+                            };
                         if !inner.is_empty() {
                             nums.push(inner.to_string());
                         }
@@ -337,6 +354,11 @@ mod tests {
     #[case("no-store, private", false)]
     #[case("no-cache, max-age=0", false)]
     #[case("max-age=60, max-age=60", false)]
+    #[case("max-age=60, max-age=060", false)]
+    #[case("max-age=\"060\", max-age=60", false)]
+    #[case("s-maxage=0, s-maxage=00, max-age=5", false)]
+    #[case("max-age=060, max-age=6", true)]
+    #[case("max-age=2147483648, max-age=9999999999", true)]
     #[case("s-maxage=60, s-maxage=30", true)]
     fn response_cases(#[case] val: &str, #[case] expect_violation: bool) {
         let rule = CachingDirectiveInteraction;

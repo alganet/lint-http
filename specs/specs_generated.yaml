@@ -11925,6 +11925,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 609
+    - file: lint-http-rules/src/rules/caching_directive_interaction.rs
+      line: 221
   - label: cache_coherence
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
