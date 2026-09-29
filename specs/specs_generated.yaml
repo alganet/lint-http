@@ -1400,21 +1400,21 @@ sources:
     snippet: Disables XSS filtering.
     cited_by:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 157
+      line: 163
     - file: lint-http-rules/src/violations/x_xss_protection.rs
-      line: 77
+      line: 79
   - label: x_xss_protection_value_valid (2)
     snippet: Enables XSS filtering. Rather than sanitizing the page, the browser will prevent rendering of the page if an attack is detected.
     cited_by:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 163
+      line: 164
   - label: x_xss_protection_value_valid (3)
     snippet: Even though this feature can protect users of older web browsers that don't support CSP, in some cases, X-XSS-Protection can create XSS vulnerabilities in otherwise safe websites.
     cited_by:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 156
+      line: 162
     - file: lint-http-rules/src/violations/x_xss_protection.rs
-      line: 76
+      line: 78
   - label: x_xss_protection_value_valid (4)
     snippet: response header was a feature of Internet Explorer, Chrome and Safari that stopped pages from loading when they detected reflected cross-site scripting
     cited_by:

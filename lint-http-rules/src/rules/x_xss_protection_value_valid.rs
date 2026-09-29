@@ -153,49 +153,45 @@ impl Rule for XXssProtectionValueValid {
             // and the description is what draws that line rather than a grammar: those two
             // ask the filter to rewrite the page, which is the behaviour the warning is about,
             // and the same description names the pair that does not rewrite it.
+            //
+            // The value is read as a setting and then the settings after it, and a
+            // part that is empty is no setting at all: `1; mode=block;` is the
+            // blocking pair and `0;` is the filter off, whatever the separator
+            // after them says. Telling either it spells neither setting was false
+            // of the octets, and the repair it offered was the value already sent.
             // cite(MDN X-XSS-Protection): "Even though this feature can protect users of older web browsers that don't support CSP, in some cases, X-XSS-Protection can create XSS vulnerabilities in otherwise safe websites."
             // cite(MDN X-XSS-Protection): "Disables XSS filtering."
-            if val.eq_ignore_ascii_case("0") {
-                return None;
-            }
-
-            // Split on ';' and validate structure: exactly two parts, first is '1', second is 'mode=block'
             // cite(MDN X-XSS-Protection): "Enables XSS filtering. Rather than sanitizing the page, the browser will prevent rendering of the page if an attack is detected."
-            let parts: Vec<&str> = val
-                .split(';')
-                .map(crate::helpers::headers::trim_ows)
-                .collect();
-            if parts.len() == 2
-                && parts[0].eq_ignore_ascii_case("1")
-                && parts[1].eq_ignore_ascii_case("mode=block")
-            {
+            let mut parts = val.split(';').map(crate::helpers::headers::trim_ows);
+            let first = parts.next().unwrap_or_default();
+            let rest: Vec<&str> = parts.filter(|p| !p.is_empty()).collect();
+            let off = first == "0";
+            let block = first == "1" && rest.iter().any(|p| p.eq_ignore_ascii_case("mode=block"));
+            if (off && rest.is_empty()) || (block && rest.len() == 1) {
                 return None;
             }
 
-            // A value that spells the blocking pair and then keeps going. It is
-            // still reported — no document defines `mode=block` beside a further
-            // setting, so which behaviour a browser applies is not something any
-            // reference here states — but the sentence below cannot be the one
-            // that says it. "Neither of the two settings that keep the browser
-            // from rewriting the page" is a claim about the octets, and
-            // `mode=block` is written in them: a deployment that had already
-            // chosen the blocking spelling was told it had not. What is unknown
-            // is the combination, and that is what the finding now says.
-            let spells_block = parts[0].eq_ignore_ascii_case("1")
-                && parts[1..]
-                    .iter()
-                    .any(|p| p.eq_ignore_ascii_case("mode=block"));
-            // A trailing `;` leaves an empty part and adds no setting, so it is
-            // not what this branch is about: `1;mode=block;` is still the pair
-            // and nothing else, and the sentence below stays its answer.
-            let further = parts[1..]
-                .iter()
-                .any(|p| !p.is_empty() && !p.eq_ignore_ascii_case("mode=block"));
-            if spells_block && further {
+            // A value that spells one of the two settings and then keeps going.
+            // It is still reported — no document defines either setting beside a
+            // further one, so which behaviour a browser applies is not something
+            // any reference here states — but the sentence below cannot be the
+            // one that says it. "Neither of the two settings that keep the
+            // browser from rewriting the page" is a claim about the octets, and
+            // the setting is written in them: a deployment that had already
+            // chosen it was told it had not. What is unknown is the combination,
+            // and that is what the finding says.
+            let spelled = if off {
+                Some("0")
+            } else if block {
+                Some("1; mode=block")
+            } else {
+                None
+            };
+            if let Some(setting) = spelled {
                 return Some(ctx.report_with(
                     &X_XSS_PROTECTION_INVALID,
                     format!(
-                        "X-XSS-Protection is set to '{}', which spells '1; mode=block' and then a further setting that no reference here defines beside it, so which behaviour a browser applies is unstated: '0' turns the filter off, and '1; mode=block' on its own has the page blocked instead of sanitized",
+                        "X-XSS-Protection is set to '{}', which spells '{setting}' and then a further setting that no reference here defines beside it, so which behaviour a browser applies is unstated: '0' turns the filter off, and '1; mode=block' on its own has the page blocked instead of sanitized",
                         crate::helpers::shown::shown_in_finding(val)
                     ),
                 ));
@@ -236,6 +232,10 @@ mod tests {
     #[case(Some("1; mode=block"), false)]
     #[case(Some("1;MODE=BLOCK"), false)]
     #[case(Some("1;  mode=block  "), false)]
+    // a separator with nothing after it adds no setting
+    #[case(Some("1; mode=block;"), false)]
+    #[case(Some("1;mode=block; "), false)]
+    #[case(Some("0;"), false)]
     // values that ask the browser to rewrite the page, or that are no setting
     // at all. `1; mode=block; report=<uri>` is here because a deployment does
     // send it: the description spells `mode=block` and `report=` as two
@@ -247,6 +247,10 @@ mod tests {
     #[case(Some("1; mode=none"), true)]
     #[case(Some("1; mode=block; report=https://example.test/r"), true)]
     #[case(Some(""), true)]
+    #[case(Some("0; mode=block"), true)]
+    #[case(Some("1; mode=block; mode=block"), true)]
+    #[case(Some(";"), true)]
+    #[case(Some(";0"), true)]
     fn check_header_values(#[case] val: Option<&str>, #[case] expect_violation: bool) {
         let rule = XXssProtectionValueValid;
         let mut tx = make_test_transaction();
@@ -329,8 +333,36 @@ mod tests {
         );
         assert!(found.message.contains("unstated"), "{}", found.message);
 
+        // `0` beside a further setting is the same shape: the setting is
+        // written, and only the combination is unaccounted for. A repeated
+        // `mode=block` is the pair beside a further setting too.
+        for (value, setting) in [
+            ("0; mode=block", "'0'"),
+            ("0; report=/r", "'0'"),
+            ("1; mode=block; mode=block", "'1; mode=block'"),
+        ] {
+            let tx = crate::test_helpers::make_test_transaction_with_response(
+                200,
+                &[("x-xss-protection", value)],
+            );
+            let found = crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .expect("a finding");
+            assert!(
+                found
+                    .message
+                    .contains(&format!("which spells {setting} and then")),
+                "{value}: {}",
+                found.message
+            );
+        }
+
         // The values that genuinely spell neither keep the sentence that says so.
-        for bare in ["1", "1;report=1", "2"] {
+        for bare in ["1", "1;report=1", "2", ";0"] {
             let tx = crate::test_helpers::make_test_transaction_with_response(
                 200,
                 &[("x-xss-protection", bare)],
@@ -482,10 +514,14 @@ mod tests {
         );
     }
 
-    #[test]
-    fn extra_semicolon_is_violation_and_reported() {
+    /// A separator with nothing after it adds no setting, so the two values
+    /// below are the two this rule accepts. Both used to be told they spell
+    /// neither of them, and were offered as the repair the value already sent.
+    #[rstest]
+    #[case("1;mode=block;")]
+    #[case("0;")]
+    fn a_trailing_separator_is_no_further_setting(#[case] val: &str) {
         let rule = XXssProtectionValueValid;
-        let val = "1;mode=block;";
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
             &[("x-xss-protection", val)],
@@ -496,9 +532,7 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        let m = v.unwrap().message;
-        assert!(m.contains("neither of the two settings") && m.contains(val));
+        assert!(v.is_none(), "{val}: {v:?}");
     }
 
     #[test]

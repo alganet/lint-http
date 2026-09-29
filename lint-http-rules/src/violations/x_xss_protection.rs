@@ -38,14 +38,16 @@ use crate::violations::defects;
 
 defects! {
     /// A value that is neither `0` nor `1; mode=block`, matched without regard
-    /// to case and tolerating whitespace around the `;`.
+    /// to case, tolerating whitespace around the `;`, and reading a `;` with
+    /// nothing after it as no setting at all.
     ///
     /// **Three kinds of value report through it and they are one claim.** A `2`
     /// or a word is a setting the field never had; a bare `1`, or
     /// `1; report=<uri>`, is one it did have and this crate declines; and
     /// `1; mode=block; report=<uri>` is the blocking spelling with a further
     /// setting beside it, which no reference defines and which several
-    /// deployments behind one vendor's script send. The third is why the rule
+    /// deployments behind one vendor's script send — as `0; mode=block` is the
+    /// other accepted setting with one. The third is why the rule
     /// builds two sentences rather than one — the first two spell neither
     /// accepted setting and can be told so, while the third plainly spells one
     /// of them and only the *combination* is unaccounted for. The entry does
