@@ -8,7 +8,9 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate that the `ETag` response header contains a single, syntactically valid entity-tag (strong or weak) as defined by RFC 9110. This rule flags non-UTF-8 header values, the use of the special `*` value (which is only meaningful in conditional request headers), and the presence of multiple `ETag` header fields.
+Validate that the `ETag` response field contains a single, syntactically valid entity-tag (strong or weak) as defined by RFC 9110. This rule flags a value that is not an `entity-tag`, the special `*` value (which is only meaningful in conditional request headers), and more than one `ETag` field line. The value is read as the octets the sender wrote, so an `obs-text` octet inside the quotes is part of an `opaque-tag` and is not reported.
+
+Both field sections are read. RFC 9110 §8.8.3 lets a sender put `ETag` in the trailer section, for a tag computed while the content streams, so a value written there is measured against the same production, and a tag in each section is two field lines of a singleton, which §5.3 forbids "whether in the headers or trailers".
 
 ## Violations
 

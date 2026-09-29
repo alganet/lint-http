@@ -245,6 +245,9 @@ struct Field {
     /// Set for a field that no longer exists: the finding a well-formed value
     /// still earns, and the entry that says which document retired it.
     obsolete: Option<MemberDefect>,
+    /// Whether the field's own definition grants it the trailer section, and so
+    /// whether a value written there was sent and is read.
+    in_trailers: bool,
 }
 
 const OBSOLETE_DIGEST: MemberDefect = MemberDefect {
@@ -275,6 +278,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::LegacyDigest,
         reference: "obsoleted by RFC 9530",
         obsolete: Some(OBSOLETE_DIGEST),
+        in_trailers: false,
     },
     Field {
         name: "want-digest",
@@ -283,6 +287,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::LegacyWantDigest,
         reference: "obsoleted by RFC 9530",
         obsolete: Some(OBSOLETE_WANT_DIGEST),
+        in_trailers: false,
     },
     Field {
         name: "digest",
@@ -291,6 +296,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::LegacyDigest,
         reference: "obsoleted by RFC 9530",
         obsolete: Some(OBSOLETE_DIGEST),
+        in_trailers: false,
     },
     Field {
         name: "content-digest",
@@ -299,6 +305,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::StructuredDigest,
         reference: "RFC 9530 §2",
         obsolete: None,
+        in_trailers: true,
     },
     Field {
         name: "repr-digest",
@@ -307,6 +314,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::StructuredDigest,
         reference: "RFC 9530 §3",
         obsolete: None,
+        in_trailers: true,
     },
     Field {
         name: "want-content-digest",
@@ -315,6 +323,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::WantPreference,
         reference: "RFC 9530 §4",
         obsolete: None,
+        in_trailers: false,
     },
     Field {
         name: "want-repr-digest",
@@ -323,6 +332,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::WantPreference,
         reference: "RFC 9530 §4",
         obsolete: None,
+        in_trailers: false,
     },
     Field {
         name: "content-digest",
@@ -331,6 +341,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::StructuredDigest,
         reference: "RFC 9530 §2",
         obsolete: None,
+        in_trailers: true,
     },
     Field {
         name: "repr-digest",
@@ -339,6 +350,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::StructuredDigest,
         reference: "RFC 9530 §3",
         obsolete: None,
+        in_trailers: true,
     },
     Field {
         name: "want-content-digest",
@@ -347,6 +359,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::WantPreference,
         reference: "RFC 9530 §4",
         obsolete: None,
+        in_trailers: false,
     },
     Field {
         name: "want-repr-digest",
@@ -355,6 +368,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::WantPreference,
         reference: "RFC 9530 §4",
         obsolete: None,
+        in_trailers: false,
     },
     // Content-MD5 has no syntax to be wrong: its presence is the finding, so
     // the reading below accepts anything the value says.
@@ -365,6 +379,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::Anything,
         reference: "removed by RFC 7231",
         obsolete: Some(OBSOLETE_CONTENT_MD5),
+        in_trailers: false,
     },
     Field {
         name: "content-md5",
@@ -373,6 +388,7 @@ const FIELDS: &[Field] = &[
         syntax: Syntax::Anything,
         reference: "removed by RFC 7231",
         obsolete: Some(OBSOLETE_CONTENT_MD5),
+        in_trailers: false,
     },
 ];
 
@@ -872,7 +888,7 @@ impl RuleMeta for DigestHeaderSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest` (for message content), `Repr-Digest` (for representation data) and their preference counterparts `Want-Content-Digest` / `Want-Repr-Digest`. This rule validates:\n\n- **Legacy** `Digest` (`alg=base64`) and `Want-Digest` (algorithms, each with an optional `;q=` weight) header syntax, and flags their use as obsoleted by RFC 9530.\n- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64. A member's parameters are not part of its value: RFC 9530 defines none and RFC 9651 gives every member room for them, so `sha-256=:BASE64:;x=1` is read as the digest it carries, and only a parameter that is not one is reported.\n- **Integrity preference** fields (`Want-Content-Digest`, `Want-Repr-Digest`) use algorithm=weight pairs where weight is an integer in 0..=10.\n- **Obsolete field**: presence of `Content-MD5` is flagged. It was removed from HTTP by RFC 7231 (not by RFC 9530, which does not mention it); prefer `Content-Digest`.\n\nAlgorithm names in the RFC 9530 fields are structured-field Dictionary keys and so must be lowercase (`sha-256`, not the `SHA-256` spelling used by the obsolete `Digest` field, whose algorithm token is case-insensitive)."
+        "RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest` (for message content), `Repr-Digest` (for representation data) and their preference counterparts `Want-Content-Digest` / `Want-Repr-Digest`. This rule validates:\n\n- **Legacy** `Digest` (`alg=base64`) and `Want-Digest` (algorithms, each with an optional `;q=` weight) header syntax, and flags their use as obsoleted by RFC 9530.\n- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64. A member's parameters are not part of its value: RFC 9530 defines none and RFC 9651 gives every member room for them, so `sha-256=:BASE64:;x=1` is read as the digest it carries, and only a parameter that is not one is reported.\n- **Integrity preference** fields (`Want-Content-Digest`, `Want-Repr-Digest`) use algorithm=weight pairs where weight is an integer in 0..=10.\n- **Obsolete field**: presence of `Content-MD5` is flagged. It was removed from HTTP by RFC 7231 (not by RFC 9530, which does not mention it); prefer `Content-Digest`.\n\nAlgorithm names in the RFC 9530 fields are structured-field Dictionary keys and so must be lowercase (`sha-256`, not the `SHA-256` spelling used by the obsolete `Digest` field, whose algorithm token is case-insensitive).\n\n`Content-Digest` and `Repr-Digest` are read in the **trailer section** as well as the header section, in either direction: RFC 9530 §2 and §3 each say the field \"can be sent in a trailer section\", which is where a digest computed while the content streams arrives. No other field here is granted the section, and one written there is `trailer_fields_valid`'s finding."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -966,15 +982,31 @@ impl Rule for DigestHeaderSyntax {
         let mut out: Vec<Violation> = Vec::new();
         {
             for field in FIELDS {
-                let headers = match field.side {
-                    Side::Request => &tx.request.headers,
+                let (headers, trailers) = match field.side {
+                    Side::Request => (&tx.request.headers, tx.request.trailers.as_ref()),
                     Side::Response => match tx.response.as_ref() {
-                        Some(resp) => &resp.headers,
+                        Some(resp) => (&resp.headers, resp.trailers.as_ref()),
                         None => continue,
                     },
                 };
+                // The trailer section is read only for a field whose definition
+                // grants it: RFC 9530 computes both digests over content that may
+                // not have finished arriving, so a value written after it was
+                // sent. Any other field there is `trailer_fields_valid`'s finding.
+                // cite(RFC 9530 § 2): "Content-Digest can be sent in a trailer section."
+                // cite(RFC 9530 § 3): "Repr-Digest can be sent in a trailer section."
+                let sections = std::iter::once(("header", headers)).chain(
+                    trailers
+                        .filter(|_| field.in_trailers)
+                        .map(|trailers| ("trailer field", trailers)),
+                );
 
-                for line in headers.get_all(field.name).iter() {
+                for (kind, line) in sections.flat_map(|(kind, section)| {
+                    section
+                        .get_all(field.name)
+                        .iter()
+                        .map(move |line| (kind, line))
+                }) {
                     // Read as octets. Two of these four fields are lists of
                     // `token`s and two are Structured Fields; every one of the
                     // productions stops inside visible US-ASCII, so an octet
@@ -989,8 +1021,8 @@ impl Rule for DigestHeaderSyntax {
                     for defect in defects {
                         let defect = defect.in_context(|message| {
                             format!(
-                                "Invalid {} header in {}: {} ({})",
-                                field.display, field.side, message, field.reference
+                                "Invalid {} {} in {}: {} ({})",
+                                field.display, kind, field.side, message, field.reference
                             )
                         });
                         out.push(
@@ -1032,6 +1064,51 @@ static REGISTRATION: &dyn crate::rules::Rule = &DigestHeaderSyntax;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// RFC 9530 grants `Content-Digest` and `Repr-Digest` the trailer section,
+    /// in either direction, so a value written there is read; a preference field
+    /// has no such sentence, and one written there is not this rule's to read.
+    #[rstest]
+    #[case("request", "content-digest", "sha-256=abc", true)]
+    #[case("response", "content-digest", "sha-256=abc", true)]
+    #[case("response", "repr-digest", "sha-256=abc", true)]
+    #[case(
+        "response",
+        "content-digest",
+        "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+        false
+    )]
+    #[case("response", "want-content-digest", "sha-256=11", false)]
+    fn a_digest_in_the_trailer_section_is_read(
+        #[case] side: &str,
+        #[case] name: &str,
+        #[case] value: &str,
+        #[case] expect_finding: bool,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let section = crate::test_helpers::make_headers_from_pairs(&[(name, value)]);
+        match side {
+            "request" => tx.request.trailers = Some(section),
+            _ => tx.response.as_mut().expect("a response").trailers = Some(section),
+        }
+        let found = crate::test_helpers::run_rule_all(
+            &DigestHeaderSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[DigestHeaderSyntax.id()]),
+        );
+        if expect_finding {
+            assert_eq!(found.len(), 1, "{found:?}");
+            assert_eq!(found[0].violation, "digest_value_malformed");
+            assert!(
+                found[0].message.contains("trailer field in"),
+                "{}",
+                found[0].message
+            );
+        } else {
+            assert!(found.is_empty(), "{found:?}");
+        }
+    }
 
     fn make_req_digest(value: &str) -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction();

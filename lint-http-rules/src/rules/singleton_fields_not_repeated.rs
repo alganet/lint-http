@@ -872,12 +872,15 @@ mod tests {
     }
 
     /// What leaving the table costs, said as a test rather than left to the
-    /// comment above it. The five fields' own rules count header lines only, so
-    /// one line in each section is a repetition this rule used to report and no
+    /// comment above it. The fields' own rules count header lines only, so one
+    /// line in each section is a repetition this rule used to report and no
     /// rule reports now. `trailer_fields_valid` answers for the trailer line
-    /// being there at all, which is why the cost is bounded — but it is a cost,
-    /// and a reading that gives one of those rules the trailer section back
-    /// should change this row rather than discover it.
+    /// being there at all, which is why the cost is bounded — but it is a cost.
+    ///
+    /// `ETag` is the exception, and the row stays because the exception is
+    /// that field's rule's and not this one's: § 8.8.3 grants `ETag` the
+    /// trailer section, so `etag_syntax` reads both and reports a tag in each.
+    /// Counting it here as well would be the same repetition drawn twice.
     #[test]
     fn a_field_that_left_the_table_is_not_counted_across_sections_here() {
         let mut tx = response_with_lines(&[("etag", "\"a\"")]);

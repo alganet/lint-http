@@ -17,6 +17,8 @@ RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest
 
 Algorithm names in the RFC 9530 fields are structured-field Dictionary keys and so must be lowercase (`sha-256`, not the `SHA-256` spelling used by the obsolete `Digest` field, whose algorithm token is case-insensitive).
 
+`Content-Digest` and `Repr-Digest` are read in the **trailer section** as well as the header section, in either direction: RFC 9530 §2 and §3 each say the field "can be sent in a trailer section", which is where a digest computed while the content streams arrives. No other field here is granted the section, and one written there is `trailer_fields_valid`'s finding.
+
 ## Violations
 
 - [base64_malformed](../violations/base64_malformed.md) — Value is not a base64 encoding

@@ -51,7 +51,7 @@ impl RuleMeta for EtagSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "Validate that the `ETag` response header contains a single, syntactically valid entity-tag (strong or weak) as defined by RFC 9110. This rule flags non-UTF-8 header values, the use of the special `*` value (which is only meaningful in conditional request headers), and the presence of multiple `ETag` header fields."
+        "Validate that the `ETag` response field contains a single, syntactically valid entity-tag (strong or weak) as defined by RFC 9110. This rule flags a value that is not an `entity-tag`, the special `*` value (which is only meaningful in conditional request headers), and more than one `ETag` field line. The value is read as the octets the sender wrote, so an `obs-text` octet inside the quotes is part of an `opaque-tag` and is not reported.\n\nBoth field sections are read. RFC 9110 §8.8.3 lets a sender put `ETag` in the trailer section, for a tag computed while the content streams, so a value written there is measured against the same production, and a tag in each section is two field lines of a singleton, which §5.3 forbids \"whether in the headers or trailers\"."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -119,8 +119,15 @@ impl Rule for EtagSyntax {
                 return None;
             };
 
+            // Both field sections. § 8.8.3 lets a sender put the field after the
+            // content, for a tag computed while the content streams, so a value
+            // written there was sent and is read against the same production.
+            // cite(RFC 9110 § 8.8.3): "A sender MAY send the ETag field in a trailer section"
             let mut count = 0usize;
-            for hv in resp.headers.get_all("etag").iter() {
+            let lines = crate::helpers::headers::response_field_sections(resp).flat_map(
+                |(section, fields)| fields.get_all("etag").iter().map(move |hv| (section, hv)),
+            );
+            for (section, hv) in lines {
                 count += 1;
                 // Read as octets. `ETag = entity-tag` is one value rather than
                 // a list, so the field line is the value; and `etagc` stops at
@@ -166,11 +173,18 @@ impl Rule for EtagSyntax {
                         // wrong and never which tag, and an operator reading it
                         // had to go back to the wire to learn what its own
                         // origin had sent.
-                        format!(
-                            "ETag header value '{}' is invalid: {}",
-                            crate::helpers::shown::shown_in_finding(t),
-                            defect.message()
-                        ),
+                        match section {
+                            "trailer section" => format!(
+                                "ETag value '{}' in the trailer section is invalid: {}",
+                                crate::helpers::shown::shown_in_finding(t),
+                                defect.message()
+                            ),
+                            _ => format!(
+                                "ETag header value '{}' is invalid: {}",
+                                crate::helpers::shown::shown_in_finding(t),
+                                defect.message()
+                            ),
+                        },
                     ));
                 }
             }
@@ -179,6 +193,35 @@ impl Rule for EtagSyntax {
             // not a field whose lines may be recombined as a comma-separated list — the §5.3
             // exception does not apply, and a sender must emit at most one ETag field line.
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            //
+            // The two sections are never joined to each other, so a tag in each is
+            // two values a recipient holds side by side rather than one it
+            // recombines, and the sentence says which section held which.
+            let trailer_lines = resp
+                .trailers
+                .as_ref()
+                .map_or(0, |t| t.get_all("etag").iter().count());
+            if count > 1 && trailer_lines > 0 {
+                let written = crate::helpers::headers::response_field_sections(resp)
+                    .filter(|(_, fields)| fields.contains_key("etag"))
+                    .map(|(section, fields)| {
+                        format!(
+                            "'{}' in the {section}",
+                            crate::helpers::headers::joined_field_lines_shown(fields, "etag")
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" and ");
+                return Some(ctx.report_with(
+                    &FIELD_LINE_DUPLICATED,
+                    format!(
+                        "ETag is written on {count} field lines, {written}; `ETag = entity-tag` has \
+                         no comma-separated-list alternative, so a sender must not generate more \
+                         than one field line for it, whether in the headers or trailers (RFC 9110 \
+                         §5.3), and a recipient reading both holds two tags for one representation"
+                    ),
+                ));
+            }
             if count > 1 {
                 return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
                         "{}. The comma a recipient joins them with is no part of `entity-tag`, so the combined value is a tag for no representation at all",
@@ -396,6 +439,49 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_some());
+    }
+
+    /// § 8.8.3 lets a sender put `ETag` in the trailer section, so a value
+    /// written there is read like one in the header section, and a tag in each
+    /// section is two field lines of a singleton. The sections are never joined,
+    /// so that sentence names both rather than a recombined value.
+    #[rstest]
+    #[case(&[], &["v1"], Some(("etag_delimiter_missing", "'v1' in the trailer section is invalid")))]
+    #[case(&[], &["\"v1\""], None)]
+    #[case(&["\"a\""], &["\"b\""], Some(("field_line_duplicated", "'\"a\"' in the header section and '\"b\"' in the trailer section")))]
+    #[case(&[], &["\"a\"", "\"b\""], Some(("field_line_duplicated", "'\"a\", \"b\"' in the trailer section")))]
+    fn a_tag_in_the_trailer_section_is_read(
+        #[case] header: &[&str],
+        #[case] trailer: &[&str],
+        #[case] expected: Option<(&str, &str)>,
+    ) {
+        let pairs = |lines: &[&str]| -> Vec<(&'static str, String)> {
+            lines.iter().map(|l| ("etag", l.to_string())).collect()
+        };
+        let section = |lines: &[&str]| {
+            let owned = pairs(lines);
+            let borrowed: Vec<(&str, &str)> = owned.iter().map(|(n, v)| (*n, v.as_str())).collect();
+            crate::test_helpers::make_headers_from_pairs(&borrowed)
+        };
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let resp = tx.response.as_mut().expect("a response");
+        resp.headers = section(header);
+        resp.trailers = Some(section(trailer));
+
+        let v = crate::test_helpers::run_rule(
+            &EtagSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[EtagSyntax.id()]),
+        );
+        match expected {
+            None => assert!(v.is_none(), "{v:?}"),
+            Some((id, fragment)) => {
+                let v = v.expect("a finding");
+                assert_eq!(v.violation, id);
+                assert!(v.message.contains(fragment), "{}", v.message);
+            }
+        }
     }
 
     #[test]
