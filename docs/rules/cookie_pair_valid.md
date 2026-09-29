@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-This rule measures the `Cookie` request header against RFC 6265 §4.2.1's grammar: `cookie-string = cookie-pair *( ";" SP cookie-pair )`, `cookie-pair = cookie-name "=" cookie-value`, `cookie-name = token`, `cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )`. Each field line is split on `;` into cookie-pairs, and each pair is judged on its own: a segment with no `=` at all, a `cookie-name` that is not a `token` (reported under the same shared id `Set-Cookie`'s cookie-name already uses), and a `cookie-value` carrying an octet outside `cookie-octet` — a comma, a backslash, a bare double-quote, whitespace, a control character, or anything above %x7E, unless the whole value is wrapped in a matching pair of double quotes, which `cookie-octet` also allows (a semicolon is never read as part of the value at all: the outer `;` split takes it as a pair boundary first, and reports it as a second, malformed pair). §4.2.1 states no keyword of its own about the value a sender constructs — it only describes what a user agent sends given that the server and the user agent already conform — so what makes a non-conforming value reportable is RFC 9110 §2.2's blanket MUST NOT on generating a protocol element outside its grammar. A `Cookie` header split across several field lines (RFC 9113 §8.2.3, HTTP/2 and HTTP/3) is judged one line at a time, since each line is independently a well-formed `cookie-string`. A stray empty segment between two `;`s (`a=1;;b=2`) is tolerated rather than reported, matching this crate's treatment of `Set-Cookie`'s attribute list. Whether a request should carry a `Cookie` field at all, and whether its value matches what was last set, are different questions this rule does not ask.
+This rule measures the `Cookie` request header against RFC 6265 §4.2.1's grammar: `cookie-string = cookie-pair *( ";" SP cookie-pair )`, `cookie-pair = cookie-name "=" cookie-value`, `cookie-name = token`, `cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )`. Each field line is split on `;` into cookie-pairs, and each pair is judged on its own: a segment with no `=` at all, a `cookie-name` that is not a `token` (reported under the same shared id `Set-Cookie`'s cookie-name already uses), and a `cookie-value` carrying an octet outside `cookie-octet` — a comma, a backslash, a bare double-quote, whitespace, a control character, or anything above %x7E, unless the whole value is wrapped in a matching pair of double quotes, which `cookie-octet` also allows (a semicolon is never read as part of the value at all: the outer `;` split takes it as a pair boundary first, and reports it as a second, malformed pair). §4.2.1 states no keyword of its own about the value a sender constructs — it only describes what a user agent sends given that the server and the user agent already conform — so what makes a non-conforming value reportable is RFC 9110 §2.2's blanket MUST NOT on generating a protocol element outside its grammar. A `Cookie` header split across several field lines (RFC 9113 §8.2.3, HTTP/2 and HTTP/3) is judged one line at a time, since each line is independently a well-formed `cookie-string`. A stray empty segment between two `;`s (`a=1;;b=2`) is tolerated rather than reported, matching this crate's treatment of `Set-Cookie`'s attribute list. **A pair a `Set-Cookie` handed this client is not the client's to answer for.** §5.4 builds the field by outputting each stored cookie's name and value as they are, so when a response to this client set exactly that name and value, a conforming user agent had nothing else to send: the defect is the server's, and `cookie_attribute_consistent` reports it on the `Set-Cookie` that carried it. A malformed pair no response set is still the client's own. Whether a request should carry a `Cookie` field at all, and whether its value matches what was last set, are different questions this rule does not ask.
 
 ## Violations
 
@@ -53,6 +53,23 @@ Cookie: SID=31d4d96e407aad42; lang=en-US
 ```http
 GET / HTTP/1.1
 Cookie: SID="31d4d96e407aad42"
+```
+
+### ✅ Good (a value the server set, sent back as set)
+
+```http
+> GET / HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Set-Cookie: pref=dark mode; Path=/
+
+> GET /account HTTP/1.1
+> Host: example.com
+> Cookie: pref=dark mode
+
+# the space is outside cookie-octet, and it is the Set-Cookie's: a user
+# agent sends the stored value as it is
 ```
 
 ### ❌ Bad (no '=' in a pair)

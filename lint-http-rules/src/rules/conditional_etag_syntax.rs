@@ -86,7 +86,7 @@ impl RuleMeta for ConditionalEtagSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "`If-Match` (RFC 9110 §13.1.1) and `If-None-Match` (§13.1.2) are each either `*` or a comma-separated list of entity-tags, and this rule reads both against that one production. **The two alternatives are alternatives**, so the `*` is the whole field value: `If-Match: \"abc\", *` derives from neither and is reported, and because a repeated field name makes one value (§5.2), so does the same pair written on two field lines. `etagc` admits the comma, so a tag such as `\"a,b\"` is one member and not two. Each entity-tag follows the grammar in RFC 9110 §8.8.3 and may be weak (prefix `W/`); a weak tag is valid syntax in both fields, whichever comparison function the server then applies. This rule validates that field syntax (quoting, escaping, and prohibition of control characters); it neither flags weak tags nor performs the comparison."
+        "`If-Match` (RFC 9110 §13.1.1) and `If-None-Match` (§13.1.2) are each either `*` or a comma-separated list of entity-tags, and this rule reads both against that one production. **The two alternatives are alternatives**, so the `*` is the whole field value: `If-Match: \"abc\", *` derives from neither and is reported, and because a repeated field name makes one value (§5.2), so does the same pair written on two field lines. `etagc` admits the comma, so a tag such as `\"a,b\"` is one member and not two. Each entity-tag follows the grammar in RFC 9110 §8.8.3 and may be weak (prefix `W/`); a weak tag is valid syntax in both fields, whichever comparison function the server then applies. This rule validates that field syntax (quoting, escaping, and prohibition of control characters); it neither flags weak tags nor performs the comparison.\n\n**A tag the server handed this client is not the client's to answer for.** An entity tag is opaque and compared character by character (§8.8.3.2), so a client revalidating with an `ETag` it was given sends those octets or no condition at all. When a response for this resource carried the tag as written, a member naming it is not reported here: the defect is the server's, and `etag_syntax` reports it on the response that handed it out. A malformed member no response offered is still the client's own."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -125,6 +125,11 @@ impl RuleMeta for ConditionalEtagSyntax {
                 snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: *",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a tag the server handed out, sent back as given)"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< ETag: 0x8DD2F82FA585D1E\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: 0x8DD2F82FA585D1E\n\n# the missing quotes are the ETag's: a tag is compared octet for octet,\n# so a revalidation sends it as it was given",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: abc123   # missing quotes",
@@ -156,6 +161,7 @@ impl ConditionalEtagSyntax {
         ctx: &crate::rules::RuleContext<'_>,
         lowercase: &str,
         shown: &str,
+        handed: &[String],
     ) -> Vec<Violation> {
         // Only applies to requests. **One value, however many field lines carry
         // it**: `#entity-tag` is a list, so § 5.2 combines the lines with a
@@ -188,6 +194,16 @@ impl ConditionalEtagSyntax {
         // cite(RFC 9110 § 13.1.2): "If-None-Match = "*" / #entity-tag"
         // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
         if value == "*" {
+            return Vec::new();
+        }
+
+        // A tag the server handed this client, sent back, is the server's
+        // defect and not the client's: the tag is opaque and compared octet
+        // for octet, so the echo was the only thing a revalidation could send,
+        // and the `ETag` that carried it drew the finding already. Asked of
+        // the whole value first, because a malformed tag may carry the comma
+        // the member walk below splits on.
+        if handed.iter().any(|tag| tag == value) {
             return Vec::new();
         }
 
@@ -231,6 +247,9 @@ impl ConditionalEtagSyntax {
                 saw_an_empty_member = true;
                 continue;
             }
+            if handed.iter().any(|tag| tag == member) {
+                continue;
+            }
             if let Err(defect) = crate::helpers::validator::check_entity_tag(member) {
                 out.push(ctx.report_with(
                     entity_tag_defect(defect),
@@ -258,12 +277,13 @@ impl Rule for ConditionalEtagSyntax {
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
+        history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
+        let handed = crate::helpers::validator::tags_handed(history);
         FIELDS
             .iter()
-            .flat_map(|(lowercase, shown)| self.field_finding(tx, ctx, lowercase, shown))
+            .flat_map(|(lowercase, shown)| self.field_finding(tx, ctx, lowercase, shown, &handed))
             .collect()
     }
 }
@@ -276,6 +296,49 @@ static REGISTRATION: &dyn crate::rules::Rule = &ConditionalEtagSyntax;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// **A tag the server handed this client is the server's defect.** An
+    /// entity tag is opaque and compared octet for octet, so a revalidation
+    /// with the `ETag` it was given sends those octets or no condition; the
+    /// malformed tag is reported on the response that carried it. What the
+    /// client wrote itself — a member beside the echo, or a different spelling
+    /// of the tag it was handed — is still its own.
+    #[rstest]
+    #[case::unquoted_in_if_none_match("if-none-match", "0x8DD2F82FA585D1E", "0x8DD2F82FA585D1E", 0)]
+    #[case::unquoted_in_if_match("if-match", "abc", "abc", 0)]
+    #[case::trailing_octet("if-none-match", "\"a\"x", "\"a\"x", 0)]
+    // One tag carrying the comma the member walk splits on, sent back whole.
+    #[case::comma_inside_an_unquoted_tag("if-none-match", "a,b", "a,b", 0)]
+    #[case::beside_a_member_of_its_own("if-none-match", "abc", "abc, \"d\"e", 1)]
+    #[case::not_the_spelling_handed("if-none-match", "\"abc\"", "abc", 1)]
+    fn a_tag_the_server_handed_is_not_the_clients(
+        #[case] field: &str,
+        #[case] handed: &str,
+        #[case] sent: &str,
+        #[case] expected: usize,
+    ) {
+        let handing =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("etag", handed)]);
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(field, sent)]);
+        let found = crate::test_helpers::run_rule_all(
+            &ConditionalEtagSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![handing]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["conditional_etag_syntax"]),
+        );
+        let seen: Vec<&str> = found.iter().map(|v| v.message.as_str()).collect();
+        assert_eq!(
+            found.len(),
+            expected,
+            "{field}: {sent} after ETag: {handed}: {seen:?}"
+        );
+        assert!(
+            found
+                .iter()
+                .all(|v| v.violation == "etag_delimiter_missing"),
+            "{seen:?}"
+        );
+    }
 
     /// **Every validator the client offered is answered.** `#entity-tag` names
     /// one version per position, so a value naming two that derive from no

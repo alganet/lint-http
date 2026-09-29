@@ -1179,6 +1179,11 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
     // callback there can be, and both of this rule's callback entries could
     // fire on no value at all.
     (&oauth2_code_flow::Oauth2CodeFlow, QueryType::ByClient),
+    // A `Cookie` pair that echoes a `Set-Cookie` is the server's octets, and a
+    // cookie comes back on any target the host's store matches, not on the
+    // one that set it -- so the response that handed it out is in no
+    // resource's history but the client's.
+    (&cookie_pair_valid::CookiePairValid, QueryType::ByClient),
     // ── ByResourceAll: history for a resource across all clients ──
     (
         &private_cache_visibility::PrivateCacheVisibility,
@@ -1196,6 +1201,17 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
     ),
     (
         &cached_validators_reused::CachedValidatorsReused,
+        QueryType::ByResource,
+    ),
+    // These two read a request's entity tags for syntax, and decline a tag a
+    // response for this resource handed this client: the echo of a malformed
+    // `ETag` is the server's defect, reported where it was sent.
+    (
+        &conditional_etag_syntax::ConditionalEtagSyntax,
+        QueryType::ByResource,
+    ),
+    (
+        &conditional_headers_consistent::ConditionalHeadersConsistent,
         QueryType::ByResource,
     ),
     (
@@ -2272,7 +2288,7 @@ enabled = "true"
         // this document's names for them. What it exports besides those two
         // splitters is a predicate, a lookup, a sentence, or one whole cookie
         // assembled out of a walk that has already happened.
-        const NOT_A_MEMBER_WALK: [&str; 29] = [
+        const NOT_A_MEMBER_WALK: [&str; 30] = [
             "quoting_is_balanced",
             "channel_allows",
             "validate_cookie_path",
@@ -2285,6 +2301,10 @@ enabled = "true"
             "parse_set_cookie",
             "find_invalid_cookie_octet",
             "build_cookie_store",
+            // The cookie-pair of every `Set-Cookie` line a history carried:
+            // the pair `split_set_cookie` already cut, and none of the
+            // attributes that are that line's repetition.
+            "pairs_handed",
             "cookie_date_is_readable",
             "cookie_date_instant",
             "read_member",

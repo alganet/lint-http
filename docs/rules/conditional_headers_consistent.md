@@ -10,6 +10,8 @@ SPDX-License-Identifier: ISC
 
 Validate consistency and mutual exclusivity of conditional request headers. When an ETag-based conditional is present, this rule flags a redundant date-based conditional that the recipient is required to ignore (RFC 9110 §13.1.3, §13.1.4); it also ensures `If-Range` is only used with `Range` requests, disallows a weak entity-tag in `If-Range`, measures an `If-Range` value against the alternative it chose — `If-Range = entity-tag / HTTP-date`, and §13.1.5's own test is to examine the first three characters for a DQUOTE — flags `If-Modified-Since` on methods other than GET/HEAD, and flags a repeated `If-Modified-Since`/`If-Unmodified-Since` field, whose combined value is a list of dates the recipient must ignore.
 
+**An `If-Range` naming a tag the server handed this client is not measured against the alternation.** An entity tag is opaque and compared character by character (§8.8.3.2), so a client resuming a download with the `ETag` it was given sends those octets, and a malformed tag — one without its quotes reads as a date — is the server's defect, reported by `etag_syntax` on the response that carried it. The weak-tag prohibition still applies: that is a MUST NOT on the client choosing to send a weak tag here, whoever wrote it.
+
 ## Violations
 
 - [conditional_date_ignored](../violations/conditional_date_ignored.md) — A date conditional is sent where the recipient must discard it

@@ -10,6 +10,8 @@ SPDX-License-Identifier: ISC
 
 `If-Match` (RFC 9110 §13.1.1) and `If-None-Match` (§13.1.2) are each either `*` or a comma-separated list of entity-tags, and this rule reads both against that one production. **The two alternatives are alternatives**, so the `*` is the whole field value: `If-Match: "abc", *` derives from neither and is reported, and because a repeated field name makes one value (§5.2), so does the same pair written on two field lines. `etagc` admits the comma, so a tag such as `"a,b"` is one member and not two. Each entity-tag follows the grammar in RFC 9110 §8.8.3 and may be weak (prefix `W/`); a weak tag is valid syntax in both fields, whichever comparison function the server then applies. This rule validates that field syntax (quoting, escaping, and prohibition of control characters); it neither flags weak tags nor performs the comparison.
 
+**A tag the server handed this client is not the client's to answer for.** An entity tag is opaque and compared character by character (§8.8.3.2), so a client revalidating with an `ETag` it was given sends those octets or no condition at all. When a response for this resource carried the tag as written, a member naming it is not reported here: the defect is the server's, and `etag_syntax` reports it on the response that handed it out. A malformed member no response offered is still the client's own.
+
 ## Violations
 
 - [conditional_empty](../violations/conditional_empty.md) — A precondition is written with no validator in it
@@ -52,6 +54,23 @@ If-None-Match: W/"weaktag", "strong"
 PUT /resource HTTP/1.1
 Host: example.com
 If-Match: *
+```
+
+### ✅ Good (a tag the server handed out, sent back as given)
+
+```http
+> GET /resource HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< ETag: 0x8DD2F82FA585D1E
+
+> GET /resource HTTP/1.1
+> Host: example.com
+> If-None-Match: 0x8DD2F82FA585D1E
+
+# the missing quotes are the ETag's: a tag is compared octet for octet,
+# so a revalidation sends it as it was given
 ```
 
 ### ❌ Bad

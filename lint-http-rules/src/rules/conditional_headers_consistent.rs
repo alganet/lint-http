@@ -99,7 +99,7 @@ impl RuleMeta for ConditionalHeadersConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "Validate consistency and mutual exclusivity of conditional request headers. When an ETag-based conditional is present, this rule flags a redundant date-based conditional that the recipient is required to ignore (RFC 9110 §13.1.3, §13.1.4); it also ensures `If-Range` is only used with `Range` requests, disallows a weak entity-tag in `If-Range`, measures an `If-Range` value against the alternative it chose — `If-Range = entity-tag / HTTP-date`, and §13.1.5's own test is to examine the first three characters for a DQUOTE — flags `If-Modified-Since` on methods other than GET/HEAD, and flags a repeated `If-Modified-Since`/`If-Unmodified-Since` field, whose combined value is a list of dates the recipient must ignore."
+        "Validate consistency and mutual exclusivity of conditional request headers. When an ETag-based conditional is present, this rule flags a redundant date-based conditional that the recipient is required to ignore (RFC 9110 §13.1.3, §13.1.4); it also ensures `If-Range` is only used with `Range` requests, disallows a weak entity-tag in `If-Range`, measures an `If-Range` value against the alternative it chose — `If-Range = entity-tag / HTTP-date`, and §13.1.5's own test is to examine the first three characters for a DQUOTE — flags `If-Modified-Since` on methods other than GET/HEAD, and flags a repeated `If-Modified-Since`/`If-Unmodified-Since` field, whose combined value is a list of dates the recipient must ignore.\n\n**An `If-Range` naming a tag the server handed this client is not measured against the alternation.** An entity tag is opaque and compared character by character (§8.8.3.2), so a client resuming a download with the `ETag` it was given sends those octets, and a malformed tag — one without its quotes reads as a date — is the server's defect, reported by `etag_syntax` on the response that carried it. The weak-tag prohibition still applies: that is a MUST NOT on the client choosing to send a weak tag here, whoever wrote it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -247,7 +247,11 @@ fn if_modified_since_fate(
 /// client twice over, once about generating the field without a `Range` and
 /// once about what the field may contain, and adding the `Range` a request is
 /// missing does not make a weak validator strong.
-fn if_range_value_defect(line: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+fn if_range_value_defect(
+    line: &str,
+    handed: &[String],
+    ctx: &crate::rules::RuleContext<'_>,
+) -> Option<Violation> {
     // Read as the octets the sender wrote: `etagc` admits `obs-text`,
     // so an octet inside a tag is a character the production
     // generates and is measured against it like any other.
@@ -278,6 +282,19 @@ fn if_range_value_defect(line: &str, ctx: &crate::rules::RuleContext<'_>) -> Opt
             &IF_RANGE_EMPTY,
             "If-Range is empty, which is neither an entity-tag nor an HTTP-date".into(),
         ));
+    }
+
+    // A tag the server handed this client, sent back, derives from neither
+    // alternative because the server wrote it that way: the tag is opaque and
+    // compared octet for octet, so the echo was the only thing a resumed
+    // download could condition on, and `etag_syntax` reported it on the
+    // response that carried it. Asked after the weak indicator, which is a
+    // prohibition on the client's choice to send the tag here at all, and
+    // before the alternation, since a tag with no DQUOTE in its first three
+    // characters is read as a date.
+    // cite(RFC 9110 § 8.8.3.2): "two entity tags are equivalent if both are not weak and their opaque-tags match character-by-character."
+    if handed.iter().any(|tag| tag == trimmed) {
+        return None;
     }
     if trimmed.chars().take(3).any(|c| c == '"') {
         let defect = crate::helpers::validator::check_entity_tag(trimmed).err()?;
@@ -339,7 +356,7 @@ impl Rule for ConditionalHeadersConsistent {
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
+        history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
         // Only applies to requests.
@@ -378,7 +395,11 @@ impl Rule for ConditionalHeadersConsistent {
             if req.headers.get("range").is_none() {
                 out.push(ctx.report_with(&IF_RANGE_FORBIDDEN, "If-Range present in request without Range header; If-Range MUST only be used with Range requests".into()));
             }
-            out.extend(if_range_value_defect(&line, ctx));
+            out.extend(if_range_value_defect(
+                &line,
+                &crate::helpers::validator::tags_handed(history),
+                ctx,
+            ));
         }
 
         out
@@ -393,6 +414,47 @@ static REGISTRATION: &dyn crate::rules::Rule = &ConditionalHeadersConsistent;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// **An `If-Range` naming a tag the server handed this client is the
+    /// server's.** The tag is compared octet for octet, so a resumed download
+    /// conditions on it as given — including one without its quotes, which the
+    /// alternation reads as a date. The weak-tag prohibition is the client's
+    /// either way: it chose to send a weak tag here.
+    #[rstest]
+    #[case::trailing_octet("\"a\"x", "\"a\"x", None)]
+    #[case::unquoted_read_as_a_date("abc", "abc", None)]
+    #[case::weak_is_still_forbidden(
+        "W/\"a\"",
+        "W/\"a\"",
+        Some("if_range_validator_weak_forbidden")
+    )]
+    #[case::not_the_spelling_handed("\"a\"", "\"a\"x", Some("etag_delimiter_missing"))]
+    fn an_if_range_tag_the_server_handed_is_not_the_clients(
+        #[case] handed: &str,
+        #[case] sent: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let handing =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("etag", handed)]);
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[
+            ("range", "bytes=0-9"),
+            ("if-range", sent),
+        ]);
+        let found = crate::test_helpers::run_rule_all(
+            &ConditionalHeadersConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![handing]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "conditional_headers_consistent",
+            ]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            expected.into_iter().collect::<Vec<_>>(),
+            "If-Range: {sent} after ETag: {handed}"
+        );
+    }
 
     /// **A defect in one conditional field does not silence a defect in
     /// another.** Each case carries two of this rule's readings at once, and

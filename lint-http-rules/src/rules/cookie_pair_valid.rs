@@ -53,7 +53,7 @@ impl RuleMeta for CookiePairValid {
     }
 
     fn description(&self) -> &'static str {
-        "This rule measures the `Cookie` request header against RFC 6265 §4.2.1's grammar: `cookie-string = cookie-pair *( \";\" SP cookie-pair )`, `cookie-pair = cookie-name \"=\" cookie-value`, `cookie-name = token`, `cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )`. Each field line is split on `;` into cookie-pairs, and each pair is judged on its own: a segment with no `=` at all, a `cookie-name` that is not a `token` (reported under the same shared id `Set-Cookie`'s cookie-name already uses), and a `cookie-value` carrying an octet outside `cookie-octet` — a comma, a backslash, a bare double-quote, whitespace, a control character, or anything above %x7E, unless the whole value is wrapped in a matching pair of double quotes, which `cookie-octet` also allows (a semicolon is never read as part of the value at all: the outer `;` split takes it as a pair boundary first, and reports it as a second, malformed pair). §4.2.1 states no keyword of its own about the value a sender constructs — it only describes what a user agent sends given that the server and the user agent already conform — so what makes a non-conforming value reportable is RFC 9110 §2.2's blanket MUST NOT on generating a protocol element outside its grammar. A `Cookie` header split across several field lines (RFC 9113 §8.2.3, HTTP/2 and HTTP/3) is judged one line at a time, since each line is independently a well-formed `cookie-string`. A stray empty segment between two `;`s (`a=1;;b=2`) is tolerated rather than reported, matching this crate's treatment of `Set-Cookie`'s attribute list. Whether a request should carry a `Cookie` field at all, and whether its value matches what was last set, are different questions this rule does not ask."
+        "This rule measures the `Cookie` request header against RFC 6265 §4.2.1's grammar: `cookie-string = cookie-pair *( \";\" SP cookie-pair )`, `cookie-pair = cookie-name \"=\" cookie-value`, `cookie-name = token`, `cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )`. Each field line is split on `;` into cookie-pairs, and each pair is judged on its own: a segment with no `=` at all, a `cookie-name` that is not a `token` (reported under the same shared id `Set-Cookie`'s cookie-name already uses), and a `cookie-value` carrying an octet outside `cookie-octet` — a comma, a backslash, a bare double-quote, whitespace, a control character, or anything above %x7E, unless the whole value is wrapped in a matching pair of double quotes, which `cookie-octet` also allows (a semicolon is never read as part of the value at all: the outer `;` split takes it as a pair boundary first, and reports it as a second, malformed pair). §4.2.1 states no keyword of its own about the value a sender constructs — it only describes what a user agent sends given that the server and the user agent already conform — so what makes a non-conforming value reportable is RFC 9110 §2.2's blanket MUST NOT on generating a protocol element outside its grammar. A `Cookie` header split across several field lines (RFC 9113 §8.2.3, HTTP/2 and HTTP/3) is judged one line at a time, since each line is independently a well-formed `cookie-string`. A stray empty segment between two `;`s (`a=1;;b=2`) is tolerated rather than reported, matching this crate's treatment of `Set-Cookie`'s attribute list. **A pair a `Set-Cookie` handed this client is not the client's to answer for.** §5.4 builds the field by outputting each stored cookie's name and value as they are, so when a response to this client set exactly that name and value, a conforming user agent had nothing else to send: the defect is the server's, and `cookie_attribute_consistent` reports it on the `Set-Cookie` that carried it. A malformed pair no response set is still the client's own. Whether a request should carry a `Cookie` field at all, and whether its value matches what was last set, are different questions this rule does not ask."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -67,6 +67,8 @@ impl RuleMeta for CookiePairValid {
     /// The `Cookie` field is the client's own construction: RFC 6265 §5.4
     /// hands it to "the algorithm the user agent runs when generating an HTTP
     /// request", and there is no response half of it for a server to write.
+    /// The octets of a stored pair are the one part it copies rather than
+    /// constructs, and a pair it was handed is declined rather than attributed.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -88,6 +90,11 @@ impl RuleMeta for CookiePairValid {
                 compliance: Compliance::Compliant,
                 label: Some("(a quoted cookie-value)"),
                 snippet: "GET / HTTP/1.1\nCookie: SID=\"31d4d96e407aad42\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a value the server set, sent back as set)"),
+                snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: pref=dark mode; Path=/\n\n> GET /account HTTP/1.1\n> Host: example.com\n> Cookie: pref=dark mode\n\n# the space is outside cookie-octet, and it is the Set-Cookie's: a user\n# agent sends the stored value as it is",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -112,9 +119,13 @@ impl Rule for CookiePairValid {
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
+        history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
+        if tx.request.headers.get("cookie").is_none() {
+            return Vec::new();
+        }
+        let handed = crate::helpers::cookie::pairs_handed(history);
         // One finding per `cookie-pair`, not one per request. Every `Cookie`
         // field line is a separate `cookie-string` and every `;`-separated
         // segment on a line is a separate `cookie-pair`, and the comment that
@@ -126,7 +137,7 @@ impl Rule for CookiePairValid {
             .headers
             .get_all("cookie")
             .iter()
-            .flat_map(|hv| self.line_defects(&field_line_as_written(hv), ctx))
+            .flat_map(|hv| self.line_defects(&field_line_as_written(hv), &handed, ctx))
             .collect()
     }
 }
@@ -135,7 +146,12 @@ impl CookiePairValid {
     /// One defect per defective `cookie-pair` on one `Cookie` field line.
     ///
     // cite(RFC 6265 § 4.2.1): "cookie-string = cookie-pair *( ";" SP cookie-pair )"
-    fn line_defects(&self, line: &str, ctx: &crate::rules::RuleContext<'_>) -> Vec<Violation> {
+    fn line_defects(
+        &self,
+        line: &str,
+        handed: &[(String, String)],
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
         line.split(';')
             .map(str::trim)
             // A stray `;;` or a leading/trailing `;` produces an empty
@@ -143,7 +159,7 @@ impl CookiePairValid {
             // pair with nothing between its delimiters — `Set-Cookie`'s
             // attribute list is read the same way.
             .filter(|segment| !segment.is_empty())
-            .filter_map(|segment| self.pair_defect(segment, ctx))
+            .filter_map(|segment| self.pair_defect(segment, handed, ctx))
             .collect()
     }
 
@@ -153,13 +169,27 @@ impl CookiePairValid {
     /// § 4.2.1: they are imported by name from `Set-Cookie`'s § 4.1.1, so both
     /// cites below name that section rather than this one.
     // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
-    fn pair_defect(&self, segment: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+    fn pair_defect(
+        &self,
+        segment: &str,
+        handed: &[(String, String)],
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Option<Violation> {
         let Some((name, value)) = segment.split_once('=') else {
             return Some(ctx.report_with(
                 &COOKIE_PAIR_EQUALS_MISSING,
                 format!("Cookie pair '{segment}' has no '=': `cookie-pair = cookie-name \"=\" cookie-value` requires one"),
             ));
         };
+
+        // A pair a `Set-Cookie` handed this client, sent back, is the
+        // server's construction: § 5.4 outputs the stored name and value as
+        // they are, so a conforming user agent echoes a malformed one
+        // malformed, and the `Set-Cookie` that carried it drew the finding.
+        // cite(RFC 6265 § 5.4): "Output the cookie's name, the %x3D ("=") character, and the cookie's value."
+        if handed.iter().any(|(n, v)| n == name && v == value) {
+            return None;
+        }
 
         // `cookie-name = token`, the same production `Set-Cookie`'s
         // cookie-name answers to, so a defect here reports under the id that
@@ -223,6 +253,48 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
         )
+    }
+
+    /// **A pair a `Set-Cookie` handed this client is the server's.** § 5.4
+    /// outputs the stored name and value as they are, so a conforming user
+    /// agent echoes a malformed one malformed; the finding is the
+    /// `Set-Cookie`'s. § 5.2 stores the pair trimmed, which is what comes back.
+    /// A pair no response set, or a value the client changed, is still its own.
+    #[rstest]
+    #[case::a_space("a=x y; Path=/", "a=x y", 0)]
+    #[case::a_json_value("g={\"k\":\"v\"}; Path=/", "g={\"k\":\"v\"}", 0)]
+    #[case::stored_trimmed("a = x y ; Path=/", "a=x y", 0)]
+    #[case::beside_a_pair_of_its_own("a=x y", "a=x y; b=c d", 1)]
+    #[case::not_the_value_handed("a=xy", "a=x y", 1)]
+    #[case::not_the_name_handed("b=x y", "a=x y", 1)]
+    fn a_pair_the_server_handed_is_not_the_clients(
+        #[case] set_cookie: &str,
+        #[case] cookie: &str,
+        #[case] expected: usize,
+    ) {
+        let handing = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("set-cookie", set_cookie)],
+        );
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[("cookie", cookie)]);
+        let found = crate::test_helpers::run_rule_all(
+            &CookiePairValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![handing]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_pair_valid"]),
+        );
+        let seen: Vec<&str> = found.iter().map(|v| v.message.as_str()).collect();
+        assert_eq!(
+            found.len(),
+            expected,
+            "{cookie} after Set-Cookie: {set_cookie}: {seen:?}"
+        );
+        assert!(
+            found
+                .iter()
+                .all(|v| v.violation == "cookie_value_character_forbidden"),
+            "{seen:?}"
+        );
     }
 
     /// Every `cookie-pair` is answered for, not just the first defective one.
@@ -332,7 +404,14 @@ mod tests {
     fn published_examples_are_judged_the_way_they_are_labelled() {
         use crate::rules::Compliance;
         let mut saw_a_finding = false;
-        for ex in CookiePairValid.examples() {
+        // A story -- a `Set-Cookie` and the `Cookie` that echoes it -- needs the
+        // history this one-message judge does not build; the crate's
+        // `published_examples` judge reads it with the rule's own query.
+        for ex in CookiePairValid
+            .examples()
+            .iter()
+            .filter(|ex| !ex.snippet.starts_with("> "))
+        {
             let mut lines = ex.snippet.lines();
             let start = lines.next().expect("an example has a start line");
             assert!(

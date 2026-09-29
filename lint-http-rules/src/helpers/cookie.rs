@@ -534,6 +534,39 @@ pub fn parse_cookie_header(s: &str) -> Vec<(String, String)> {
         .collect()
 }
 
+/// Every cookie name and value a `Set-Cookie` in `history` handed out, as a
+/// user agent stores them.
+///
+/// **A `Cookie` pair carrying these octets is an echo, and an echo is not the
+/// client's construction.** § 5.4 builds the field by outputting "the
+/// cookie's name, the %x3D ("=") character, and the cookie's value" as stored,
+/// so a value the server wrote outside `cookie-octet` comes back outside it
+/// from every conforming user agent. The defect is reported on the
+/// `Set-Cookie` that carried it; a request-side reading asks this first.
+///
+/// Split the way § 5.2 stores the pair — at the first `=`, each side stripped
+/// of surrounding whitespace — because that is what the user agent sends
+/// back. A line with no `=` is ignored entirely there, so it hands out nothing.
+// cite(RFC 6265 § 5.4): "Output the cookie's name, the %x3D ("=") character, and the cookie's value."
+// cite(RFC 6265 § 5.2): "If the name-value-pair string lacks a %x3D ("=") character, ignore the set-cookie-string entirely."
+pub fn pairs_handed(
+    history: &crate::transaction_history::TransactionHistory,
+) -> Vec<(String, String)> {
+    history
+        .responses()
+        .flat_map(|(_, resp)| {
+            crate::helpers::headers::field_lines_as_written(&resp.headers, "set-cookie")
+        })
+        .filter_map(|line| {
+            let (name, value) = split_set_cookie(&line).0.split_once('=')?;
+            Some((
+                crate::helpers::headers::trim_ows(name).to_string(),
+                crate::helpers::headers::trim_ows(value).to_string(),
+            ))
+        })
+        .collect()
+}
+
 /// Reconstruct a simple "live" cookie store from an origin-scoped history
 /// and return cookies that would be considered applicable at the given time.
 ///

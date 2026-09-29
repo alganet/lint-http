@@ -133,6 +133,27 @@ pub fn normalize_etag(s: &str) -> String {
     }
 }
 
+/// Every entity tag a response in `history` carried, as written.
+///
+/// **A malformed tag the server handed out is the server's defect, even when
+/// the client is the one sending it back.** An entity tag is opaque and
+/// compared character by character (§ 8.8.3.2), so a client revalidating with
+/// the tag it was given has no other octets to send: one it "repaired" would
+/// name a version nobody issued. A request-side syntax reading asks this
+/// before it reports a member, and the tag's own finding stays where it
+/// belongs, on the response that carried it.
+///
+/// Trimmed of the `OWS` around a field value and nothing else, so the
+/// comparison is octet for octet with the member the request wrote.
+// cite(RFC 9110 § 8.8.3.2): "two entity tags are equivalent if both are not weak and their opaque-tags match character-by-character."
+pub fn tags_handed(history: &crate::transaction_history::TransactionHistory) -> Vec<String> {
+    history
+        .responses()
+        .flat_map(|(_, resp)| field_lines_as_written(&resp.headers, "etag"))
+        .map(|line| trim_ows(&line).to_string())
+        .collect()
+}
+
 /// Validate an entity-tag, which may be weak (prefix `W/`). Returns `Ok(())` on
 /// success or `Err(msg)` describing the problem.
 ///
