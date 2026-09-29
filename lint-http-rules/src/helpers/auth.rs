@@ -805,7 +805,11 @@ pub fn validate_scheme_tail(
         let mut bws: Option<&str> = None;
 
         for param in split_commas_respecting_quotes(rest) {
-            if members == MemberEmptiness::ReadHere && param.trim().is_empty() {
+            // OWS only: `str::trim` takes the octets %xA0 and %x85 for
+            // whitespace, and a member holding one of them is not empty.
+            if members == MemberEmptiness::ReadHere
+                && crate::helpers::headers::trim_ows(param).is_empty()
+            {
                 return Err(AuthDefect::ParameterMemberEmpty);
             }
             let mut kv = param.splitn(2, '=');
@@ -1412,6 +1416,26 @@ mod tests {
     fn basic_single_challenge() {
         let got = split_and_group_challenges("Basic realm=\"x\"").unwrap();
         assert_eq!(got, vec!["Basic realm=\"x\"".to_string()]);
+    }
+
+    /// A member holding only the octet %xA0 is not empty: § 5.6.1's empty
+    /// element has nothing in it but OWS, and `str::trim` took the octet for
+    /// whitespace.
+    #[test]
+    fn a_credentials_member_holding_an_obs_text_octet_is_not_empty() {
+        let value: String = "Digest username=\"u\", \u{a0}".to_string();
+        assert!(!matches!(
+            validate_authorization_syntax(&value),
+            Err(AuthorizationDefect::Credentials(
+                AuthDefect::ParameterMemberEmpty
+            ))
+        ));
+        assert!(matches!(
+            validate_authorization_syntax("Digest username=\"u\", "),
+            Err(AuthorizationDefect::Credentials(
+                AuthDefect::ParameterMemberEmpty
+            ))
+        ));
     }
 
     #[test]

@@ -2641,7 +2641,7 @@ sources:
     snippet: Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1112
+      line: 1116
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 249
     - file: lint-http-rules/src/violations/base64.rs
@@ -4419,7 +4419,7 @@ sources:
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1204
+      line: 1208
 - label: RFC 6797
   url: https://www.rfc-editor.org/rfc/rfc6797.html
   fragments:
@@ -5278,7 +5278,7 @@ sources:
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1340
+      line: 1344
     - file: lint-http-rules/src/violations/digest_credentials.rs
       line: 233
 - label: RFC 7617
@@ -5295,7 +5295,7 @@ sources:
     snippet: The user-id and password MUST NOT contain any control characters
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1125
+      line: 1129
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 61
   - label: basic-credentials base64
@@ -5303,13 +5303,13 @@ sources:
     snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1109
+      line: 1113
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 2
     snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1117
+      line: 1121
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 46
 - label: RFC 7838
@@ -8217,7 +8217,7 @@ sources:
     - file: lint-http-core/src/http_date.rs
       line: 176
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1012
+      line: 1016
     - file: lint-http-rules/src/helpers/headers.rs
       line: 343
     - file: lint-http-rules/src/helpers/headers.rs
@@ -8551,7 +8551,7 @@ sources:
     snippet: It uses a case-insensitive token to identify the authentication scheme
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 982
+      line: 986
     - file: lint-http-rules/src/registries/mod.rs
       line: 30
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
@@ -8583,7 +8583,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 665
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1296
+      line: 1300
     - file: lint-http-rules/src/violations/auth_param.rs
       line: 88
     - file: lint-http-rules/src/violations/auth_param.rs
@@ -8629,7 +8629,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 625
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 994
+      line: 998
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
       line: 278
     - file: lint-http-rules/src/violations/credentials.rs
@@ -8693,7 +8693,7 @@ sources:
     snippet: Proxy-Authorization = credentials
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 928
+      line: 932
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 64
   - label: 1#element expansion
@@ -8741,7 +8741,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 741
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1297
+      line: 1301
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 168
     - file: lint-http-rules/src/helpers/cache_control.rs
@@ -12608,7 +12608,7 @@ sources:
     snippet: When a cache receives a 304 (Not Modified) response, it needs to identify stored responses that are suitable for updating with the new information provided, and then do so.
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 281
+      line: 282
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
       line: 157
   - label: lint-http-rules/src/helpers/stored_response.rs (14)
@@ -12622,7 +12622,7 @@ sources:
     snippet: The max-age request directive indicates that the client prefers a response whose age is less than or equal to the specified number of seconds.
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 336
+      line: 337
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 468
   - label: lint-http-rules/src/helpers/stored_response.rs (16)
@@ -12630,13 +12630,13 @@ sources:
     snippet: The min-fresh request directive indicates that the client prefers a response whose freshness lifetime is no less than its current age plus the specified time in seconds.
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 337
+      line: 338
   - label: lint-http-rules/src/helpers/stored_response.rs (17)
     section: § 5.2.1.4
     snippet: The no-cache request directive indicates that the client prefers a stored response not be used to satisfy the request without successful validation on the origin server.
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 310
+      line: 311
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 526
   - label: lint-http-rules/src/helpers/stored_response.rs (18)
@@ -12652,7 +12652,7 @@ sources:
     snippet: The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 311
+      line: 312
     - file: lint-http-rules/src/rules/cache_control_and_pragma_consistent.rs
       line: 100
     - file: lint-http-rules/src/rules/cache_control_and_pragma_consistent.rs

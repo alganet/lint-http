@@ -254,7 +254,8 @@ pub fn selecting_fields_match(
     presented_request: &hyper::HeaderMap,
 ) -> bool {
     let value = |headers: &hyper::HeaderMap, name: &str| {
-        super::headers::combined_field_value_as_written(headers, name).map(|v| v.trim().to_string())
+        super::headers::combined_field_value_as_written(headers, name)
+            .map(|v| super::headers::trim_ows(&v).to_string())
     };
     match super::vary::vary_nomination(stored_response) {
         super::vary::VaryNomination::Wildcard => false,
@@ -615,6 +616,22 @@ mod tests {
             selecting_fields_match(&headers(stored), &response, &headers(presented)),
             expected
         );
+    }
+
+    /// The octet %xA0 is no whitespace of HTTP's, so a value ending in it is
+    /// another value: `str::trim` took it for whitespace and paired the two.
+    #[test]
+    fn an_obs_text_octet_at_the_end_is_part_of_the_value() {
+        let mut stored = headers(&[]);
+        stored.append(
+            "accept-encoding",
+            hyper::header::HeaderValue::from_bytes(b"gzip\xa0").unwrap(),
+        );
+        assert!(!selecting_fields_match(
+            &stored,
+            &headers(&[("vary", "Accept-Encoding")]),
+            &headers(&[("accept-encoding", "gzip")]),
+        ));
     }
 
     fn headers(pairs: &[(&str, &str)]) -> hyper::HeaderMap {
