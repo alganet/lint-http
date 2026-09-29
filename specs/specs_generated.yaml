@@ -1379,6 +1379,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
       line: 39
+- label: Client Hints Infrastructure
+  url: https://wicg.github.io/client-hints-infrastructure/
+  type: text/html
+  fragments:
+  - label: structured_headers_valid
+    section: § 3.2
+    snippet: for its origin by sending an empty Accept-CH header in a response
+    cited_by:
+    - file: lint-http-rules/src/rules/structured_headers_valid.rs
+      line: 400
 - label: Storage Access Headers
   url: https://privacycg.github.io/storage-access-headers/
   type: text/html
@@ -14992,7 +15002,7 @@ sources:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
       line: 392
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 459
+      line: 462
   - label: lint-http-rules/src/helpers/structured_fields.rs (10)
     section: § 4.2
     snippet: The parsing algorithms for both types allow tab characters, since these might be used to combine field lines by some implementations.
@@ -15128,7 +15138,7 @@ sources:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
       line: 388
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 467
+      line: 470
   - label: lint-http-rules/src/helpers/structured_fields.rs (29)
     section: § 4.2.3
     snippet: Let bare_item be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string.
@@ -15334,7 +15344,7 @@ sources:
     - file: lint-http-rules/src/registries/mod.rs
       line: 69
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 440
+      line: 443
   - label: lint-http-rules/src/registries/structured_types.rs
     section: § 5
     snippet: The "Structured Type" column indicates the type of the field (per RFC 9651), if any, and may be "Dictionary", "List", or "Item".
@@ -15400,7 +15410,7 @@ sources:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 358
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 410
+      line: 413
     - file: lint-http-rules/src/violations/structured_fields.rs
       line: 177
   - label: priority_header_syntax
@@ -15419,9 +15429,9 @@ sources:
     snippet: If field_type is "dictionary", let output be the result of running Parsing a Dictionary (Section 4.2.2) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 401
+      line: 404
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 479
+      line: 482
   - label: structured_headers_valid (3)
     section: § 4.2
     snippet: If field_type is "item", let output be the result of running Parsing an Item (Section 4.2.3) with input_string.
@@ -15429,15 +15439,15 @@ sources:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
       line: 396
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 472
+      line: 475
   - label: structured_headers_valid (4)
     section: § 4.2
     snippet: If field_type is "list", let output be the result of running Parsing a List (Section 4.2.1) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 399
+      line: 402
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 474
+      line: 477
   - label: structured_headers_valid (5)
     section: § 4.2.1
     snippet: No structured data has been found; return members (which is empty).
@@ -15445,7 +15455,7 @@ sources:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
       line: 387
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 466
+      line: 469
 - label: RFC 9745
   url: https://www.rfc-editor.org/rfc/rfc9745.html
   fragments:

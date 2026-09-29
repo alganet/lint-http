@@ -164,6 +164,12 @@ sources:
     # leaves blank while its own document states it: § 3.2 defines
     # `Reporting-Endpoints` as a Dictionary.
 
+  - label: Client Hints Infrastructure
+    url: https://wicg.github.io/client-hints-infrastructure/
+    type: text/html
+    # A WICG draft, and the only document that says what an empty `Accept-CH`
+    # does: RFC 8942 defines the field and leaves the cache to this one.
+
   - label: Storage Access Headers
     url: https://privacycg.github.io/storage-access-headers/
     type: text/html

@@ -395,6 +395,9 @@ fn parse_as(s: &str, ty: StructuredType) -> Result<Vec<&str>, SfDefect> {
     match ty {
         // cite(RFC 9651 § 4.2): "If field_type is "item", let output be the result of running Parsing an Item (Section 4.2.3) with input_string."
         StructuredType::Item => failed(parse_item(s)),
+        // Not "nothing on it" for every List: an empty `Accept-CH` is how a
+        // site empties the hint set a browser keeps for its origin.
+        // cite(Client Hints Infrastructure § 3.2): "for its origin by sending an empty Accept-CH header in a response"
         StructuredType::List if s.is_empty() => Ok(Vec::new()),
         // cite(RFC 9651 § 4.2): "If field_type is "list", let output be the result of running Parsing a List (Section 4.2.1) with input_string."
         StructuredType::List => failed(parse_list(s)),
