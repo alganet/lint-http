@@ -20,8 +20,7 @@ use crate::violations::quoted_string::{
 };
 use crate::violations::server_timing::{
     SERVER_TIMING_2, SERVER_TIMING_DUR_INVALID, SERVER_TIMING_PARAM_DUPLICATED,
-    SERVER_TIMING_PARAM_EMPTY, SERVER_TIMING_PARAM_EQUALS_MISSING,
-    SERVER_TIMING_PARAM_NAME_INVALID, SERVER_TIMING_PARAM_VALUE_EMPTY,
+    SERVER_TIMING_PARAM_EMPTY, SERVER_TIMING_PARAM_EQUALS_MISSING, SERVER_TIMING_PARAM_VALUE_EMPTY,
     SERVER_TIMING_PARAM_VALUE_MALFORMED,
 };
 use crate::violations::token::{
@@ -39,11 +38,15 @@ use crate::violations::ViolationDef;
 /// parameter name -- the only sentence measuring what a server wrote. Which is
 /// why every grammar finding in this file rests on RFC 9110 § 2.2 instead.
 ///
-/// The spelling is the whole content of the constant. `params` is an ordered map
-/// keyed by the name as the sender wrote it, and § 3.2 and § 3.3 index it with
-/// these exact strings -- so `DUR` is not `dur` to the attribute that would have
-/// surfaced it. Everything else about a name a user agent does not recognise is
-/// settled one paragraph above: it is ignored, without error.
+/// Compared ignoring case. § 2's parsing algorithm builds `params` as an ordered map keyed by the
+/// name as written and § 3.2 and § 3.3 index it with these strings, which read
+/// alone would make `DUR` a name no getter finds -- and a finding once said so.
+/// Every engine compares the two names ignoring case, and the specification's
+/// own parsing tests require `metric;DuR=123.4;DeSc=description` to surface a
+/// duration of 123.4 and a description, so `DUR` is `dur` wherever it is read.
+/// Everything else about a name a user agent does not recognise is settled one
+/// paragraph above: it is ignored, without error.
+// cite(Server Timing § 3.3): "The description getter steps are to return this’s params["desc"] if it exists, otherwise the empty string."
 // cite(Server Timing § 2): "This specification establishes the server-timing-params for server-timing-param-names "dur" for duration and "desc" for description, both optional."
 // cite(Server Timing § 2): "A user agent that does not recognize particular server-timing-param-name in the Server-Timing header field of a response MUST ignore those tokens and continue processing instead of signaling an error."
 const ESTABLISHED_PARAM_NAMES: [&str; 2] = ["dur", "desc"];
@@ -201,7 +204,6 @@ static DECLARED: &[&ViolationDef] = &[
     &SERVER_TIMING_PARAM_VALUE_EMPTY,
     &SERVER_TIMING_PARAM_VALUE_MALFORMED,
     &SERVER_TIMING_PARAM_DUPLICATED,
-    &SERVER_TIMING_PARAM_NAME_INVALID,
     &SERVER_TIMING_DUR_INVALID,
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
@@ -301,7 +303,7 @@ impl RuleMeta for ServerTimingHeaderSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "Checks that a `Server-Timing` response field derives from the grammar the Server Timing specification prints in § 2: `Server-Timing = #server-timing-metric`, each metric a `metric-name` (a `token`) followed by `*( OWS \";\" OWS server-timing-param )`, each parameter a `token` name, an `=` with `OWS` either side, and a value that is a `token` or a `quoted-string`.\n\n**The requirement is RFC 9110 § 2.2's, not this document's.** The Server Timing specification holds nine BCP 14 keywords. Seven are addressed to the *user agent*: it MUST process and expose repeated metric names, it MAY surface them in any order, it MUST ignore a parameter name it does not recognise, it MUST ignore every occurrence of a repeated parameter after the first, it MUST ignore extraneous characters in two named places — all without signalling an error — and § 4 lets it MAY keep the same-origin restriction anyway. The eighth is a MAY permitting a response to repeat a metric name. Exactly one measures what a server wrote, and it is the SHOULD NOT below. So a rule that reports a server has to reach out of the document for its modal, and \"A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules\" is it. A recipient being told to tolerate something is not the sender being told it may write it.\n\n**A `quoted-string` may hold a comma and a semicolon, and both are separators here.** `Server-Timing: cache;desc=\"Cache Read, DB\"` is one metric with one parameter. This rule splits both levels quote-aware; the value used to be split on bare `,` and `;`, which reported that field for an unterminated `quoted-string` it does not have.\n\n**The one sentence the document does address to the field's content is reported.** \"To avoid any possible ambiguity, individual server-timing-param-names SHOULD NOT appear multiple times within a server-timing-metric.\" A repeated parameter name is a finding, and it is the only advice-shaped one that comes from this document rather than from the grammar. The rule used to implement the user agent's *ignore the rest* MUST as its own silence, which made the SHOULD NOT the one thing in the document nothing enforced.\n\n**Both field sections are read.** The specification's only worked exchange announces `Trailer: Server-Timing` and writes a fourth metric after the content. The lines of one section are joined into one list, in order; the two sections are not joined to each other. Whether the field may sit in a trailer section at all is RFC 9110 § 6.5.1's question and `trailer_fields_valid`'s to ask.\n\n**`dur` is measured against HTML's *valid floating-point number*, and the finding is advice.** No sentence anywhere requires `dur` to be a number: § 3.2 parses it with HTML's rules for parsing floating-point number values and returns 0 if that is an error, which is a consequence and not a violation. The production is not `f64::from_str` either — that one accepts `inf`, `NaN` and a leading `+`, none of which HTML admits, and refuses `53abc`, which HTML's parser reads as 53. The rule's own doc comment used to state a SHOULD that appears in no document.\n\n**A parameter name that is `dur` or `desc` in another case is reported as advice.** § 3.2 reads `params[\"dur\"]` and § 3.3 reads `params[\"desc\"]` — an ordered map keyed by the name as written — so `db;DUR=53` surfaces a duration of 0 and `db;DESC=x` an empty description. Nothing forbids the name; it is simply a parameter no user agent will recognise, which the document says is to be ignored without error.\n\n**What is not reported.** An empty field value: `#server-timing-metric` has no floor, so `Server-Timing:` is zero metrics rather than an empty one — an empty *element* between commas is reported, on § 5.6.1.1's sender MUST NOT. Repeated `metric-name`s across metrics: § 2 grants a response a MAY to send them and requires the user agent to expose all of them. The order of metrics: the user agent MAY surface them in any order. An unregistered parameter name, which the document establishes exactly two of and tells recipients to ignore the rest of. And whether the numbers are true, which no capture can answer."
+        "Checks that a `Server-Timing` response field derives from the grammar the Server Timing specification prints in § 2: `Server-Timing = #server-timing-metric`, each metric a `metric-name` (a `token`) followed by `*( OWS \";\" OWS server-timing-param )`, each parameter a `token` name, an `=` with `OWS` either side, and a value that is a `token` or a `quoted-string`.\n\n**The requirement is RFC 9110 § 2.2's, not this document's.** The Server Timing specification holds nine BCP 14 keywords. Seven are addressed to the *user agent*: it MUST process and expose repeated metric names, it MAY surface them in any order, it MUST ignore a parameter name it does not recognise, it MUST ignore every occurrence of a repeated parameter after the first, it MUST ignore extraneous characters in two named places — all without signalling an error — and § 4 lets it MAY keep the same-origin restriction anyway. The eighth is a MAY permitting a response to repeat a metric name. Exactly one measures what a server wrote, and it is the SHOULD NOT below. So a rule that reports a server has to reach out of the document for its modal, and \"A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules\" is it. A recipient being told to tolerate something is not the sender being told it may write it.\n\n**A `quoted-string` may hold a comma and a semicolon, and both are separators here.** `Server-Timing: cache;desc=\"Cache Read, DB\"` is one metric with one parameter. This rule splits both levels quote-aware; the value used to be split on bare `,` and `;`, which reported that field for an unterminated `quoted-string` it does not have.\n\n**The one sentence the document does address to the field's content is reported.** \"To avoid any possible ambiguity, individual server-timing-param-names SHOULD NOT appear multiple times within a server-timing-metric.\" A repeated parameter name is a finding, and it is the only advice-shaped one that comes from this document rather than from the grammar. The rule used to implement the user agent's *ignore the rest* MUST as its own silence, which made the SHOULD NOT the one thing in the document nothing enforced.\n\n**Both field sections are read.** The specification's only worked exchange announces `Trailer: Server-Timing` and writes a fourth metric after the content. The lines of one section are joined into one list, in order; the two sections are not joined to each other. Whether the field may sit in a trailer section at all is RFC 9110 § 6.5.1's question and `trailer_fields_valid`'s to ask.\n\n**`dur` is measured against HTML's *valid floating-point number*, and the finding is advice.** No sentence anywhere requires `dur` to be a number: § 3.2 parses it with HTML's rules for parsing floating-point number values and returns 0 if that is an error, which is a consequence and not a violation. The production is not `f64::from_str` either — that one accepts `inf`, `NaN` and a leading `+`, none of which HTML admits, and refuses `53abc`, which HTML's parser reads as 53. The rule's own doc comment used to state a SHOULD that appears in no document.\n\n**A parameter name that is `dur` or `desc` in another case is that name.** § 2's parsing algorithm keys its map by the name as written and § 3.2 and § 3.3 index it with the lowercase string, which read alone would make `db;DUR=53` a duration no getter finds, and this rule used to report it so. Every engine compares the two names ignoring case, and the specification's own parsing tests require `metric;DuR=123.4;DeSc=description` to surface both, so `DUR=abc` is judged as a `dur` and `dur=1;DUR=2` as one name written twice. Any other name is compared as written, since nothing reads it.\n\n**What is not reported.** An empty field value: `#server-timing-metric` has no floor, so `Server-Timing:` is zero metrics rather than an empty one — an empty *element* between commas is reported, on § 5.6.1.1's sender MUST NOT. Repeated `metric-name`s across metrics: § 2 grants a response a MAY to send them and requires the user agent to expose all of them. The order of metrics: the user agent MAY surface them in any order. An unregistered parameter name, which the document establishes exactly two of and tells recipients to ignore the rest of. And whether the numbers are true, which no capture can answer."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -343,6 +345,11 @@ impl RuleMeta for ServerTimingHeaderSyntax {
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("An established parameter name in another case is that name, as every user agent reads it"),
+                snippet: "Server-Timing: metric;DuR=123.4;DeSc=description",
+            },
+            Example {
+                compliance: Compliance::Compliant,
                 label: Some("An empty field value is zero metrics, which the list production allows"),
                 snippet: "Server-Timing:",
             },
@@ -358,8 +365,8 @@ impl RuleMeta for ServerTimingHeaderSyntax {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("Advice: a repeated parameter name, a `dur` that is not a valid floating-point number, and a name the getters will not find"),
-                snippet: "Server-Timing: db;dur=50;dur=51\nServer-Timing: db;dur=NaN\nServer-Timing: db;dur=+5\nServer-Timing: db;DUR=53",
+                label: Some("Advice: a repeated parameter name, in either case, and a `dur` that is not a valid floating-point number"),
+                snippet: "Server-Timing: db;dur=50;dur=51\nServer-Timing: db;dur=50;DUR=51\nServer-Timing: db;dur=NaN\nServer-Timing: db;dur=+5",
             },
         ]
     }
@@ -698,7 +705,13 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
     // cite(Server Timing § 2): "To avoid any possible ambiguity, individual server-timing-param-names SHOULD NOT appear multiple times within a server-timing-metric."
     // cite(Server Timing § 2): "If any server-timing-param-name is specified more than once, only the first instance is to be considered, even if the server-timing-param is incomplete or invalid."
     // cite(Server Timing § 2): "All subsequent occurrences MUST be ignored without signaling an error or otherwise altering the processing of the server-timing-metric."
-    if seen.contains(&name) {
+    //
+    // One of the two established names is one name in any case, since that is
+    // how it is read: `dur=1;DUR=2` surfaces 1 and drops 2. Any other name is
+    // compared as written, because nothing reads it and the parsing algorithm's map keeps `x`
+    // and `X` apart.
+    let key = established_name(name).unwrap_or(name);
+    if seen.contains(&key) {
         // The document's own sentence, and the only one it addresses to a
         // server. It is *this field's* entry rather than a shared
         // `parameter_duplicated`: the four fields reporting a repeated
@@ -713,7 +726,7 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
             ),
         ));
     }
-    seen.push(name);
+    seen.push(key);
 
     // Where a leading `quoted-string` ends decides whether anything follows it,
     // and something following it is the case § 2 has a user agent ignore. Being
@@ -809,40 +822,25 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
     established_param_advice(metric, name, &text)
 }
 
+/// Which of the two established names `name` is, in whatever case it was
+/// written.
+fn established_name(name: &str) -> Option<&'static str> {
+    ESTABLISHED_PARAM_NAMES
+        .into_iter()
+        .find(|established| name.eq_ignore_ascii_case(established))
+}
+
 /// What the two names § 2 establishes mean, for a parameter that is already a
 /// well-formed `server-timing-param`.
 ///
-/// Both findings below are advice and say so. Nothing here is a grammar
-/// violation and no modal is broken -- the document establishes two names and
-/// tells a user agent to ignore every other one without error. What is worth
-/// reporting is that a server wrote something the two getters will not surface.
+/// The finding below is advice and says so. Nothing here is a grammar violation
+/// and no modal is broken -- the document establishes two names and tells a user
+/// agent to ignore every other one without error. What is worth reporting is
+/// that a server wrote a value the getter will not surface as meant. A name
+/// matching neither is a name the document has a user agent ignore, and there
+/// is nothing further to say.
 fn established_param_advice(metric: &str, name: &str, value: &str) -> Option<Defect> {
-    // One lookup, folded, because both findings below turn on the same question
-    // asked twice: which established name is this, and is it spelled the way the
-    // getter spells it. A name matching neither is a name the document has a
-    // user agent ignore without error, and there is nothing further to say.
-    let established = ESTABLISHED_PARAM_NAMES
-        .iter()
-        .find(|established| name.eq_ignore_ascii_case(established))?;
-
-    // `params` is keyed by the name as the sender wrote it and the two getters
-    // index it with a literal, so a name matching one of them in every respect
-    // but case is a name neither getter will find. It is conforming -- the
-    // sentence at `ESTABLISHED_PARAM_NAMES` has a user agent ignore it without
-    // error -- and it is also almost certainly not what the server meant.
-    //
-    // cite(Server Timing § 3.3): "The description getter steps are to return this’s params["desc"] if it exists, otherwise the empty string."
-    if name != *established {
-        return Some(Defect::named(
-            &SERVER_TIMING_PARAM_NAME_INVALID,
-            format!(
-            "Server-Timing metric '{}' names a server-timing-param '{}', which is '{}' in another case; the attribute that would surface it looks the name up as written, so this parameter is one no user agent recognises and every one of them ignores without error (advice: nothing forbids the name)",
-                shown_in_finding(metric),
-                shown_in_finding(name),
-                established
-            ),
-        ));
-    }
+    let established = established_name(name)?;
 
     // `desc` is whatever the server wrote and § 3.3 returns it unexamined, so
     // only `dur` has a value question. Not a MUST and not a SHOULD: the getter's
@@ -852,7 +850,7 @@ fn established_param_advice(metric: &str, name: &str, value: &str) -> Option<Def
     //
     // cite(Server Timing § 3.2): "Let dur be the result of parsing this’s params["dur"] using the rules for parsing floating-point number values."
     // cite(Server Timing § 3.2): "If dur is an error, return 0; Otherwise return dur."
-    if *established == "dur" && !is_valid_floating_point_number(value) {
+    if established == "dur" && !is_valid_floating_point_number(value) {
         return Some(Defect::named(
             &SERVER_TIMING_DUR_INVALID,
             format!(
@@ -1099,6 +1097,14 @@ mod tests {
     #[case::repeated_metric_name(b"db;dur=1, db;dur=2")]
     // An unrecognised parameter name is to be ignored without error.
     #[case::unknown_param(b"db;cache=hit")]
+    // Every user agent reads `dur` and `desc` ignoring case, and the
+    // specification's parsing tests require it.
+    #[case::dur_in_another_case(b"db;DUR=53")]
+    #[case::desc_in_another_case(b"db;Desc=x")]
+    #[case::both_in_mixed_case(b"metric;DuR=123.4;DeSc=description")]
+    // A name nothing reads is compared as written: the parsing algorithm's
+    // map keeps these two apart.
+    #[case::unknown_param_in_two_cases(b"db;cache=hit;Cache=miss")]
     fn conforming(#[case] line: &[u8]) {
         let v = header(line);
         assert!(v.is_none(), "unexpected finding for {line:?}: {v:?}");
@@ -1199,15 +1205,22 @@ mod tests {
         "not a valid floating-point number",
         "server_timing_dur_invalid"
     )]
-    #[case::dur_wrong_case(
-        b"db;DUR=53",
-        "which is 'dur' in another case",
-        "server_timing_param_name_invalid"
+    // An established name in another case is that name, so its value is
+    // judged as one and a second spelling of it is a repetition.
+    #[case::dur_in_another_case_not_a_number(
+        b"db;DUR=abc",
+        "not a valid floating-point number",
+        "server_timing_dur_invalid"
     )]
-    #[case::desc_wrong_case(
-        b"db;Desc=x",
-        "which is 'desc' in another case",
-        "server_timing_param_name_invalid"
+    #[case::repeated_param_in_two_cases(
+        b"db;dur=50;DUR=51",
+        "more than once",
+        "server_timing_param_duplicated"
+    )]
+    #[case::repeated_desc_in_two_cases(
+        b"db;Desc=a;desc=b",
+        "more than once",
+        "server_timing_param_duplicated"
     )]
     fn reported(#[case] line: &[u8], #[case] expected: &str, #[case] violation: &str) {
         let v = header(line).unwrap_or_else(|| panic!("expected a finding for {line:?}"));

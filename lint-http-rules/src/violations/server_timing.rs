@@ -31,13 +31,21 @@
 //! recovery — take the first, ignore the rest, signal nothing — so nothing but
 //! that entry will ever tell a server the later values were discarded.
 //!
-//! **Two entries name no sentence at all**, and they are the two the getters
-//! supply: a `dur` that is not a *valid floating-point number* and a name
-//! spelled in a case the exact-string lookup will not match. § 3.2 and § 3.3
-//! say what an attribute returns — zero, and the empty string — which is a
-//! consequence rather than a requirement, and the production measuring the
-//! first is HTML's rather than this document's. **A measurement borrowed from
-//! another document does not make that document the requirement.**
+//! **One entry names no sentence at all**, and it is the one a getter
+//! supplies: a `dur` that is not a *valid floating-point number*. § 3.2 says
+//! what the attribute returns — zero — which is a consequence rather than a
+//! requirement, and the production measuring it is HTML's rather than this
+//! document's. **A measurement borrowed from another document does not make
+//! that document the requirement.**
+//!
+//! **An established name in another case is the name.** `DUR` and `Desc` had
+//! an entry of their own, which read § 2's `params` as a map keyed by the name
+//! as written and reported that no user agent would surface them. Every engine
+//! compares the two names ignoring case, and the specification's own parsing
+//! tests require `metric;DuR=123.4;DeSc=description` to surface both, so the
+//! finding said the opposite of what every recipient does, and it is gone. A
+//! name is judged here as the getters that read it do: `DUR=abc` is a `dur`
+//! that is not a number, and `dur=1;DUR=2` is one name written twice.
 //!
 //! **Every other entry names the section that prints the production, and none
 //! names the modal.** The Server Timing specification holds nine BCP 14
@@ -146,40 +154,6 @@ defects! {
         strength: Strength::Grammar,
     }
 
-    /// A parameter named `DUR` or `Desc`: one of the two established names in
-    /// every respect but case.
-    ///
-    /// `params` is an ordered map keyed by the name as the sender wrote it, and
-    /// the two getters index it with a literal — `params["dur"]`,
-    /// `params["desc"]` — so a name differing only in case is a name neither of
-    /// them finds. Nothing forbids it: the document has a user agent ignore a
-    /// name it does not recognise, without signalling an error. What is wrong
-    /// is that the server almost certainly meant the one it did not write.
-    ///
-    /// **`_invalid` for a value nothing refuses**, which is the reading
-    /// `Alt-Svc`'s `protocol-id` settled: a spelling that a recipient's exact
-    /// comparison will not match is grammatical and unusable as meant, one
-    /// level past the grammar. An id built on the *lookup* would have named
-    /// what the user agent did, which is correct behaviour and not a defect.
-    ///
-    /// **Uncited, and the reason is the first of the three**: no sentence
-    /// states this. § 3.3 defines what the getter returns and § 2 tells a
-    /// recipient to ignore what it does not know — a meaning and a recovery,
-    /// neither of them a requirement on the name — so a reference here would
-    /// dress a consequence as a rule. The same argument `Alt-Svc`'s freshness
-    /// lifetime carries, at a document whose every modal is the reader's.
-    ///
-    /// `info`. Nothing is unreadable, nothing else is affected, and one
-    /// parameter of one metric is invisible to the API that would have shown
-    /// it.
-    SERVER_TIMING_PARAM_NAME_INVALID = {
-        id: "server_timing_param_name_invalid",
-        title: "Server-Timing names an established parameter in a case no getter matches",
-        message: "",
-        default_severity: Severity::Info,
-        spec: &[],
-    }
-
     /// A `dur` whose value is not a *valid floating-point number*: `dur=abc`,
     /// `dur=+5`, `dur=NaN`, `dur=5.`.
     ///
@@ -212,7 +186,8 @@ defects! {
     }
 
     /// One `server-timing-param-name` written twice in one metric:
-    /// `db;dur=50;dur=51`.
+    /// `db;dur=50;dur=51`, or `db;dur=50;DUR=51`, which a user agent reads as
+    /// the same name.
     ///
     /// **The only sentence in the document addressed to a server**, which is
     /// what makes this entry different in kind from the four around it. The
@@ -221,7 +196,7 @@ defects! {
     /// nothing but this will ever tell a server it wrote an ambiguity, and the
     /// later values are discarded where no one can see it happen.
     ///
-    /// `warn` rather than the `info` the two advisory entries carry, and the
+    /// `warn` rather than the `info` the advisory entry carries, and the
     /// consequence is the reason rather than the modal: a SHOULD NOT is weaker
     /// than the MUST NOT holding up the grammar entries, and what a recipient
     /// does about it is worse — it keeps a value the server did not mean and
@@ -320,20 +295,18 @@ mod tests {
         );
     }
 
-    /// The two entries the getters supply are the two with no sentence, and
-    /// they rank below everything the grammar answers for: an attribute
-    /// returning zero or an empty string is a consequence the document
-    /// describes, not a requirement it states.
+    /// The entry the duration getter supplies is the one with no sentence, and
+    /// it ranks below everything the grammar answers for: an attribute
+    /// returning zero is a consequence the document describes, not a
+    /// requirement it states.
     #[test]
-    fn what_the_getters_do_is_uncited_and_ranks_lowest() {
-        for def in [
-            &SERVER_TIMING_PARAM_NAME_INVALID,
-            &SERVER_TIMING_DUR_INVALID,
-        ] {
-            assert!(def.spec.is_empty(), "{}", def.id);
-            assert_eq!(def.default_severity, Severity::Info, "{}", def.id);
-            assert!(def.default_severity < SERVER_TIMING_PARAM_DUPLICATED.default_severity);
-        }
+    fn what_the_getter_does_is_uncited_and_ranks_lowest() {
+        assert!(SERVER_TIMING_DUR_INVALID.spec.is_empty());
+        assert_eq!(SERVER_TIMING_DUR_INVALID.default_severity, Severity::Info);
+        assert!(
+            SERVER_TIMING_DUR_INVALID.default_severity
+                < SERVER_TIMING_PARAM_DUPLICATED.default_severity
+        );
     }
 
     /// The bare name is this field's defect and not the shared parameter

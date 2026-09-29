@@ -20,7 +20,7 @@ Checks that a `Server-Timing` response field derives from the grammar the Server
 
 **`dur` is measured against HTML's *valid floating-point number*, and the finding is advice.** No sentence anywhere requires `dur` to be a number: § 3.2 parses it with HTML's rules for parsing floating-point number values and returns 0 if that is an error, which is a consequence and not a violation. The production is not `f64::from_str` either — that one accepts `inf`, `NaN` and a leading `+`, none of which HTML admits, and refuses `53abc`, which HTML's parser reads as 53. The rule's own doc comment used to state a SHOULD that appears in no document.
 
-**A parameter name that is `dur` or `desc` in another case is reported as advice.** § 3.2 reads `params["dur"]` and § 3.3 reads `params["desc"]` — an ordered map keyed by the name as written — so `db;DUR=53` surfaces a duration of 0 and `db;DESC=x` an empty description. Nothing forbids the name; it is simply a parameter no user agent will recognise, which the document says is to be ignored without error.
+**A parameter name that is `dur` or `desc` in another case is that name.** § 2's parsing algorithm keys its map by the name as written and § 3.2 and § 3.3 index it with the lowercase string, which read alone would make `db;DUR=53` a duration no getter finds, and this rule used to report it so. Every engine compares the two names ignoring case, and the specification's own parsing tests require `metric;DuR=123.4;DeSc=description` to surface both, so `DUR=abc` is judged as a `dur` and `dur=1;DUR=2` as one name written twice. Any other name is compared as written, since nothing reads it.
 
 **What is not reported.** An empty field value: `#server-timing-metric` has no floor, so `Server-Timing:` is zero metrics rather than an empty one — an empty *element* between commas is reported, on § 5.6.1.1's sender MUST NOT. Repeated `metric-name`s across metrics: § 2 grants a response a MAY to send them and requires the user agent to expose all of them. The order of metrics: the user agent MAY surface them in any order. An unregistered parameter name, which the document establishes exactly two of and tells recipients to ignore the rest of. And whether the numbers are true, which no capture can answer.
 
@@ -35,7 +35,6 @@ Checks that a `Server-Timing` response field derives from the grammar the Server
 - [server_timing_param_duplicated](../violations/server_timing_param_duplicated.md) — Server-Timing metric names one parameter more than once
 - [server_timing_param_empty](../violations/server_timing_param_empty.md) — Server-Timing writes a semicolon with no parameter behind it
 - [server_timing_param_equals_missing](../violations/server_timing_param_equals_missing.md) — Server-Timing parameter has no '=' and no value
-- [server_timing_param_name_invalid](../violations/server_timing_param_name_invalid.md) — Server-Timing names an established parameter in a case no getter matches
 - [server_timing_param_value_empty](../violations/server_timing_param_value_empty.md) — Server-Timing parameter is written with no value after its '='
 - [server_timing_param_value_malformed](../violations/server_timing_param_value_malformed.md) — Server-Timing parameter value carries content past the alternative it derives from
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
@@ -81,6 +80,12 @@ Server-Timing: total;dur=123.4
 Server-Timing: cache;desc="Cache Read, DB Write", db;dur=.5e1
 ```
 
+### ✅ Good An established parameter name in another case is that name, as every user agent reads it
+
+```http
+Server-Timing: metric;DuR=123.4;DeSc=description
+```
+
 ### ✅ Good An empty field value is zero metrics, which the list production allows
 
 ```http
@@ -103,11 +108,11 @@ Server-Timing: db;desc="abc"x
 Server-Timing: db;dur=x;desc
 ```
 
-### ❌ Bad Advice: a repeated parameter name, a `dur` that is not a valid floating-point number, and a name the getters will not find
+### ❌ Bad Advice: a repeated parameter name, in either case, and a `dur` that is not a valid floating-point number
 
 ```http
 Server-Timing: db;dur=50;dur=51
+Server-Timing: db;dur=50;DUR=51
 Server-Timing: db;dur=NaN
 Server-Timing: db;dur=+5
-Server-Timing: db;DUR=53
 ```

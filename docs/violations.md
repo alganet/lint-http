@@ -457,7 +457,6 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [server_timing_param_duplicated](violations/server_timing_param_duplicated.md) — Server-Timing metric names one parameter more than once
 - [server_timing_param_empty](violations/server_timing_param_empty.md) — Server-Timing writes a semicolon with no parameter behind it
 - [server_timing_param_equals_missing](violations/server_timing_param_equals_missing.md) — Server-Timing parameter has no '=' and no value
-- [server_timing_param_name_invalid](violations/server_timing_param_name_invalid.md) — Server-Timing names an established parameter in a case no getter matches
 - [server_timing_param_value_empty](violations/server_timing_param_value_empty.md) — Server-Timing parameter is written with no value after its '='
 - [server_timing_param_value_malformed](violations/server_timing_param_value_malformed.md) — Server-Timing parameter value carries content past the alternative it derives from
 - [status_101_forbidden](violations/status_101_forbidden.md) — A 101 completes a WebSocket handshake the server had to refuse

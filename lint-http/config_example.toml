@@ -3046,10 +3046,6 @@ severity = "error"
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
-[violations.server_timing_param_name_invalid]
-# Server-Timing names an established parameter in a case no getter matches
-severity = "info"
-
 [violations.server_timing_param_value_empty]
 # Server-Timing parameter is written with no value after its '='
 # GRAMMAR obliges the sender, so this defaults to error.
