@@ -39,7 +39,7 @@ impl RuleMeta for CachedValidatorsReused {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\n**A request carrying any precondition is not one sent with none.** `If-Match` and `If-Unmodified-Since` ask for a `412` rather than a `304`, and a client that wrote either conditioned on the validator it was given, so the rule stays silent on them too; the entry it reports is the request that reused nothing.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.\n\n**An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent.\n\n**An entry stored for one variant is not one a request for another declined.** §4's last condition on the pairing is §4.1's: the request now presented must match the stored request in every field the response's `Vary` nominates. A response served under `Vary: Accept-Encoding` to a request that asked for nothing is stored for the identity variant, and its validator could not have turned a request for gzip into a `304`, so the search reads past it. A response no cache was allowed to keep at all is no entry either, whatever validator or directive it carries: §3 also asks that the status be final and that the response advertise a freshness lifetime, or be `public` or `private`, or have a status defined as heuristically cacheable — a `412` with an `ETag` satisfies none of those, and the search reads past it.\n\n**The entry is the newest response a cache could have kept, not simply the last one.** An exchange that left nothing stored does not replace the entry before it, and there are two ways to leave nothing: a `no-store` response was never stored, and only GET, HEAD and POST leave a stored response behind at all (RFC 9111 §4) — a stored `GET` answers a `HEAD` and nothing else. So an `OPTIONS` or a `TRACE` between the response that handed over the validator and the request that declines it is not the entry, and reading it as one reported that no validator had been offered when one had. An ordinary `200` carrying no validator is a different matter: it *was* storable, so it replaced the entry, and after it there is nothing left to condition on."
+        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\n**A request carrying any precondition is not one sent with none.** `If-Match` and `If-Unmodified-Since` ask for a `412` rather than a `304`, and a client that wrote either conditioned on the validator it was given, so the rule stays silent on them too; the entry it reports is the request that reused nothing.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.\n\n**Only an answer a `304` could have replaced is reported.** A `304` stands in for a `200` to a `GET` (RFC 9110 §15.4.5) and for nothing else. A `HEAD` answer carries no content to spare, and §4.3.5 of RFC 9111 describes an unconditional `HEAD` as a way to freshen a stored response. A range answered `206` or `416` carries its validator in `If-Range`, which yields the range or the whole representation and never a `304`. A request the origin refused is answered with every precondition ignored (§13.2.1). None of those round trips could have been shortened, so the rule stays silent on them.\n\n**An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent.\n\n**An entry stored for one variant is not one a request for another declined.** §4's last condition on the pairing is §4.1's: the request now presented must match the stored request in every field the response's `Vary` nominates. A response served under `Vary: Accept-Encoding` to a request that asked for nothing is stored for the identity variant, and its validator could not have turned a request for gzip into a `304`, so the search reads past it. A response no cache was allowed to keep at all is no entry either, whatever validator or directive it carries: §3 also asks that the status be final and that the response advertise a freshness lifetime, or be `public` or `private`, or have a status defined as heuristically cacheable — a `412` with an `ETag` satisfies none of those, and the search reads past it.\n\n**The entry is the newest response a cache could have kept, not simply the last one.** An exchange that left nothing stored does not replace the entry before it, and there are two ways to leave nothing: a `no-store` response was never stored, and only GET, HEAD and POST leave a stored response behind at all (RFC 9111 §4) — a stored `GET` answers a `HEAD` and nothing else. So an `OPTIONS` or a `TRACE` between the response that handed over the validator and the request that declines it is not the entry, and reading it as one reported that no validator had been offered when one had. An ordinary `200` carrying no validator is a different matter: it *was* storable, so it replaced the entry, and after it there is nothing left to condition on."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -67,13 +67,29 @@ impl RuleMeta for CachedValidatorsReused {
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— the second GET carries no precondition at all"),
-                snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< ETag: \"abcdef12345\"\n< Content-Length: 1024\n\n> GET /image.png HTTP/1.1\n> Host: example.com",
+                snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< ETag: \"abcdef12345\"\n< Content-Length: 1024\n\n> GET /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< ETag: \"abcdef12345\"\n< Content-Length: 1024\n\n# the whole body again, where a 304 would have done",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a HEAD after the GET: there is no content for a 304 to spare"),
+                snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< ETag: \"abcdef12345\"\n< Content-Length: 1024\n\n> HEAD /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< ETag: \"abcdef12345\"\n< Content-Length: 1024",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a range answered 206: the validator would have gone in If-Range, which never yields a 304"),
+                snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< ETag: \"abcdef12345\"\n< Content-Length: 1024\n\n> GET /image.png HTTP/1.1\n> Host: example.com\n> Range: bytes=0-99\n\n< HTTP/1.1 206 Partial Content\n< Content-Range: bytes 0-99/1024\n< ETag: \"abcdef12345\"",
             },
         ]
     }
 }
 
 impl Rule for CachedValidatorsReused {
+    /// The finding is about the answer as much as the request: only a `200` is
+    /// one a `304` could have stood in for.
+    fn needs_response(&self) -> bool {
+        true
+    }
+
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -83,18 +99,41 @@ impl Rule for CachedValidatorsReused {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // Only GET/HEAD re-requests are in scope. If-None-Match / If-Modified-Since
+            // Only a GET re-request is in scope. If-None-Match / If-Modified-Since
             // are the cache-revalidation preconditions, and RFC 9110 §13.1.2's client
             // SHOULD is written "when making a GET request". On other methods a validator
             // is carried by If-Match / If-Unmodified-Since instead, so a POST/PUT that
             // omits If-None-Match is not the omission this rule is about.
+            //
+            // HEAD is out for the reason the finding gives: what a declined validator
+            // costs is a body that a `304` would have spared, and a HEAD response
+            // carries no content at any status. A client re-asking with HEAD has
+            // nothing to save by conditioning it, and RFC 9111 § 4.3.5 describes an
+            // unconditional HEAD as a way to freshen a stored GET response.
+            // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+            // cite(RFC 9111 § 4.3.5): "A response to the HEAD method is identical to what an equivalent request made with a GET would have been, without sending the content."
             //
             // Read as written rather than folded to upper case: the method
             // token is case-sensitive, so `Get` is not a GET request and the
             // SHOULD § 13.1.2 writes "when making a GET request" is not
             // addressed to whoever sent it.
             // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-            if !matches!(tx.request.method.as_str(), "GET" | "HEAD") {
+            if tx.request.method != "GET" {
+                return None;
+            }
+
+            // And the answer has to be the one a `304` stands in for. A `304` replaces
+            // a `200` and nothing else, so a range answered `206` or `416`, or a
+            // request the origin refused, is a round trip no validator could have
+            // shortened: § 13.2.1 has the origin ignore every precondition when its
+            // answer without them would not have been a 2xx, and a range request's
+            // validator goes in `If-Range`, which answers the range or the whole
+            // representation but never a `304`. The sweep of a range, an
+            // unsatisfiable range or a rate limit was being reported as a body the
+            // client could have been spared.
+            // cite(RFC 9110 § 13.2.1): "A server MUST ignore all received preconditions if its response to the same request without those conditions, prior to processing the request content, would have been a status code other than a 2xx (Successful) or 412 (Precondition Failed)."
+            // cite(RFC 9110 § 15.4.5): "The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false."
+            if tx.response.as_ref()?.status != 200 {
                 return None;
             }
 
@@ -185,8 +224,7 @@ impl Rule for CachedValidatorsReused {
             // an efficiency heuristic rather than a SHOULD: §13.1.3 describes
             // If-Modified-Since as "typically used" to allow efficient cache updates but
             // states no client obligation to send it (its SHOULDs are all on the origin
-            // server). HEAD rides the same efficiency argument, one method past §13.1.2's
-            // literal "GET request".
+            // server).
             // cite(RFC 9110 § 13.1.2): "When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request"
             // cite(RFC 9110 § 13.1.3): "If-Modified-Since is typically used for two distinct purposes: 1) to allow efficient updates of a cached representation that does not have an entity tag"
             if !has_if_none_match
@@ -317,8 +355,8 @@ mod tests {
         }
 
         // build request headers from pairs when needed (assigned later into transaction)
-        use crate::test_helpers::make_test_transaction;
-        let mut tx = make_test_transaction();
+        use crate::test_helpers::make_test_transaction_with_response;
+        let mut tx = make_test_transaction_with_response(200, &[]);
         tx.client = client.clone();
         tx.request.uri = resource.to_string();
         tx.request.headers =
@@ -376,7 +414,7 @@ mod tests {
         );
         prev.request.method = "GET".to_string();
         prev.request.headers = crate::test_helpers::make_headers_from_pairs(&asked(stored));
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.request.method = "GET".to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&asked(presented));
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
@@ -409,7 +447,7 @@ mod tests {
             crate::test_helpers::make_test_transaction_with_response(200, &[("etag", "\"v\"")]);
         offered.request.method = "GET".to_string();
         offered.timestamp = refused.timestamp - chrono::Duration::seconds(5);
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.timestamp = refused.timestamp + chrono::Duration::seconds(5);
         tx.request.method = "GET".to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -449,7 +487,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("cache-control", "no-store")]);
         store.record_transaction(&prev);
 
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.client = client.clone();
         tx.request.uri = resource.to_string();
         let history = crate::queries::by_resource::by_resource(&store, &client, resource);
@@ -508,7 +546,7 @@ mod tests {
         in_front.request.method = in_front_method.to_string();
         store.record_transaction(&in_front);
 
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.client = client.clone();
         tx.request.uri = resource.to_string();
         tx.request.method = "GET".to_string();
@@ -546,7 +584,7 @@ mod tests {
         store.record_transaction(&prev_tx);
 
         // Build a fresh request transaction
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.client = client.clone();
         tx.request.uri = resource.to_string();
 
@@ -580,7 +618,7 @@ mod tests {
         prev.request.uri = resource.to_string();
         store.record_transaction(&prev);
 
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.client = client.clone();
         tx.request.uri = resource.to_string();
         tx.request.method = "POST".to_string();
@@ -596,8 +634,8 @@ mod tests {
         Ok(())
     }
 
-    /// The scope is the GET and HEAD methods, and the method token is
-    /// case-sensitive, so `Get` is outside it. The value was folded to upper
+    /// The scope is the GET method, and the method token is case-sensitive,
+    /// so `Get` is outside it. The value was folded to upper
     /// case before the comparison, which put a request nobody defined inside a
     /// SHOULD § 13.1.2 writes "when making a GET request".
     #[rstest]
@@ -620,7 +658,7 @@ mod tests {
         prev.request.uri = resource.to_string();
         store.record_transaction(&prev);
 
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.client = client.clone();
         tx.request.uri = resource.to_string();
         tx.request.method = method.to_string();
@@ -637,8 +675,56 @@ mod tests {
     }
 
     #[test]
-    fn needs_no_response() {
+    fn needs_a_response() {
         let r = CachedValidatorsReused;
-        assert!(!crate::rules::Rule::needs_response(&r));
+        assert!(crate::rules::Rule::needs_response(&r));
+    }
+
+    /// The finding's cost is a body a `304` would have spared, and a `304`
+    /// stands in for a `200` answering a GET and for nothing else. A HEAD
+    /// answer has no content to spare; a `206` or a `416` answers a range,
+    /// whose validator goes in `If-Range`, which never yields a `304`; a
+    /// refusal is an answer § 13.2.1 has the origin give with every
+    /// precondition ignored. The `200` rows are the boundary: a GET answered
+    /// in full, with or without a `Range` the origin ignored, is the round
+    /// trip the entry names.
+    #[rstest]
+    #[case("GET", 200, &[], true)]
+    #[case("GET", 200, &[("range", "bytes=0-9")], true)]
+    #[case("HEAD", 200, &[], false)]
+    #[case("HEAD", 405, &[], false)]
+    #[case("GET", 206, &[("range", "bytes=0-9")], false)]
+    #[case("GET", 416, &[("range", "bytes=500-")], false)]
+    #[case("GET", 400, &[], false)]
+    #[case("GET", 429, &[], false)]
+    #[case("GET", 502, &[], false)]
+    fn only_an_answer_a_304_could_replace_is_reported(
+        #[case] method: &str,
+        #[case] status: u16,
+        #[case] request_headers: &[(&str, &str)],
+        #[case] expect_finding: bool,
+    ) {
+        let rule = CachedValidatorsReused;
+        let mut offered =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("etag", "\"v1\"")]);
+        offered.request.method = "GET".to_string();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
+        tx.timestamp = offered.timestamp + chrono::Duration::seconds(5);
+        tx.request.method = method.to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(request_headers);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![offered]);
+        let findings = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(findings.len() <= 1, "{findings:?}");
+        assert_eq!(
+            findings.first().map(|v| v.violation.as_str()),
+            expect_finding.then_some("conditional_missing"),
+            "{method} answered {status}"
+        );
     }
 }

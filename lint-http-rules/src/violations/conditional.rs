@@ -279,6 +279,15 @@ defects! {
     /// `info`. What is lost is a body that need not have been sent, and the
     /// client may have had every reason to want a fresh one.
     ///
+    /// **So the answer has to be one a `304` could have replaced**, and a
+    /// `304` stands in for a `200` to a `GET` and for nothing else (RFC 9110
+    /// § 15.4.5). A `HEAD` answer carries no content at any status; a range
+    /// answered `206` or `416` carries its validator in `If-Range`, which
+    /// yields the range or the whole representation and never a `304`; and a
+    /// refusal is an answer § 13.2.1 has the origin give with every
+    /// precondition ignored. None of those was a body the client could have
+    /// been spared.
+    ///
     /// **An offer no cache was allowed to accept is not one that was
     /// declined.** RFC 9111 § 3 decides whether the earlier exchange left a
     /// stored response at all, and a `no-store` on either of its two messages
