@@ -140,7 +140,7 @@ defects! {
         spec: &[RFC_9218_4_2],
     }
     /// A response that carries a `Priority` and says nothing at all about
-    /// caching — no `Cache-Control`, no `Vary`.
+    /// caching — no `Cache-Control`, no `Vary`, no `Expires`.
     ///
     /// **The one entry here whose defect is a field that is not there**, and
     /// the reason it belongs to this subject rather than to caching's is that
@@ -153,8 +153,10 @@ defects! {
     /// requires.** § 5 asks for "header fields that control the caching
     /// behavior" and offers `Cache-Control` and `Vary` as examples in a
     /// parenthesis; an id naming either would claim a requirement the document
-    /// does not write, and the message names which of the two would have
-    /// answered. `_missing` is the ending for what was not written at all,
+    /// does not write, and the message names the fields that would have
+    /// answered. `Expires` is one of them though the parenthesis does not name
+    /// it: it states a lifetime exactly as `Cache-Control: max-age` does, and
+    /// that already answers. `_missing` is the ending for what was not written at all,
     /// which is exactly what a response with neither has done.
     ///
     /// **`info`, and the reason is the clause the sentence opens with rather

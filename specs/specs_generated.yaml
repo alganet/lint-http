@@ -12567,6 +12567,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
       line: 159
+  - label: priority_and_cacheability_consistent
+    section: § 5.3
+    snippet: The "Expires" response header field gives the date/time after which the response is considered stale.
+    cited_by:
+    - file: lint-http-rules/src/rules/priority_and_cacheability_consistent.rs
+      line: 170
+    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
+      line: 67
+    - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
+      line: 280
   - label: range_request_and_caching
     section: § 3.3
     snippet: A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4.
@@ -12605,14 +12615,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 65
-  - label: singleton_fields_not_repeated (2)
-    section: § 5.3
-    snippet: The "Expires" response header field gives the date/time after which the response is considered stale.
-    cited_by:
-    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 67
-    - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 280
   - label: status_and_caching_semantics
     section: § 3
     snippet: A cache MUST NOT store a response to a request unless
@@ -13943,19 +13945,19 @@ sources:
     snippet: When an origin server generates the Priority response header field based on properties of an HTTP request it receives
     cited_by:
     - file: lint-http-rules/src/rules/priority_and_cacheability_consistent.rs
-      line: 103
+      line: 108
     - file: lint-http-rules/src/rules/priority_and_cacheability_consistent.rs
-      line: 176
+      line: 189
     - file: lint-http-rules/src/violations/priority.rs
-      line: 178
+      line: 180
   - label: priority_and_cacheability_consistent (2)
     section: § 5
     snippet: the server is expected to control the cacheability or the applicability of the cached response by using header fields that control the caching behavior (e.g., Cache-Control, Vary)
     cited_by:
     - file: lint-http-rules/src/rules/priority_and_cacheability_consistent.rs
-      line: 147
+      line: 152
     - file: lint-http-rules/src/violations/priority.rs
-      line: 179
+      line: 181
   - label: priority_header_syntax
     section: § 4
     snippet: For both the Priority header field and the PRIORITY_UPDATE frame, the set of priority parameters is encoded as a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]).
