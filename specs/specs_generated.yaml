@@ -9239,7 +9239,7 @@ sources:
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 143
     - file: lint-http/src/proxy/exchange.rs
-      line: 465
+      line: 529
     - file: lint-http/src/proxy/hop_by_hop.rs
       line: 125
   - label: lint-http-rules/src/helpers/headers.rs
@@ -10205,7 +10205,7 @@ sources:
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
     cited_by:
     - file: lint-http/src/proxy/exchange.rs
-      line: 448
+      line: 452
   - label: lint-http/src/proxy/hop_by_hop.rs
     section: § 11.7.2
     snippet: Unlike Authorization, the Proxy-Authorization header field applies only to the next inbound proxy that demanded authentication using the Proxy-Authenticate header field.
@@ -11833,7 +11833,7 @@ sources:
     - file: lint-http-rules/src/violations/upgrade.rs
       line: 140
     - file: lint-http/src/proxy/exchange.rs
-      line: 466
+      line: 530
   - label: upgrade_and_connection_consistent
     section: § 7.6.1
     snippet: In contrast, a connection-specific field received without a corresponding connection option usually indicates that the field has been improperly forwarded by an intermediary and ought to be ignored by the recipient.
@@ -13039,7 +13039,7 @@ sources:
     - file: lint-http-rules/src/violations/host.rs
       line: 128
     - file: lint-http/src/proxy/exchange.rs
-      line: 410
+      line: 414
   - label: host_and_authority_consistent (2)
     section: § 3.2.2
     snippet: When an origin server receives a request with an absolute-form of request-target, the origin server MUST ignore the received Host header field (if any) and instead use the host information of the request-target.
@@ -13144,6 +13144,8 @@ sources:
       line: 176
     - file: lint-http-rules/src/violations/transfer_coding.rs
       line: 110
+    - file: lint-http/src/proxy/exchange.rs
+      line: 500
   - label: lint-http-rules/src/helpers/content_coding.rs
     section: § 7
     snippet: This differs from a content coding in that the transfer coding is a property of the message rather than a property of the representation that is being transferred.
@@ -13261,13 +13263,25 @@ sources:
     snippet: A proxy that forwards such a request MUST generate a new Host field value based on the received request-target rather than forward the received Host field value.
     cited_by:
     - file: lint-http/src/proxy/exchange.rs
-      line: 409
+      line: 413
   - label: lint-http/src/proxy/exchange.rs (2)
     section: § 3.2.2
     snippet: When a proxy receives a request with an absolute-form of request-target, the proxy MUST ignore the received Host header field (if any) and instead replace it with the host information of the request-target.
     cited_by:
     - file: lint-http/src/proxy/exchange.rs
-      line: 408
+      line: 412
+  - label: lint-http/src/proxy/exchange.rs (3)
+    section: § 6.1
+    snippet: Any recipient along the request/response chain MAY decode the received transfer coding(s) or apply additional transfer coding(s) to the message body, assuming that corresponding changes are made to the Transfer-Encoding field value.
+    cited_by:
+    - file: lint-http/src/proxy/exchange.rs
+      line: 476
+  - label: lint-http/src/proxy/exchange.rs (4)
+    section: § 6.3
+    snippet: An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding (as described below) prior to forwarding the message downstream.
+    cited_by:
+    - file: lint-http/src/proxy/exchange.rs
+      line: 477
   - label: lint-http/src/proxy/http.rs
     section: § 3.2.4
     snippet: When a client wishes to request OPTIONS for the server as a whole
@@ -13568,6 +13582,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 492
+    - file: lint-http/src/proxy/exchange.rs
+      line: 499
   - label: transfer_coding_registered (3)
     section: § 7.1
     snippet: The chunked coding does not define any parameters.

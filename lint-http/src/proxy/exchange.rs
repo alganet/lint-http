@@ -184,7 +184,11 @@ pub(super) async fn exchange(
     // Status, headers, and upgrade info are known immediately. The body streams
     // to the client unbuffered while `TeeBody` copies a bounded prefix and sums
     // the real total; the transaction is committed once the stream ends.
-    let out_headers = filter_response_headers(&upstream_headers, status);
+    let out_headers = reframed_response_headers(
+        filter_response_headers(&upstream_headers, status),
+        &upstream_headers,
+        &facts.version,
+    );
 
     let prefix_cap = shared.cfg.general.captures_max_body_bytes;
     // Already a `ResponseBody` from both upstream branches above.
@@ -452,6 +456,66 @@ pub(super) fn filter_response_headers(headers: &HeaderMap, status: u16) -> Heade
         }
     }
     out
+}
+
+/// The framing fields a forwarded response carries in place of the origin's.
+///
+/// `Transfer-Encoding` is hop-by-hop and goes with the rest, but the only coding
+/// the upstream connection undoes is `chunked`, which is framing: a `gzip`
+/// beneath it is still on the octets relayed. Dropping the field left the client
+/// holding a gzip member as the representation its `Content-Type` named. So the
+/// codings nobody undid are forwarded, and the client connection frames them:
+/// over HTTP/1.1 it appends `chunked` itself. A connection of any other version
+/// cannot carry the field at all -- HTTP/1.0 predates it, and HTTP/2 and 3
+/// forbid it as connection-specific -- and there it is not added.
+///
+/// A received `Content-Length` goes whenever a `Transfer-Encoding` came with
+/// it. The response was framed by the transfer coding, and the length the
+/// origin wrote beside it is a number nothing measured: forwarded, it framed
+/// the dechunked content for the client with the origin's figure.
+// cite(RFC 9112 § 6.1): "Any recipient along the request/response chain MAY decode the received transfer coding(s) or apply additional transfer coding(s) to the message body, assuming that corresponding changes are made to the Transfer-Encoding field value."
+// cite(RFC 9112 § 6.3): "An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding (as described below) prior to forwarding the message downstream."
+fn reframed_response_headers(
+    mut out: HeaderMap,
+    upstream: &HeaderMap,
+    client_version: &str,
+) -> HeaderMap {
+    if !upstream.contains_key(hyper::header::TRANSFER_ENCODING) {
+        return out;
+    }
+    out.remove(hyper::header::CONTENT_LENGTH);
+    if client_version == "HTTP/1.1" {
+        if let Some(codings) = transfer_codings_not_undone(upstream) {
+            out.insert(hyper::header::TRANSFER_ENCODING, codings);
+        }
+    }
+    out
+}
+
+/// Every member of a message's `Transfer-Encoding` but `chunked`, in the order
+/// it was applied and with its parameters, as one field value; `None` when
+/// `chunked` is all there was. A field line that is not visible ASCII is taken
+/// whole, since its members cannot be told apart and none of them is undone.
+// cite(RFC 9112 § 6.1): "Transfer-Encoding = #transfer-coding"
+// cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
+fn transfer_codings_not_undone(headers: &HeaderMap) -> Option<hyper::header::HeaderValue> {
+    let mut kept: Vec<&[u8]> = Vec::new();
+    for line in headers.get_all(hyper::header::TRANSFER_ENCODING) {
+        let Ok(text) = line.to_str() else {
+            kept.push(line.as_bytes());
+            continue;
+        };
+        for member in text.split(',').map(str::trim).filter(|m| !m.is_empty()) {
+            let name = member.split(';').next().unwrap_or_default().trim();
+            if !name.eq_ignore_ascii_case("chunked") {
+                kept.push(member.as_bytes());
+            }
+        }
+    }
+    if kept.is_empty() {
+        return None;
+    }
+    hyper::header::HeaderValue::from_bytes(&kept.join(&b", "[..])).ok()
 }
 
 /// The two fields an upgrade travels in, for a message this proxy forwards
@@ -830,5 +894,40 @@ mod tests {
         assert!(!stripped.contains_key("connection"));
         assert!(!stripped.contains_key("upgrade"));
         assert!(stripped.contains_key("sec-websocket-accept"));
+    }
+
+    /// Which framing fields reach the client, by what the origin framed with
+    /// and the version of the connection the client is on.
+    #[rstest::rstest]
+    #[case::no_transfer_coding(&[("content-length", "2")], "HTTP/1.1", None, Some("2"))]
+    #[case::chunked(&[("transfer-encoding", "chunked")], "HTTP/1.1", None, None)]
+    #[case::gzip_under_chunked(&[("transfer-encoding", "gzip, chunked")], "HTTP/1.1", Some("gzip"), None)]
+    #[case::two_lines(&[("transfer-encoding", "deflate"), ("transfer-encoding", "Chunked")], "HTTP/1.1", Some("deflate"), None)]
+    #[case::parameters_kept(&[("transfer-encoding", "x-custom;a=1, chunked")], "HTTP/1.1", Some("x-custom;a=1"), None)]
+    #[case::length_beside(&[("content-length", "9"), ("transfer-encoding", "gzip, chunked")], "HTTP/1.1", Some("gzip"), None)]
+    #[case::http_1_0_client(&[("transfer-encoding", "gzip, chunked")], "HTTP/1.0", None, None)]
+    #[case::http_2_client(&[("transfer-encoding", "gzip, chunked")], "HTTP/2.0", None, None)]
+    #[case::http_3_client(&[("content-length", "9"), ("transfer-encoding", "gzip, chunked")], "HTTP/3.0", None, None)]
+    fn a_forwarded_response_is_reframed(
+        #[case] upstream: &[(&str, &str)],
+        #[case] client_version: &str,
+        #[case] transfer_encoding: Option<&str>,
+        #[case] content_length: Option<&str>,
+    ) {
+        let mut headers = HeaderMap::new();
+        for (name, value) in upstream {
+            headers.append(
+                hyper::header::HeaderName::from_bytes(name.as_bytes()).expect("a test name"),
+                value.parse().expect("a test value"),
+            );
+        }
+        let out = reframed_response_headers(
+            filter_response_headers(&headers, 200),
+            &headers,
+            client_version,
+        );
+        let get = |name| out.get(name).map(|v| v.to_str().expect("ascii"));
+        assert_eq!(get("transfer-encoding"), transfer_encoding);
+        assert_eq!(get("content-length"), content_length);
     }
 }

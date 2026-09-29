@@ -1046,6 +1046,96 @@ mod tests {
         Ok(())
     }
 
+    /// An origin that answers one request with `head` and `body` exactly as
+    /// given, octet for octet, so the framing under test is the origin's and
+    /// not a server library's.
+    async fn raw_origin(head: &'static str, body: &'static [u8]) -> anyhow::Result<String> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+        tokio::spawn(async move {
+            let Ok((mut sock, _)) = listener.accept().await else {
+                return;
+            };
+            let mut read = Vec::new();
+            let mut buf = [0u8; 1024];
+            while !read.windows(4).any(|w| w == b"\r\n\r\n") {
+                match sock.read(&mut buf).await {
+                    Ok(0) | Err(_) => return,
+                    Ok(n) => read.extend_from_slice(&buf[..n]),
+                }
+            }
+            let _ = sock.write_all(head.as_bytes()).await;
+            let _ = sock.write_all(body).await;
+            let _ = sock.shutdown().await;
+        });
+        Ok(format!("http://{addr}/coded"))
+    }
+
+    /// The upstream connection undoes `chunked` and nothing beneath it, so a
+    /// `gzip` transfer coding is still on the octets relayed. They were relayed
+    /// with the field gone, and the client read a gzip member as the plain text
+    /// its `Content-Type` named. The codings nobody undid are forwarded now,
+    /// and the client connection frames them with its own `chunked`. A
+    /// `Content-Length` beside a `Transfer-Encoding` goes whichever codings
+    /// it names, since the transfer coding framed the message.
+    #[rstest::rstest]
+    #[case::gzip_under_chunked(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: gzip, chunked\r\n\r\n",
+        b"4\r\n\x1f\x8b\x08\x00\r\n0\r\n\r\n",
+        Some("gzip"),
+        b"\x1f\x8b\x08\x00"
+    )]
+    #[case::gzip_to_the_close(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: gzip\r\nConnection: close\r\n\r\n",
+        b"\x1f\x8b\x08\x00",
+        Some("gzip"),
+        b"\x1f\x8b\x08\x00"
+    )]
+    #[case::chunked_beside_a_length(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 99\r\nTransfer-Encoding: chunked\r\n\r\n",
+        b"2\r\nok\r\n0\r\n\r\n",
+        None,
+        b"ok"
+    )]
+    #[tokio::test]
+    async fn handle_request_forwards_the_transfer_codings_it_did_not_undo(
+        #[case] head: &'static str,
+        #[case] wire_body: &'static [u8],
+        #[case] forwarded_codings: Option<&str>,
+        #[case] content: &'static [u8],
+    ) -> anyhow::Result<()> {
+        let uri = raw_origin(head, wire_body).await?;
+        let cfg = StdArc::new(crate::config::Config::default());
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
+        let req = make_request_with_headers("GET", uri, None)?;
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let resp =
+            handle_request(req, shared, conn_metadata, hyper::http::uri::Scheme::HTTP).await?;
+
+        assert_eq!(
+            resp.headers()
+                .get("transfer-encoding")
+                .map(|v| v.to_str())
+                .transpose()?,
+            forwarded_codings
+        );
+        assert!(resp.headers().get("content-length").is_none());
+        let relayed = resp
+            .into_body()
+            .collect()
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?
+            .to_bytes();
+        assert_eq!(&relayed[..], content);
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
     #[tokio::test]
     async fn handle_request_ca_cert_endpoint_without_tls_returns_404() -> anyhow::Result<()> {
         let cfg = StdArc::new(crate::config::Config::default()); // TLS disabled by default
