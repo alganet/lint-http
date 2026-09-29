@@ -9,7 +9,8 @@ use crate::violations::conditional::{
 };
 use crate::violations::etag::RFC_9110_8_8_3;
 use crate::violations::status::{
-    RFC_9110_13_1_1, RFC_9110_13_1_2, STATUS_304_MISSING, STATUS_412_AMBIGUOUS, STATUS_412_MISSING,
+    RFC_9110_13_1_1, RFC_9110_13_1_2, RFC_9110_15_4_5, STATUS_304_MISSING, STATUS_304_UNSOLICITED,
+    STATUS_412_AMBIGUOUS, STATUS_412_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -24,6 +25,9 @@ use crate::violations::ViolationDef;
 ///   validators the resource was last seen with must not have been performed:
 ///   a `2xx` to a false `If-None-Match` owes a `412`, and a `2xx` to a false
 ///   `If-Match` / `If-Unmodified-Since` whose validator moved was performed.
+/// - A `304` answers only a conditional `GET` or `HEAD`; one answering another
+///   method, or a request with no precondition that could produce it, is
+///   reported whatever the history holds.
 pub struct ConditionalRequestHandling;
 
 /// The specification references this rule declares, each named so a finding
@@ -603,6 +607,66 @@ impl ConditionalRequestHandling {
         (last_modified <= since).then(|| ctx.by_server().report_with(&STATUS_304_MISSING, "Conditional GET/HEAD used If-Modified-Since but server returned 200 even though Last-Modified indicates the resource was not modified; RFC 9110 \u{a7}13.1.3 says such a response SHOULD be a 304 (Not Modified)".into()))
     }
 
+    /// A `304` answering a request that was not a conditional `GET` or `HEAD`.
+    ///
+    /// **Read out of the request and the status line alone**, with no history:
+    /// the definition names the exchange a `304` answers, and whether this one
+    /// was it is a question about the request that was sent, not about what
+    /// the resource was last seen with.
+    ///
+    /// On `GET` and `HEAD` the two preconditions whose false result is a `304`
+    /// are `If-None-Match` (§ 13.1.2) and `If-Modified-Since` (§ 13.1.3); a
+    /// false `If-Match` or `If-Unmodified-Since` is a `412` on every method, so
+    /// neither makes a `304` solicited. On every other method § 13.1.2 answers
+    /// a false `If-None-Match` with `412` and § 13.1.3 has `If-Modified-Since`
+    /// ignored, so no precondition does.
+    // cite(RFC 9110 § 15.4.5): "The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false."
+    // cite(RFC 9110 § 13.1.3): "recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD."
+    fn not_modified_was_solicited(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        sent: &Preconditions,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Option<Violation> {
+        let resp = tx.response.as_ref()?;
+        if resp.status != 304 {
+            return None;
+        }
+        let method = tx.request.method.as_str();
+        if is_get_or_head(method) {
+            if sent.if_none_match || sent.if_modified_since {
+                return None;
+            }
+            return Some(ctx.by_server().report_with(
+                &STATUS_304_UNSOLICITED,
+                format!(
+                    "{method} carried neither If-None-Match nor If-Modified-Since and was \
+                     answered 304 (Not Modified), which tells the client to reuse a stored \
+                     response its request never said it holds; RFC 9110 \u{a7}15.4.5 defines \
+                     304 as the answer to a conditional GET or HEAD whose condition was false"
+                ),
+            ));
+        }
+        // The methods the cited documents define, compared exactly. One they
+        // do not may define conditional semantics of its own, and § 15.4.5's
+        // definition was written for these.
+        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+        if !matches!(
+            method,
+            "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS" | "TRACE" | "CONNECT"
+        ) {
+            return None;
+        }
+        Some(ctx.by_server().report_with(
+            &STATUS_304_UNSOLICITED,
+            format!(
+                "{method} was answered 304 (Not Modified), which RFC 9110 \u{a7}15.4.5 defines \
+                 only for a conditional GET or HEAD: on {method} a false If-None-Match is \
+                 answered 412 (\u{a7}13.1.2) and If-Modified-Since is ignored (\u{a7}13.1.3)"
+            ),
+        ))
+    }
+
     /// A state-changing request whose precondition evaluated false, answered
     /// with a `2xx`.
     ///
@@ -693,6 +757,7 @@ static DECLARED: &[&ViolationDef] = &[
     &STATUS_304_MISSING,
     &STATUS_412_MISSING,
     &STATUS_412_AMBIGUOUS,
+    &STATUS_304_UNSOLICITED,
 ];
 
 impl RuleMeta for ConditionalRequestHandling {
@@ -706,7 +771,7 @@ impl RuleMeta for ConditionalRequestHandling {
     }
 
     fn description(&self) -> &'static str {
-        "Warn when a conditional request names a validator (ETag / Last-Modified) that no response for the same resource and client ever carried. **The question is about the value, not about the response that happened to arrive last**: a tag an earlier response handed out is accounted for however many validator-less responses have followed it, and a tag no response ever carried is unaccounted for however recently some *other* tag was sent. `If-None-Match: *` and `If-Match: *` are never reported *as an unaccounted validator* — `*` is an existence condition, names no validator, and is a legitimate thing for a client holding nothing to send.\n\n**And flag a conditional `GET` or `HEAD` whose condition was false and was answered `200` anyway** (RFC 9110 §13.1.2 and §13.1.3 owe a `304 (Not Modified)` there). The condition is evaluated the way each section says: entity tags by the **weak** comparison §13.1.2 mandates, so `If-None-Match: W/\"abc\"` against an `ETag: \"abc\"` is a match and one `W/` added or dropped in a CDN does not make the check silent; a list is split on the commas between its members and not on the ones an `etagc` admits inside a tag; and `If-None-Match: *` is false against any `200` that carried a representation, whether or not that response also carried a validator."
+        "Warn when a conditional request names a validator (ETag / Last-Modified) that no response for the same resource and client ever carried. **The question is about the value, not about the response that happened to arrive last**: a tag an earlier response handed out is accounted for however many validator-less responses have followed it, and a tag no response ever carried is unaccounted for however recently some *other* tag was sent. `If-None-Match: *` and `If-Match: *` are never reported *as an unaccounted validator* — `*` is an existence condition, names no validator, and is a legitimate thing for a client holding nothing to send.\n\n**And flag a conditional `GET` or `HEAD` whose condition was false and was answered `200` anyway** (RFC 9110 §13.1.2 and §13.1.3 owe a `304 (Not Modified)` there). The condition is evaluated the way each section says: entity tags by the **weak** comparison §13.1.2 mandates, so `If-None-Match: W/\"abc\"` against an `ETag: \"abc\"` is a match and one `W/` added or dropped in a CDN does not make the check silent; a list is split on the commas between its members and not on the ones an `etagc` admits inside a tag; and `If-None-Match: *` is false against any `200` that carried a representation, whether or not that response also carried a validator.\n\n**And flag a `304` that answers anything but a conditional `GET` or `HEAD`.** RFC 9110 §15.4.5 defines the status as a conditional `GET` or `HEAD` whose condition evaluated false, so a `304` to a `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `TRACE` or `CONNECT` is an answer no precondition can produce there — §13.1.2 answers a false `If-None-Match` with `412` on every other method, and §13.1.3 has `If-Modified-Since` ignored on them — and a `304` to a `GET` or `HEAD` that carried neither `If-None-Match` nor `If-Modified-Since` tells the client to reuse a stored response its request never said it holds. A method no cited document defines is declined, since it may define conditional semantics of its own."
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -734,6 +799,7 @@ impl RuleMeta for ConditionalRequestHandling {
             RFC_9110_13_2,
             RFC_9110_8_8_3,
             RFC_9110_8_8_2,
+            RFC_9110_15_4_5,
         ]
     }
 
@@ -798,6 +864,16 @@ impl RuleMeta for ConditionalRequestHandling {
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— a false If-None-Match on a PUT is answered 412; 304 answers only a conditional GET or HEAD"),
+                snippet: "> GET /doc HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: \"v2\"\n\n> PUT /doc HTTP/1.1\n> If-None-Match: \"v2\"\n\n< 304 Not Modified  HTTP/1.1\n< ETag: \"v2\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— a request that stated no precondition is not told to reuse what it never said it holds"),
+                snippet: "> GET /resource HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n\n> GET /resource HTTP/1.1\n\n< 304 Not Modified  HTTP/1.1\n< ETag: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
                 label: Some("— the same false If-Match answered 204 with nothing to say whether the change had already been applied"),
                 snippet: "> GET /doc HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: \"v2\"\n\n> PUT /doc HTTP/1.1\n> If-Match: \"v1\"\n\n< 204 No Content  HTTP/1.1",
             },
@@ -813,8 +889,11 @@ impl Rule for ConditionalRequestHandling {
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
         let sent = Preconditions::of(&tx.request.headers);
+        // Asked before the early return below: a `304` to a request with no
+        // precondition at all is one of the two shapes it reports.
+        let unsolicited = self.not_modified_was_solicited(tx, &sent, ctx);
         if !sent.any() {
-            return Vec::new();
+            return Vec::from_iter(unsolicited);
         }
         // Two peers, two findings, and neither stands in for the other. The
         // client's precondition is judged against what this exchange handed
@@ -837,6 +916,7 @@ impl Rule for ConditionalRequestHandling {
                 .or_else(|| self.if_modified_since_was_evaluated(tx, &sent, ctx))
                 .or_else(|| self.precondition_on_state_change_was_evaluated(tx, history, ctx)),
         );
+        out.extend(unsolicited);
         out
     }
 }
@@ -850,6 +930,57 @@ mod tests {
     use super::*;
 
     use rstest::rstest;
+
+    /// § 15.4.5 names the exchange a `304` answers: a conditional `GET` or
+    /// `HEAD`, conditional on one of the two fields whose false result is a
+    /// `304`. Everything else draws the entry, with no history to consult.
+    #[rstest]
+    #[case("POST", vec![("if-none-match", "\"a\"")], 304, true)]
+    #[case("PUT", vec![("if-none-match", "\"a\"")], 304, true)]
+    #[case("DELETE", vec![], 304, true)]
+    #[case("PATCH", vec![("if-modified-since", "Sat, 26 Sep 2026 10:00:00 GMT")], 304, true)]
+    #[case("GET", vec![], 304, true)]
+    // A false If-Match is a 412 on every method, so it solicits no 304.
+    #[case("HEAD", vec![("if-match", "\"a\"")], 304, true)]
+    #[case("GET", vec![("if-none-match", "\"a\"")], 304, false)]
+    #[case("HEAD", vec![("if-modified-since", "Sat, 26 Sep 2026 10:00:00 GMT")], 304, false)]
+    #[case("GET", vec![], 200, false)]
+    #[case("PUT", vec![("if-none-match", "\"a\"")], 412, false)]
+    // A method no cited document defines may define its own conditional
+    // semantics, and `get` is not GET.
+    #[case("QUERY", vec![("if-none-match", "\"a\"")], 304, false)]
+    #[case("get", vec![], 304, false)]
+    fn a_304_answers_only_a_conditional_get_or_head(
+        #[case] method: &str,
+        #[case] request: Vec<(&str, &str)>,
+        #[case] status: u16,
+        #[case] reported: bool,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
+        tx.request.method = method.to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&request);
+        let all = crate::test_helpers::run_rule_all(
+            &ConditionalRequestHandling,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "conditional_request_handling",
+            ]),
+        );
+        let found: Vec<_> = all
+            .iter()
+            .filter(|v| v.violation == "status_304_unsolicited")
+            .collect();
+        assert_eq!(
+            found.len(),
+            usize::from(reported),
+            "{method} {request:?} -> {status}: {all:?}"
+        );
+        if let Some(v) = found.first() {
+            assert_eq!(v.party, Some(crate::lint::Party::Server));
+            assert!(v.message.starts_with(method), "{v:?}");
+        }
+    }
 
     fn make_prev_with_headers(
         headers: &[(&str, &str)],

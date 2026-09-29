@@ -743,6 +743,36 @@ defects! {
         spec: &[RFC_9110_13_1_2, crate::violations::conditional::RFC_9110_13_1_3],
     }
 
+    /// A `304` answering a request that was not a conditional `GET` or `HEAD`:
+    /// another method, or a `GET` or `HEAD` that carried neither
+    /// `If-None-Match` nor `If-Modified-Since`.
+    ///
+    /// **[`STATUS_206_UNSOLICITED`]'s reading of the other status code defined
+    /// by the request it answers.** § 15.4.5 says what a `304` indicates, and
+    /// here it indicates an exchange that did not happen. On another method no
+    /// precondition can produce it: a false `If-None-Match` there is answered
+    /// `412` (§ 13.1.2), a false `If-Match` or `If-Unmodified-Since` is `412`
+    /// on every method, and `If-Modified-Since` is ignored. On a `GET` or
+    /// `HEAD` with neither field, the status tells the client to reuse a stored
+    /// response its request never said it holds.
+    ///
+    /// **Only the methods the cited documents define.** A method this
+    /// catalogue has no definition for may define its own conditional
+    /// semantics, so it is declined rather than measured against a sentence
+    /// written for `GET` and `HEAD`.
+    ///
+    /// `warn`, with the sibling: no sentence prohibits it and none is needed,
+    /// since the definition says what the code indicates.
+    ///
+    // cite(RFC 9110 § 15.4.5): "The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false."
+    STATUS_304_UNSOLICITED = {
+        id: "status_304_unsolicited",
+        title: "304 Not Modified answers a request that was not a conditional GET or HEAD",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15_4_5],
+    }
+
     /// A state-changing request whose precondition evaluated false, answered
     /// with success: the method was performed, and the lost update the
     /// precondition existed to prevent went through.

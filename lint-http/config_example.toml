@@ -3133,6 +3133,10 @@ severity = "warn"
 # A false precondition is answered with 200 rather than 304
 severity = "warn"
 
+[violations.status_304_unsolicited]
+# 304 Not Modified answers a request that was not a conditional GET or HEAD
+severity = "warn"
+
 [violations.status_401_challenge_missing]
 # A 401 presents no challenge to authenticate against
 # MUST obliges the sender, so this defaults to error.

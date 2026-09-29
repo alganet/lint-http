@@ -12,10 +12,13 @@ Warn when a conditional request names a validator (ETag / Last-Modified) that no
 
 **And flag a conditional `GET` or `HEAD` whose condition was false and was answered `200` anyway** (RFC 9110 §13.1.2 and §13.1.3 owe a `304 (Not Modified)` there). The condition is evaluated the way each section says: entity tags by the **weak** comparison §13.1.2 mandates, so `If-None-Match: W/"abc"` against an `ETag: "abc"` is a match and one `W/` added or dropped in a CDN does not make the check silent; a list is split on the commas between its members and not on the ones an `etagc` admits inside a tag; and `If-None-Match: *` is false against any `200` that carried a representation, whether or not that response also carried a validator.
 
+**And flag a `304` that answers anything but a conditional `GET` or `HEAD`.** RFC 9110 §15.4.5 defines the status as a conditional `GET` or `HEAD` whose condition evaluated false, so a `304` to a `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `TRACE` or `CONNECT` is an answer no precondition can produce there — §13.1.2 answers a false `If-None-Match` with `412` on every other method, and §13.1.3 has `If-Modified-Since` ignored on them — and a `304` to a `GET` or `HEAD` that carried neither `If-None-Match` nor `If-Modified-Since` tells the client to reuse a stored response its request never said it holds. A method no cited document defines is declined, since it may define conditional semantics of its own.
+
 ## Violations
 
 - [conditional_validator_missing](../violations/conditional_validator_missing.md) — A precondition names a validator this exchange never provided
 - [status_304_missing](../violations/status_304_missing.md) — A false precondition is answered with 200 rather than 304
+- [status_304_unsolicited](../violations/status_304_unsolicited.md) — 304 Not Modified answers a request that was not a conditional GET or HEAD
 - [status_412_ambiguous](../violations/status_412_ambiguous.md) — A false precondition is answered with success, and nothing shows whether the change was already in place
 - [status_412_missing](../violations/status_412_missing.md) — A false precondition on a state-changing request is answered with success rather than 412
 
@@ -29,6 +32,7 @@ Warn when a conditional request names a validator (ETag / Last-Modified) that no
 - [RFC 9110 §13.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2): Evaluation of Preconditions (precedence rules)
 - [RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): Entity Tags — `entity-tag = [ weak ] opaque-tag`, `weak = %s"W/"` (case-sensitive by the `%s` prefix), `opaque-tag = DQUOTE *etagc DQUOTE`, and `etagc` as VCHAR minus the DQUOTE plus obs-text
 - [RFC 9110 §8.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2): Last-Modified header field
+- [RFC 9110 §15.4.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5): 304 Not Modified — the fields a 304 MUST send, the SHOULD NOT against any other representation metadata unless it guides cache updates, and the response being terminated by the end of the header section
 
 ## Configuration
 
@@ -179,6 +183,35 @@ enabled = true
 
 < 200 OK  HTTP/1.1
 < ETag: "v2"
+```
+
+### ❌ Bad — a false If-None-Match on a PUT is answered 412; 304 answers only a conditional GET or HEAD
+
+```http
+> GET /doc HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: "v2"
+
+> PUT /doc HTTP/1.1
+> If-None-Match: "v2"
+
+< 304 Not Modified  HTTP/1.1
+< ETag: "v2"
+```
+
+### ❌ Bad — a request that stated no precondition is not told to reuse what it never said it holds
+
+```http
+> GET /resource HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: "abc"
+
+> GET /resource HTTP/1.1
+
+< 304 Not Modified  HTTP/1.1
+< ETag: "abc"
 ```
 
 ### ❌ Bad — the same false If-Match answered 204 with nothing to say whether the change had already been applied

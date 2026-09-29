@@ -476,6 +476,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [status_304_field_missing](violations/status_304_field_missing.md) — A 304 omits a header field the 200 it stands in for carried
 - [status_304_metadata_forbidden](violations/status_304_metadata_forbidden.md) — A 304 sends representation metadata beyond the fields it owes
 - [status_304_missing](violations/status_304_missing.md) — A false precondition is answered with 200 rather than 304
+- [status_304_unsolicited](violations/status_304_unsolicited.md) — 304 Not Modified answers a request that was not a conditional GET or HEAD
 - [status_401_challenge_missing](violations/status_401_challenge_missing.md) — A 401 presents no challenge to authenticate against
 - [status_401_ignored](violations/status_401_ignored.md) — A client replays credentials a 401 keeps refusing
 - [status_405_allow_conflicting](violations/status_405_allow_conflicting.md) — A 405 advertises the method it refuses
