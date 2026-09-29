@@ -2417,7 +2417,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 484
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 315
+      line: 326
   - label: lint-http-rules/src/helpers/scheme.rs
     section: § 3.1
     snippet: Scheme names consist of a sequence of characters beginning with a letter and followed by any combination of letters, digits, plus ("+"), period ("."), or hyphen ("-").
@@ -6911,7 +6911,7 @@ sources:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
       line: 191
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 213
+      line: 221
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 168
     - file: lint-http-rules/src/violations/field.rs
@@ -8876,6 +8876,8 @@ sources:
       line: 594
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 508
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 349
   - label: Host grammar
     section: § 7.2
     snippet: Host = uri-host [ ":" port ]
@@ -9533,7 +9535,7 @@ sources:
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 180
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 250
+      line: 258
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 301
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
@@ -9805,7 +9807,7 @@ sources:
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 52
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 273
+      line: 281
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
       line: 221
   - label: lint-http-rules/src/helpers/request_target.rs (3)
@@ -10961,13 +10963,13 @@ sources:
     snippet: If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any).
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 285
+      line: 293
   - label: redirect_chain_valid (2)
     section: § 10.2.2
     snippet: When it has the form of a relative reference ([URI], Section 4.2), the final value is computed by resolving it against the target URI ([URI], Section 5).
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 274
+      line: 282
   - label: redirect_chain_valid (3)
     section: § 15
     snippet: However, a client MUST understand the class of any status code, as indicated by the first digit, and treat an unrecognized status code as being equivalent to the x00 status code of that class.
@@ -13225,7 +13227,7 @@ sources:
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 254
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 343
+      line: 319
   - label: lint-http-rules/src/helpers/request_target.rs (4)
     section: § 3.3
     snippet: The target URI is the request-target when the request-target is in absolute-form.
@@ -13239,7 +13241,7 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 168
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 342
+      line: 318
     - file: lint-http/src/proxy/http.rs
       line: 186
     - file: lint-http/src/proxy/http.rs
