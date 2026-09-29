@@ -111,40 +111,23 @@ impl Rule for ContentTypePresent {
 
             // The responses that carry no content, and so cannot be missing a
             // header field that describes content. The list had three entries and
-            // needed six.
-            // cite(RFC 9112 § 6.3): "Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section."
-            let status = resp.status;
-            let bodiless_status = (100..200).contains(&status) || status == 204 || status == 304;
-
-            // 205 is not in § 6.3's item 1, and is bodiless all the same -- its own
-            // status definition says so in a MUST NOT. A 205 declaring a
-            // Content-Length was reported for omitting a Content-Type it has
-            // nothing to describe.
-            // cite(RFC 9110 § 15.3.6): "Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response."
-            let reset_content = status == 205;
-
-            // A HEAD response carries no content by definition, so § 8.3's
-            // condition -- "a message containing content" -- is not met however
-            // large the resource is. Whether it *should* still carry the
-            // Content-Type a GET would have sent is a different sentence (§ 9.3.2's
-            // same-header-fields SHOULD) and a different rule's finding:
-            // `head_response_headers_match_get` compares the two
-            // transactions, and its configurable header list already names
-            // `content-type`.
-            // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+            // needed six: a 205 declaring a Content-Length was reported for
+            // omitting a Content-Type it has nothing to describe.
             //
-            // Both methods are compared exactly, because the method token is
-            // case-sensitive: `Head` and `Connect` name no method, so neither
-            // brings the semantics that would excuse an absent `Content-Type`.
-            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-            let head_request = tx.request.method == "HEAD";
-
-            // And a 2xx to CONNECT is a tunnel: the octets after the header section
-            // are not content and no media type describes them.
-            // cite(RFC 9112 § 6.3): "Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields."
-            let tunnelling = tx.request.method == "CONNECT" && (200..300).contains(&status);
-
-            if bodiless_status || reset_content || head_request || tunnelling {
+            // A HEAD response is one of them, so § 8.3's condition -- "a message
+            // containing content" -- is not met however large the resource is.
+            // Whether it *should* still carry the Content-Type a GET would have
+            // sent is a different sentence (§ 9.3.2's same-header-fields SHOULD)
+            // and a different rule's finding: `head_response_headers_match_get`
+            // compares the two transactions, and its configurable header list
+            // already names `content-type`.
+            //
+            // A single-part 206 is not: its range is content, and the type it
+            // names is the representation's.
+            use crate::helpers::response_content::{response_content, ResponseContent};
+            if response_content(&tx.request.method, resp.status, &resp.headers)
+                == ResponseContent::Absent
+            {
                 return None;
             }
 

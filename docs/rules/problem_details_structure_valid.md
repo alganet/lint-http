@@ -12,6 +12,8 @@ Reports a response whose `Content-Type` is `application/problem+json` but whose 
 
 **Any status code.** RFC 9457 says problem details "can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses". Whether they *suit* a status is `problem_details_content_type`'s question; this rule's is whether content labelled as problem details is problem details, and that question reads the same on a 200 as on a 500.
 
+**Only where there is a document to read.** A response to `HEAD`, a `1xx`, `204`, `205` or `304`, and a `2xx` to `CONNECT` carry no content, so an empty capture there is what the exchange requires and not an empty document. A single-part `206` encloses one range of the representation, which is a slice of the format rather than a document in it, so it is not parsed either; a `206` whose range is the whole representation is.
+
 **An empty JSON object is conforming and is not reported.** Every member is optional: §3.1 introduces them with "can have", §3.1.1 says that when `type` is absent "its value is assumed to be `about:blank`", and §4.2.1 confirms that "any problem details object not carrying an explicit `type` member implicitly uses this URI" — the registered type meaning the problem has no semantics beyond the status code. So `{}` is a problem details object that says exactly that.
 
 **What the finding rests on.** No RFC states a MUST that content match its `Content-Type`. RFC 9110 §8.1 defines representation data as being "in a format and encoding defined by the representation metadata header fields", §8.3 says the indicated media type "defines both the data format and how that data is intended to be processed by a recipient", and the same section calls a server that does otherwise one that has not been configured "to provide the correct Content-Type for a given representation". A finding is a contradiction between two things the message itself states, not a matter of taste — but it is definitional in origin, not a stated requirement.
@@ -60,6 +62,16 @@ Content-Type: application/problem+json
 Content-Length: 2
 
 {}
+```
+
+### ✅ Good a HEAD response sends no content, whatever its Content-Length says
+
+```http
+HEAD /accounts/42 HTTP/1.1
+
+HTTP/1.1 404 Not Found
+Content-Type: application/problem+json
+Content-Length: 34
 ```
 
 ### ❌ Bad the media type says JSON; the content is not a JSON document

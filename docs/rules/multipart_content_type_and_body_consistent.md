@@ -22,6 +22,8 @@ When a `Content-Type` declares a `multipart/*` media type, the body it describes
 
 **Cost:** a conforming body settles the question in its first two lines and the scan stops there. A body that never carries the delimiter is walked in full, which is inherent — the answer is only known at the end — and is bounded by `max_body_bytes`.
 
+**Only a response that carries the document is read.** A response to `HEAD`, a `1xx`, `204`, `205` or `304`, and a `2xx` to `CONNECT` carry no content, so the delimiters are absent along with everything else. A single-part `206` encloses one range of the multipart document its `Content-Type` names, so its delimiters are wherever the range happened to fall; a `206` whose range is the whole document is read, and so is a `multipart/byteranges` `206`, whose `Content-Type` names the content itself.
+
 **Scope:** every `Content-Type` field line in each message is read, since recipients differ over which one they act on; that there is more than one is `content_type_valid`'s finding. Whether the boundary *value* is syntactically legal is `multipart_boundary_syntax`'s. A body captured only as a prefix is skipped entirely — the terminating delimiter sits at a body's end, so a truncated capture would always look like it is missing one. So is a body whose reading stopped before the message ended, for the same reason and on different evidence: such a capture keeps every octet it counted, so nothing marks it truncated, and the delimiter is missing because the reading left rather than because the sender did. Nothing before the first delimiter line or after the last is examined, which §5.1.1 requires: the preamble and epilogue are to be ignored.
 
 ## Violations
@@ -67,6 +69,16 @@ Content-Type: text/plain
 
 hello
 --a b--
+```
+
+### ✅ Good (a HEAD response sends no content, so it carries no delimiter)
+
+```http
+HEAD /bundle HTTP/1.1
+
+HTTP/1.1 200 OK
+Content-Type: multipart/mixed; boundary=abc
+Content-Length: 45
 ```
 
 ### ❌ Bad (missing boundary)

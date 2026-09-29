@@ -1809,7 +1809,7 @@ sources:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 446
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 246
+      line: 265
   - label: multipart_boundary_syntax (3)
     section: § 5.1.1
     snippet: The grammar for parameters on the Content-type field is such that it is often necessary to enclose the boundary parameter values in quotes on the Content-type line.
@@ -1833,19 +1833,19 @@ sources:
     snippet: An exact match of the entire candidate line is not required; it is sufficient that the boundary appear in its entirety following the CRLF.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 292
+      line: 311
   - label: multipart_content_type_and_body_consistent (2)
     section: § 5.1.1
     snippet: Boundary string comparisons must compare the boundary value with the beginning of each candidate line.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 291
+      line: 310
   - label: close-delimiter
     section: § 5.1.1
     snippet: Such a delimiter line is identical to the previous delimiter lines, with the addition of two more hyphens after the boundary parameter value.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 370
+      line: 389
     - file: lint-http-rules/src/violations/multipart_body.rs
       line: 82
   - label: multipart_content_type_and_body_consistent (3)
@@ -1853,7 +1853,7 @@ sources:
     snippet: The Content-Type field for multipart entities requires one parameter, "boundary".
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 141
+      line: 146
     - file: lint-http-rules/src/violations/boundary.rs
       line: 45
   - label: multipart_content_type_and_body_consistent (4)
@@ -1861,25 +1861,25 @@ sources:
     snippet: The boundary delimiter MUST occur at the beginning of a line, i.e., following a CRLF, and the initial CRLF is considered to be attached to the boundary delimiter line rather than part of the preceding part.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 266
+      line: 285
   - label: multipart_content_type_and_body_consistent (5)
     section: § 5.1.1
     snippet: The boundary delimiter line following the last body part is a distinguished delimiter that indicates that no further body parts will follow.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 357
+      line: 376
   - label: multipart_content_type_and_body_consistent (6)
     section: § 5.1.1
     snippet: close-delimiter := delimiter "--"
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 303
+      line: 322
   - label: multipart_content_type_and_body_consistent (7)
     section: § 5.1.1
     snippet: dash-boundary := "--" boundary
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 245
+      line: 264
 - label: RFC 2068
   url: https://www.rfc-editor.org/rfc/rfc2068.html
   fragments:
@@ -5748,7 +5748,7 @@ sources:
     snippet: JSON text exchanged between systems that are not part of a closed ecosystem MUST be encoded using UTF-8
     cited_by:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 257
+      line: 280
 - label: RFC 8288
   url: https://www.rfc-editor.org/rfc/rfc8288.html
   fragments:
@@ -6423,7 +6423,7 @@ sources:
     - file: lint-http-rules/src/rules/problem_details_content_type.rs
       line: 122
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 162
+      line: 185
   - label: the deprecation
     section: § 12.5.2
     snippet: Accept-Charset is deprecated because UTF-8 has become nearly ubiquitous and sending a detailed list of user-preferred charsets wastes bandwidth, increases latency, and makes passive fingerprinting far too easy
@@ -6593,86 +6593,6 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 183
   - label: accept_encoding_present (4)
-    section: § 9.1
-    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
-    cited_by:
-    - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 125
-    - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 265
-    - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 429
-    - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 93
-    - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 120
-    - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 237
-    - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 97
-    - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
-      line: 122
-    - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 139
-    - file: lint-http-rules/src/rules/cors_request_header_syntax.rs
-      line: 257
-    - file: lint-http-rules/src/rules/cors_response_header_syntax.rs
-      line: 286
-    - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 92
-    - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 300
-    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 453
-    - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 357
-    - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 407
-    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 282
-    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 429
-    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 281
-    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 246
-    - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 249
-    - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 361
-    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
-      line: 213
-    - file: lint-http-rules/src/rules/patch_partial_update.rs
-      line: 148
-    - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 113
-    - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 234
-    - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 308
-    - file: lint-http-rules/src/rules/request_target_form_valid.rs
-      line: 347
-    - file: lint-http-rules/src/rules/request_version_method_valid.rs
-      line: 161
-    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 137
-    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 209
-    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 241
-    - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 174
-    - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
-      line: 206
-    - file: lint-http-rules/src/rules/status_405_allow_valid.rs
-      line: 57
-    - file: lint-http-rules/src/rules/trace_method_echo.rs
-      line: 174
-    - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 328
-    - file: lint-http-rules/src/violations/method.rs
-      line: 565
-  - label: accept_encoding_present (5)
     section: § 9.3.6
     snippet: Any 2xx (Successful) response indicates that the sender (and all inbound proxies) will switch to tunnel mode immediately after the response header section; data received after that header section is from the server identified by the request target.
     cited_by:
@@ -6680,7 +6600,7 @@ sources:
       line: 118
     - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
       line: 131
-  - label: accept_encoding_present (6)
+  - label: accept_encoding_present (5)
     section: § 9.3.6
     snippet: The CONNECT method requests that the recipient establish a tunnel to the destination origin server identified by the request target and, if successful, thereafter restrict its behavior to blind forwarding of data, in both directions, until the tunnel is closed.
     cited_by:
@@ -7184,30 +7104,6 @@ sources:
       line: 712
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 772
-  - label: cached_validators_reused (5)
-    section: § 9.3.2
-    snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
-    cited_by:
-    - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 113
-    - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 134
-    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 452
-    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 276
-    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 241
-    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 138
-    - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 178
-    - file: lint-http-rules/src/violations/cache_control.rs
-      line: 713
-    - file: lint-http-rules/src/violations/cache_control.rs
-      line: 773
-    - file: lint-http-rules/src/violations/method.rs
-      line: 526
   - label: challenge
     section: § 11.5
     snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
@@ -7227,22 +7123,12 @@ sources:
     - file: lint-http-rules/src/violations/charset.rs
       line: 49
   - label: charset_present
-    section: § 15.3.6
-    snippet: Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response.
-    cited_by:
-    - file: lint-http-rules/src/rules/charset_present.rs
-      line: 128
-    - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 123
-    - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
-      line: 185
-  - label: charset_present (2)
     section: § 8.2
     snippet: In a response to a HEAD request, the representation header fields describe the representation data that would have been enclosed in the content if the same request had been a GET.
     cited_by:
     - file: lint-http-rules/src/rules/charset_present.rs
       line: 143
-  - label: charset_present (3)
+  - label: charset_present (2)
     section: § 8.3.2
     snippet: HTTP uses "charset" names to indicate or negotiate the character encoding scheme
     cited_by:
@@ -7585,7 +7471,7 @@ sources:
     - file: lint-http-rules/src/rules/content_length_valid.rs
       line: 112
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 295
+      line: 318
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 185
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
@@ -7688,18 +7574,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/content_range.rs
       line: 316
-  - label: content_range (2)
-    section: § 15.3.7.1
-    snippet: If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range.
-    cited_by:
-    - file: lint-http-rules/src/violations/content_range.rs
-      line: 252
   - label: content_type_present
     section: § 8.3
     snippet: A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 194
+      line: 177
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 162
     - file: lint-http-rules/src/violations/content_type.rs
@@ -7709,7 +7589,7 @@ sources:
     snippet: Content-Type = media-type
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 195
+      line: 178
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 229
   - label: content_type_present (3)
@@ -7717,17 +7597,17 @@ sources:
     snippet: If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 201
+      line: 184
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 200
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 171
+      line: 194
   - label: content_type_present (4)
     section: § 8.3
     snippet: This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation").
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 202
+      line: 185
   - label: content_type_valid
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
@@ -9134,6 +9014,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 311
+    - file: lint-http-rules/src/helpers/response_content.rs
+      line: 96
     - file: lint-http-rules/src/violations/content_range.rs
       line: 164
   - label: lint-http-rules/src/helpers/content_range.rs (7)
@@ -9142,6 +9024,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 310
+    - file: lint-http-rules/src/helpers/response_content.rs
+      line: 95
     - file: lint-http-rules/src/violations/content_range.rs
       line: 136
   - label: lint-http-rules/src/helpers/content_range.rs (8)
@@ -9371,7 +9255,7 @@ sources:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 203
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 172
+      line: 177
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 244
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
@@ -9618,6 +9502,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
       line: 289
+    - file: lint-http-rules/src/helpers/response_content.rs
+      line: 88
     - file: lint-http-rules/src/registries/mod.rs
       line: 28
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
@@ -9637,7 +9523,7 @@ sources:
     - file: lint-http-rules/src/rules/problem_details_content_type.rs
       line: 131
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 176
+      line: 199
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 130
   - label: lint-http-rules/src/helpers/media_type.rs (7)
@@ -9842,6 +9728,136 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 53
+  - label: lint-http-rules/src/helpers/response_content.rs
+    section: § 15.3.6
+    snippet: Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response.
+    cited_by:
+    - file: lint-http-rules/src/helpers/response_content.rs
+      line: 51
+    - file: lint-http-rules/src/rules/charset_present.rs
+      line: 128
+    - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
+      line: 185
+  - label: lint-http-rules/src/helpers/response_content.rs (2)
+    section: § 15.3.7.1
+    snippet: If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range.
+    cited_by:
+    - file: lint-http-rules/src/helpers/response_content.rs
+      line: 82
+    - file: lint-http-rules/src/violations/content_range.rs
+      line: 252
+  - label: lint-http-rules/src/helpers/response_content.rs (3)
+    section: § 15.3.7.2
+    snippet: If multiple parts are being transferred, the server generating the 206 response MUST generate "multipart/byteranges" content, as defined in Section 14.6, and a Content-Type header field containing the "multipart/byteranges" media type and its required boundary parameter.
+    cited_by:
+    - file: lint-http-rules/src/helpers/response_content.rs
+      line: 83
+    - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
+      line: 288
+  - label: lint-http-rules/src/helpers/response_content.rs (4)
+    section: § 9.1
+    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
+    cited_by:
+    - file: lint-http-rules/src/helpers/response_content.rs
+      line: 58
+    - file: lint-http-rules/src/rules/accept_encoding_present.rs
+      line: 125
+    - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
+      line: 265
+    - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
+      line: 429
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 93
+    - file: lint-http-rules/src/rules/cached_validators_reused.rs
+      line: 120
+    - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
+      line: 237
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 97
+    - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
+      line: 122
+    - file: lint-http-rules/src/rules/cors_request_header_syntax.rs
+      line: 257
+    - file: lint-http-rules/src/rules/cors_response_header_syntax.rs
+      line: 286
+    - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
+      line: 92
+    - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
+      line: 300
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 453
+    - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
+      line: 357
+    - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
+      line: 407
+    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
+      line: 282
+    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
+      line: 429
+    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
+      line: 281
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 246
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 249
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 361
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 213
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
+      line: 148
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
+      line: 113
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 234
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 308
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 347
+    - file: lint-http-rules/src/rules/request_version_method_valid.rs
+      line: 161
+    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
+      line: 137
+    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
+      line: 209
+    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
+      line: 241
+    - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
+      line: 174
+    - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
+      line: 206
+    - file: lint-http-rules/src/rules/status_405_allow_valid.rs
+      line: 57
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 174
+    - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
+      line: 328
+    - file: lint-http-rules/src/violations/method.rs
+      line: 565
+  - label: lint-http-rules/src/helpers/response_content.rs (5)
+    section: § 9.3.2
+    snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
+    cited_by:
+    - file: lint-http-rules/src/helpers/response_content.rs
+      line: 57
+    - file: lint-http-rules/src/rules/cached_validators_reused.rs
+      line: 113
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 452
+    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
+      line: 276
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 241
+    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
+      line: 138
+    - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
+      line: 178
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 713
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 773
+    - file: lint-http-rules/src/violations/method.rs
+      line: 526
   - label: lint-http-rules/src/helpers/rule_config.rs
     section: § 16.1.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names.
@@ -10343,19 +10359,19 @@ sources:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 256
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 139
+      line: 144
   - label: multipart_content_type_and_body_consistent
     section: § 8.3.3
     snippet: HTTP message framing does not use the multipart boundary as an indicator of message body length, though it might be used by implementations that generate or process the content.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 140
+      line: 145
   - label: multipart_content_type_and_body_consistent (2)
     section: § 8.3.3
     snippet: The message body is itself a protocol element; a sender MUST generate only CRLF to represent line breaks between body parts.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 267
+      line: 286
   - label: must_revalidate_enforced
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2.
@@ -10401,7 +10417,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 195
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 270
+      line: 293
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 234
   - label: no_body_for_1xx_204_304 (5)
@@ -10607,7 +10623,7 @@ sources:
     snippet: The "Content-Encoding" header field indicates what content codings have been applied to the representation, beyond those inherent in the media type, and thus what decoding mechanisms have to be applied in order to obtain data in the media type referenced by the Content-Type header field.
     cited_by:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 198
+      line: 221
   - label: proxy_connection_discouraged
     section: § 7.6.1
     snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
@@ -10662,17 +10678,11 @@ sources:
       line: 496
   - label: range_and_content_range_consistent (8)
     section: § 15.3.7.2
-    snippet: If multiple parts are being transferred, the server generating the 206 response MUST generate "multipart/byteranges" content, as defined in Section 14.6, and a Content-Type header field containing the "multipart/byteranges" media type and its required boundary parameter.
-    cited_by:
-    - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 288
-  - label: range_and_content_range_consistent (9)
-    section: § 15.3.7.2
     snippet: Within the header area of each body part in the multipart content, the server MUST generate a Content-Range header field corresponding to the range being enclosed in that body part.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 299
-  - label: range_and_content_range_consistent (10)
+  - label: range_and_content_range_consistent (9)
     section: § 15.5.17
     snippet: A server that generates a 416 response to a byte-range request SHOULD generate a Content-Range header field specifying the current length of the selected representation (Section 14.4).
     cited_by:
@@ -12870,20 +12880,6 @@ sources:
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.html
   fragments:
-  - label: charset_present
-    section: § 6.3
-    snippet: Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section.
-    cited_by:
-    - file: lint-http-rules/src/rules/charset_present.rs
-      line: 127
-    - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 115
-    - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
-      line: 178
-    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 180
-    - file: lint-http-rules/src/violations/method.rs
-      line: 527
   - label: chunked last, unconditionally
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.
@@ -12941,7 +12937,7 @@ sources:
     - file: lint-http-rules/src/rules/content_length_vs_transfer_encoding.rs
       line: 107
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 293
+      line: 316
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 140
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
@@ -12964,18 +12960,10 @@ sources:
       line: 169
   - label: content_type_present
     section: § 6.3
-    snippet: Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields.
-    cited_by:
-    - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 144
-    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 221
-  - label: content_type_present (2)
-    section: § 6.3
     snippet: Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 165
+      line: 148
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 271
   - label: head_response_headers_match_get
@@ -13164,6 +13152,28 @@ sources:
       line: 186
     - file: lint-http/src/proxy/http.rs
       line: 292
+  - label: lint-http-rules/src/helpers/response_content.rs
+    section: § 6.3
+    snippet: Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields.
+    cited_by:
+    - file: lint-http-rules/src/helpers/response_content.rs
+      line: 61
+    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
+      line: 221
+  - label: lint-http-rules/src/helpers/response_content.rs (2)
+    section: § 6.3
+    snippet: Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section.
+    cited_by:
+    - file: lint-http-rules/src/helpers/response_content.rs
+      line: 45
+    - file: lint-http-rules/src/rules/charset_present.rs
+      line: 127
+    - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
+      line: 178
+    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
+      line: 180
+    - file: lint-http-rules/src/violations/method.rs
+      line: 527
   - label: lint-http/src/proxy/http.rs
     section: § 3.2.4
     snippet: When a client wishes to request OPTIONS for the server as a whole
@@ -13189,7 +13199,7 @@ sources:
     snippet: If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets.
     cited_by:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 294
+      line: 317
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 135
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
@@ -14304,7 +14314,7 @@ sources:
     - file: lint-http-rules/src/rules/problem_details_content_type.rs
       line: 138
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 185
+      line: 208
   - label: problem_details_content_type (4)
     section: § 4
     snippet: Problem details are intended to avoid the necessity of establishing new "fault" or "error" document formats, not to replace existing domain-specific formats.
@@ -14318,25 +14328,25 @@ sources:
     - file: lint-http-rules/src/rules/problem_details_content_type.rs
       line: 139
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 186
+      line: 209
   - label: problem_details_structure_valid
     section: § 3.1
     snippet: Problem detail objects can have the following members.
     cited_by:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 241
+      line: 264
   - label: problem_details_structure_valid (2)
     section: § 3.1.1
     snippet: When this member is not present, its value is assumed to be "about:blank".
     cited_by:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 242
+      line: 265
   - label: problem_details_structure_valid (3)
     section: § 4.2.1
     snippet: Consequently, any problem details object not carrying an explicit "type" member implicitly uses this URI.
     cited_by:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 243
+      line: 266
 - label: RFC 9530
   url: https://www.rfc-editor.org/rfc/rfc9530.html
   fragments:

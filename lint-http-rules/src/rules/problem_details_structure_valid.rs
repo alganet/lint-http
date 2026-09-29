@@ -90,7 +90,7 @@ impl RuleMeta for ProblemDetailsStructureValid {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a response whose `Content-Type` is `application/problem+json` but whose content is not the problem details JSON object that media type identifies — content that is empty, that does not parse as JSON, or that parses as some other JSON value (an array, a string, a number). RFC 9457 defines the format; it obsoletes RFC 7807.\n\n**Any status code.** RFC 9457 says problem details \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\". Whether they *suit* a status is `problem_details_content_type`'s question; this rule's is whether content labelled as problem details is problem details, and that question reads the same on a 200 as on a 500.\n\n**An empty JSON object is conforming and is not reported.** Every member is optional: §3.1 introduces them with \"can have\", §3.1.1 says that when `type` is absent \"its value is assumed to be `about:blank`\", and §4.2.1 confirms that \"any problem details object not carrying an explicit `type` member implicitly uses this URI\" — the registered type meaning the problem has no semantics beyond the status code. So `{}` is a problem details object that says exactly that.\n\n**What the finding rests on.** No RFC states a MUST that content match its `Content-Type`. RFC 9110 §8.1 defines representation data as being \"in a format and encoding defined by the representation metadata header fields\", §8.3 says the indicated media type \"defines both the data format and how that data is intended to be processed by a recipient\", and the same section calls a server that does otherwise one that has not been configured \"to provide the correct Content-Type for a given representation\". A finding is a contradiction between two things the message itself states, not a matter of taste — but it is definitional in origin, not a stated requirement.\n\n**Limits.** Only the JSON serialization is checked: RFC 9457 defines an equivalent XML format (`application/problem+xml`) in Appendix B, and measuring an XML document against it needs a parser this crate does not have. A `Content-Encoding` means the captured octets are the coded form, so they are not parsed as JSON — the emptiness checks still apply, since a coded representation of nothing is still nothing. Two `Content-Type` field lines are declined: `Content-Type` is a singleton, recipients often act on the last member, and `content_type_valid` reports the duplication. A response carrying no `Content-Type` at all is `content_type_present`'s finding, and an unparseable one is `content_type_valid`'s.\n\nCaptured bodies are available to rules in memory, and `captures_include_body` decides whether they are also written to the captures file — a file written with it reads its bodies back, so this rule reaches the same content on a replay that it reached live, and a file written without it carries none. A body captured as a truncated prefix is not parsed. Nor is a counted zero read as an empty document when the reading stopped before the body's end — the zero is then where the reading stopped, not where the content ran out. Where no bytes are available at all, the emptiness half of the question is still answered from the counted octets, or failing that from a declared `Content-Length` of zero, which is evidence only when no `Transfer-Encoding` overrides it."
+        "Reports a response whose `Content-Type` is `application/problem+json` but whose content is not the problem details JSON object that media type identifies — content that is empty, that does not parse as JSON, or that parses as some other JSON value (an array, a string, a number). RFC 9457 defines the format; it obsoletes RFC 7807.\n\n**Any status code.** RFC 9457 says problem details \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\". Whether they *suit* a status is `problem_details_content_type`'s question; this rule's is whether content labelled as problem details is problem details, and that question reads the same on a 200 as on a 500.\n\n**Only where there is a document to read.** A response to `HEAD`, a `1xx`, `204`, `205` or `304`, and a `2xx` to `CONNECT` carry no content, so an empty capture there is what the exchange requires and not an empty document. A single-part `206` encloses one range of the representation, which is a slice of the format rather than a document in it, so it is not parsed either; a `206` whose range is the whole representation is.\n\n**An empty JSON object is conforming and is not reported.** Every member is optional: §3.1 introduces them with \"can have\", §3.1.1 says that when `type` is absent \"its value is assumed to be `about:blank`\", and §4.2.1 confirms that \"any problem details object not carrying an explicit `type` member implicitly uses this URI\" — the registered type meaning the problem has no semantics beyond the status code. So `{}` is a problem details object that says exactly that.\n\n**What the finding rests on.** No RFC states a MUST that content match its `Content-Type`. RFC 9110 §8.1 defines representation data as being \"in a format and encoding defined by the representation metadata header fields\", §8.3 says the indicated media type \"defines both the data format and how that data is intended to be processed by a recipient\", and the same section calls a server that does otherwise one that has not been configured \"to provide the correct Content-Type for a given representation\". A finding is a contradiction between two things the message itself states, not a matter of taste — but it is definitional in origin, not a stated requirement.\n\n**Limits.** Only the JSON serialization is checked: RFC 9457 defines an equivalent XML format (`application/problem+xml`) in Appendix B, and measuring an XML document against it needs a parser this crate does not have. A `Content-Encoding` means the captured octets are the coded form, so they are not parsed as JSON — the emptiness checks still apply, since a coded representation of nothing is still nothing. Two `Content-Type` field lines are declined: `Content-Type` is a singleton, recipients often act on the last member, and `content_type_valid` reports the duplication. A response carrying no `Content-Type` at all is `content_type_present`'s finding, and an unparseable one is `content_type_valid`'s.\n\nCaptured bodies are available to rules in memory, and `captures_include_body` decides whether they are also written to the captures file — a file written with it reads its bodies back, so this rule reaches the same content on a replay that it reached live, and a file written without it carries none. A body captured as a truncated prefix is not parsed. Nor is a counted zero read as an empty document when the reading stopped before the body's end — the zero is then where the reading stopped, not where the content ran out. Where no bytes are available at all, the emptiness half of the question is still answered from the counted octets, or failing that from a declared `Content-Length` of zero, which is evidence only when no `Transfer-Encoding` overrides it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -117,6 +117,11 @@ impl RuleMeta for ProblemDetailsStructureValid {
                 compliance: Compliance::Compliant,
                 label: Some("no member is required — this one means \"about:blank\""),
                 snippet: "HTTP/1.1 404 Not Found\nContent-Type: application/problem+json\nContent-Length: 2\n\n{}",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("a HEAD response sends no content, whatever its Content-Length says"),
+                snippet: "HEAD /accounts/42 HTTP/1.1\n\nHTTP/1.1 404 Not Found\nContent-Type: application/problem+json\nContent-Length: 34\n\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -154,6 +159,24 @@ impl Rule for ProblemDetailsStructureValid {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             let resp = tx.response.as_ref()?;
+
+            // The content measured below has to be the document the media type
+            // names, and two exchanges hand over something else. A response to
+            // HEAD, a 1xx, 204, 205 or 304, and a 2xx to CONNECT carry no content
+            // at all, so an empty capture there is the absence the exchange
+            // requires and not an empty document: a HEAD to an endpoint that
+            // answers errors as problem details was reported for the body it is
+            // forbidden to send. And a single-part 206 encloses one range of the
+            // representation, whose first five octets are not a JSON document
+            // however well-formed the whole is.
+            if crate::helpers::response_content::response_content(
+                &tx.request.method,
+                resp.status,
+                &resp.headers,
+            ) != crate::helpers::response_content::ResponseContent::Labelled
+            {
+                return None;
+            }
 
             // Two field lines: `get` below reads the first while the recipient is
             // likely to act on the last, so the format this message declares is not
@@ -398,6 +421,35 @@ mod tests {
         assert_eq!(found.severity, crate::lint::Severity::Warn);
     }
 
+    /// The octets are read against the media type only where the exchange
+    /// hands over the document it names. A HEAD, 1xx, 204, 205 or 304 response
+    /// has no content to be empty, and a single-part 206 carries a range of the
+    /// document, not the document -- unless the range is the whole of it.
+    #[rstest]
+    #[case::head("HEAD", 404, &[("content-length", "34")], Some(b"".as_slice()), Some(0), None)]
+    #[case::head_counted("HEAD", 404, &[("content-length", "34")], None, Some(0), None)]
+    #[case::head_declared_zero("HEAD", 404, &[("content-length", "0")], None, None, None)]
+    #[case::reset_content("GET", 205, &[("content-length", "0")], Some(b"".as_slice()), Some(0), None)]
+    #[case::not_modified("GET", 304, &[], Some(b"".as_slice()), Some(0), None)]
+    #[case::no_content("DELETE", 204, &[], Some(b"".as_slice()), Some(0), None)]
+    #[case::one_range("GET", 206, &[("content-range", "bytes 0-4/34")], Some(b"{\"tit".as_slice()), Some(5), None)]
+    #[case::whole_range("GET", 206, &[("content-range", "bytes 0-4/5")], Some(b"hello".as_slice()), Some(5), Some("problem_details_malformed"))]
+    #[case::head_is_case_sensitive("Head", 404, &[], Some(b"".as_slice()), Some(0), Some("problem_details_empty"))]
+    #[case::get("GET", 404, &[], Some(b"".as_slice()), Some(0), Some("problem_details_empty"))]
+    fn only_content_the_exchange_hands_over_is_read(
+        #[case] method: &str,
+        #[case] status: u16,
+        #[case] extra: &[(&str, &str)],
+        #[case] body: Option<&'static [u8]>,
+        #[case] body_length: Option<u64>,
+        #[case] expected: Option<&str>,
+    ) {
+        let headers: Vec<(&str, &str)> = std::iter::once(PJ).chain(extra.iter().copied()).collect();
+        let mut tx = fixture(status, &headers, body, body_length);
+        tx.request.method = method.into();
+        assert_eq!(check(&tx).map(|v| v.violation).as_deref(), expected);
+    }
+
     /// Every member of a problem details object is optional, so `{}` is a
     /// conforming one: it means "no semantics beyond the status code". §3.1
     /// introduces the members with "can have", §3.1.1 supplies "about:blank"
@@ -627,7 +679,20 @@ mod tests {
         let mut saw_a_finding = false;
 
         for ex in rule.examples() {
-            let (head, body) = ex.snippet.split_once("\n\n").unwrap_or((ex.snippet, ""));
+            // A snippet may open with the request whose exchange decides what the
+            // response carries: its method is read, and the response follows the
+            // blank line after it.
+            let (method, response) = match ex.snippet.split_once(' ') {
+                Some((m, _)) if !m.starts_with("HTTP/") => {
+                    let (_, response) = ex
+                        .snippet
+                        .split_once("\n\n")
+                        .expect("a request, then a response");
+                    (m, response)
+                }
+                _ => ("GET", ex.snippet),
+            };
+            let (head, body) = response.split_once("\n\n").unwrap_or((response, ""));
             let mut lines = head.lines();
             let status = lines
                 .next()
@@ -648,8 +713,13 @@ mod tests {
                 .collect();
 
             // A published `Content-Length` is part of the message an operator
-            // reads, so it has to agree with the octets beside it.
-            if let Some((_, declared)) = headers.iter().find(|(n, _)| *n == "Content-Length") {
+            // reads, so it has to agree with the octets beside it -- except on a
+            // HEAD response, where § 8.6 has it state what a GET would have sent.
+            if let Some((_, declared)) = headers
+                .iter()
+                .find(|(n, _)| *n == "Content-Length")
+                .filter(|_| method != "HEAD")
+            {
                 assert_eq!(
                     declared.parse::<usize>().ok(),
                     Some(body.len()),
@@ -659,6 +729,7 @@ mod tests {
             }
 
             let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.method = method.into();
             tx.response = Some(crate::http_transaction::ResponseInfo {
                 status,
                 version: "HTTP/1.1".into(),
