@@ -7587,7 +7587,7 @@ sources:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 207
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
-      line: 229
+      line: 238
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 59
   - label: Connection grammar, sender-expanded
@@ -9355,7 +9355,7 @@ sources:
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 109
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
-      line: 244
+      line: 255
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 122
     - file: lint-http-rules/src/rules/user_agent_present.rs
@@ -10785,7 +10785,7 @@ sources:
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 206
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
-      line: 237
+      line: 248
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 125
   - label: post_creates_resource (3)
@@ -11915,7 +11915,7 @@ sources:
     snippet: A sender that intends to generate one or more trailer fields in a message SHOULD generate a Trailer header field in the header section of that message to indicate which fields might be present in the trailers.
     cited_by:
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
-      line: 293
+      line: 304
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 123
     - file: lint-http-rules/src/violations/trailer.rs
@@ -11927,7 +11927,7 @@ sources:
     snippet: When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field.
     cited_by:
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
-      line: 270
+      line: 281
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 54
   - label: trailer_header_valid

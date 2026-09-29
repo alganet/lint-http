@@ -152,7 +152,7 @@ impl Rule for TrailerFieldsValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Each section is read on its own and the finding it yields is kept. The
+        // Each section is read on its own and the findings it yields are kept. The
         // fields a request puts after its content are not the ones a response
         // puts after its own, and a trailer that may not be sent there is a
         // defect of whichever peer sent it.
@@ -215,12 +215,21 @@ fn collect_declared_trailers(headers: &hyper::HeaderMap) -> Option<Vec<String>> 
 }
 
 /// Validate one message's trailer section against its own header section.
+///
+/// **Every field answers, and each answers once.** The three checks below are
+/// tried in order for one field and the first that holds is that field's
+/// finding: a field whose definition keeps it out of the section is not also
+/// told it was left out of the declaration, since the repair is to move it
+/// rather than to announce it. Across fields nothing is ordered. The walk used
+/// to return at the first defective field, so an undeclared `X-Checksum` written
+/// before a `Content-Length` drew the warning about the declaration and nothing
+/// about the field no recipient could use.
 fn check_trailers(
     ctx: &crate::rules::RuleContext<'_>,
     party: crate::lint::Party,
     trailers: &hyper::HeaderMap,
     headers: &hyper::HeaderMap,
-) -> Option<Violation> {
+) -> Vec<Violation> {
     let declared = collect_declared_trailers(headers);
     // The `Connection` consulted is this message's, all of its lines: the options
     // are one list however many lines carry them, and reading the first line only
@@ -230,82 +239,85 @@ fn check_trailers(
     let connection_val =
         crate::helpers::headers::combined_field_value_as_written(headers, "connection");
 
-    for key in trailers.keys() {
-        // hyper normalises header names to lowercase, which is the comparison the
-        // field-name production asks for anyway.
-        //
-        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1."
-        let name = key.as_str();
+    trailers
+        .keys()
+        .filter_map(|key| {
+            // hyper normalises header names to lowercase, which is the comparison the
+            // field-name production asks for anyway.
+            //
+            // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1."
+            let name = key.as_str();
 
-        // The half that depends on what the field is. The table is a subset of the
-        // cited requirement and says so; what it holds are the field definitions
-        // this crate carries that do not permit the usage.
-        //
-        // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
-        if crate::helpers::field_placement::is_prohibited_trailer_field(name) {
-            // The message names the field's own definition rather than the
-            // category §6.5.1 sorts it under, because the category is not what
-            // decides: `Authentication-Info` is an authentication field and its
-            // definition permits the usage.
-            return Some(ctx.by(party).report_with(
-                &TRAILER_FIELD_FORBIDDEN,
-                format!(
-                    "Trailer section contains '{}', whose definition does not permit \
+            // The half that depends on what the field is. The table is a subset of the
+            // cited requirement and says so; what it holds are the field definitions
+            // this crate carries that do not permit the usage.
+            //
+            // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
+            if crate::helpers::field_placement::is_prohibited_trailer_field(name) {
+                // The message names the field's own definition rather than the
+                // category §6.5.1 sorts it under, because the category is not what
+                // decides: `Authentication-Info` is an authentication field and its
+                // definition permits the usage.
+                return Some(ctx.by(party).report_with(
+                    &TRAILER_FIELD_FORBIDDEN,
+                    format!(
+                        "Trailer section contains '{}', whose definition does not permit \
                      it to be sent in a trailer section; its value is one a recipient \
                      needs before it reads the content",
-                    name
-                ),
-            ));
-        }
-
-        // The other half, and the one that depends on this message rather than on
-        // what the field is — and the one case where the general question above is
-        // decidable for a field nobody defined, because the sender answered it
-        // itself: naming a field as a connection-option says its value is control
-        // information for this connection, which is information the recipient needs
-        // before the content, and every intermediary strips it from the trailer
-        // section on the way. The sentence that reaches into that section is cited
-        // on the helper.
-        //
-        // cite(RFC 9110 § 7.6.1): "When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field."
-        if crate::helpers::field_placement::is_nominated_by_connection(
-            name,
-            connection_val.as_deref(),
-        ) {
-            return Some(ctx.by(party).report_with(
-                &TRAILER_CONNECTION_OPTION_FORBIDDEN,
-                format!(
-                    "Trailer field '{}' is named as a connection-option in this \
-                     message's Connection header, so it is control information for \
-                     this connection and every intermediary removes it from the \
-                     trailer section before forwarding",
-                    name
-                ),
-            ));
-        }
-
-        // Undeclared trailer field — asked only of a message that carries a
-        // `Trailer` field, because it is the declaration that creates the
-        // expectation to fall short of. An empty declaration is still a
-        // declaration: `Trailer:` announces a list of no field names, so every
-        // field that then arrives is one it did not indicate.
-        //
-        // cite(RFC 9110 § 6.6.2): "A sender that intends to generate one or more trailer fields in a message SHOULD generate a Trailer header field in the header section of that message to indicate which fields might be present in the trailers."
-        if let Some(ref declared) = declared {
-            if !declared.iter().any(|d| d == name) {
-                return Some(ctx.by(party).report_with(
-                    &TRAILER_MEMBER_MISSING,
-                    format!(
-                        "Trailer field '{}' was not declared in the Trailer header; \
-                         senders should list the fields that might appear in the \
-                         trailers before the message body",
                         name
                     ),
                 ));
             }
-        }
-    }
-    None
+
+            // The other half, and the one that depends on this message rather than on
+            // what the field is — and the one case where the general question above is
+            // decidable for a field nobody defined, because the sender answered it
+            // itself: naming a field as a connection-option says its value is control
+            // information for this connection, which is information the recipient needs
+            // before the content, and every intermediary strips it from the trailer
+            // section on the way. The sentence that reaches into that section is cited
+            // on the helper.
+            //
+            // cite(RFC 9110 § 7.6.1): "When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field."
+            if crate::helpers::field_placement::is_nominated_by_connection(
+                name,
+                connection_val.as_deref(),
+            ) {
+                return Some(ctx.by(party).report_with(
+                    &TRAILER_CONNECTION_OPTION_FORBIDDEN,
+                    format!(
+                        "Trailer field '{}' is named as a connection-option in this \
+                     message's Connection header, so it is control information for \
+                     this connection and every intermediary removes it from the \
+                     trailer section before forwarding",
+                        name
+                    ),
+                ));
+            }
+
+            // Undeclared trailer field — asked only of a message that carries a
+            // `Trailer` field, because it is the declaration that creates the
+            // expectation to fall short of. An empty declaration is still a
+            // declaration: `Trailer:` announces a list of no field names, so every
+            // field that then arrives is one it did not indicate.
+            //
+            // cite(RFC 9110 § 6.6.2): "A sender that intends to generate one or more trailer fields in a message SHOULD generate a Trailer header field in the header section of that message to indicate which fields might be present in the trailers."
+            if let Some(ref declared) = declared {
+                if !declared.iter().any(|d| d == name) {
+                    return Some(ctx.by(party).report_with(
+                        &TRAILER_MEMBER_MISSING,
+                        format!(
+                            "Trailer field '{}' was not declared in the Trailer header; \
+                         senders should list the fields that might appear in the \
+                         trailers before the message body",
+                            name
+                        ),
+                    ));
+                }
+            }
+            None
+        })
+        .collect()
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -612,6 +624,44 @@ mod tests {
         let v = crate::test_helpers::run_rule(&rule, &tx, &empty_history(), &cfg());
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("does not permit"));
+    }
+
+    /// Two defective fields in one section are two findings, whichever is
+    /// written first. The walk used to return at the first, so an undeclared
+    /// field in front of a `Content-Length` hid the MUST NOT behind the
+    /// declaration's SHOULD, and a second forbidden field was never named.
+    #[rstest]
+    #[case(&[("x-undeclared", "1"), ("content-length", "2")], &["trailer_member_missing", "trailer_field_forbidden"])]
+    #[case(&[("content-length", "2"), ("x-undeclared", "1")], &["trailer_field_forbidden", "trailer_member_missing"])]
+    #[case(&[("x-hop", "1"), ("content-length", "2")], &["trailer_connection_option_forbidden", "trailer_field_forbidden"])]
+    #[case(&[("content-length", "2"), ("content-type", "text/plain")], &["trailer_field_forbidden", "trailer_field_forbidden"])]
+    fn every_defective_field_in_a_section_answers(
+        #[case] fields: &[(&str, &str)],
+        #[case] expected: &[&str],
+    ) {
+        let mut tx = make_test_transaction_with_response(
+            200,
+            &[
+                ("trailer", "content-length, content-type, x-hop"),
+                ("connection", "x-hop"),
+            ],
+        );
+        let mut trailers = hyper::HeaderMap::new();
+        for (name, value) in fields {
+            trailers.append(
+                name.parse::<hyper::header::HeaderName>().unwrap(),
+                value.parse().unwrap(),
+            );
+        }
+        tx.response.as_mut().unwrap().trailers = Some(trailers);
+
+        let found =
+            crate::test_helpers::run_rule_all(&TrailerFieldsValid, &tx, &empty_history(), &cfg());
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, expected, "{found:?}");
+        for (v, (name, _)) in found.iter().zip(fields.iter()) {
+            assert!(v.message.contains(&format!("'{name}'")), "{v:?}");
+        }
     }
 
     // ---- Connection-nominated hop-by-hop trailer fields ----
