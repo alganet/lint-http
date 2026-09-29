@@ -3488,10 +3488,16 @@ sources:
       line: 66
   - label: content_disposition_parameter_valid
     section: § 4.1
+    snippet: OPTIONAL whitespace can appear between words (token or quoted-string) and separator characters.
+    cited_by:
+    - file: lint-http-rules/src/rules/content_disposition_parameter_valid.rs
+      line: 288
+  - label: content_disposition_parameter_valid (2)
+    section: § 4.1
     snippet: content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )
     cited_by:
     - file: lint-http-rules/src/rules/content_disposition_parameter_valid.rs
-      line: 170
+      line: 168
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 194
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
@@ -5520,7 +5526,7 @@ sources:
     snippet: Note that both character encoding names and language tags are restricted to the US-ASCII coded character set and are matched case-insensitively
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 267
+      line: 269
     - file: lint-http-rules/src/violations/ext_value.rs
       line: 102
   - label: producers
@@ -5528,7 +5534,7 @@ sources:
     snippet: Producers MUST use the "UTF-8" ([RFC3629]) character encoding.
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 266
+      line: 268
     - file: lint-http-rules/src/violations/ext_value.rs
       line: 100
   - label: lint-http-rules/src/helpers/parameter.rs
@@ -5536,43 +5542,43 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 239
+      line: 241
   - label: lint-http-rules/src/helpers/parameter.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 161
+      line: 163
   - label: mime-charset
     section: § 3.2.1
     snippet: mime-charset  = 1*mime-charsetc
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 186
+      line: 188
   - label: mime-charsetc
     section: § 3.2.1
     snippet: mime-charsetc = ALPHA / DIGIT
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 187
+      line: 189
   - label: lint-http-rules/src/helpers/parameter.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 218
+      line: 220
   - label: lint-http-rules/src/helpers/parameter.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 211
+      line: 213
   - label: lint-http-rules/src/helpers/parameter.rs (5)
     section: § 3.2.2
     snippet: The <mime-charset> ABNF defined here differs from the one in Section 2.3 of [RFC2978] in that it does not allow the single quote character
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 188
+      line: 190
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.html
   fragments:
@@ -6287,7 +6293,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 169
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 226
+      line: 231
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 228
     - file: lint-http-rules/src/rules/problem_details_content_type.rs
@@ -7581,7 +7587,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 195
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 224
+      line: 229
   - label: content_type_present (3)
     section: § 8.3
     snippet: If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type.
@@ -7603,7 +7609,7 @@ sources:
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 225
+      line: 230
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 227
   - label: context_fields_direction
@@ -8149,7 +8155,7 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 251
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 84
+      line: 86
     - file: lint-http-rules/src/rules/accept_charset_valid.rs
       line: 204
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
@@ -9155,7 +9161,7 @@ sources:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 288
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 227
+      line: 232
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 99
     - file: lint-http-rules/src/rules/etag_syntax.rs
@@ -9203,7 +9209,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 279
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 265
+      line: 270
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 299
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
@@ -9400,8 +9406,6 @@ sources:
       line: 331
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 526
-    - file: lint-http-rules/src/rules/content_disposition_parameter_valid.rs
-      line: 291
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 644
     - file: lint-http-rules/src/violations/parameter.rs
@@ -9425,9 +9429,9 @@ sources:
     - file: lint-http-rules/src/helpers/media_type.rs
       line: 339
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 83
+      line: 85
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 110
+      line: 112
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 459
     - file: lint-http-rules/src/rules/expect_header_valid.rs
@@ -9455,7 +9459,7 @@ sources:
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 20
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 81
+      line: 83
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 241
     - file: lint-http-rules/src/rules/expect_header_valid.rs
@@ -9539,11 +9543,11 @@ sources:
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 82
+      line: 84
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 109
+      line: 111
     - file: lint-http-rules/src/rules/content_disposition_parameter_valid.rs
-      line: 268
+      line: 266
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 565
     - file: lint-http-rules/src/violations/parameter.rs

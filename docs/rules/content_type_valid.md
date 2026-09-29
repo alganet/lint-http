@@ -96,6 +96,12 @@ Content-Type: text/*
 Content-Type: text/plain; badparam
 ```
 
+### ❌ Bad (whitespace beside a parameter's `=`, which no media-type parameter admits)
+
+```http
+Content-Type: text/html; charset = utf-8
+```
+
 ### ❌ Bad (unterminated quoted-string)
 
 ```http

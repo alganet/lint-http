@@ -167,6 +167,11 @@ impl RuleMeta for ContentTypeValid {
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(whitespace beside a parameter's `=`, which no media-type parameter admits)"),
+                snippet: "Content-Type: text/html; charset = utf-8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
                 label: Some("(unterminated quoted-string)"),
                 snippet: "Content-Type: text/plain; charset=\"unclosed",
             },

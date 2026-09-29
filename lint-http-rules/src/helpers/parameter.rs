@@ -38,15 +38,17 @@ pub struct Parameter<'a> {
     pub value: &'a str,
     /// Whether whitespace sat beside the `=`.
     ///
-    /// **Every caller reports it, and this flag is why they could — but only
-    /// a caller that asks.** § 5.6.6's
+    /// **Every caller of § 5.6.6's own production reports it, and this flag is
+    /// why they could — but only a caller that asks.** § 5.6.6's
     /// Note forbids whitespace there in as many words — *"not even 'bad'
     /// whitespace"* — but for a while only `expect_header_valid` acted on it
     /// and the rules reading a media type trimmed it and published a "Known
     /// leniency" paragraph instead. A walk that trimmed silently would have
     /// settled that question for all of them and left no branch to change; a
     /// walk that hands back what it found let the answer be revisited where it
-    /// was made.
+    /// was made. That is how `Content-Disposition` came to leave it unreported:
+    /// RFC 6266 is written under RFC 2616's implied whitespace, and its § 4.1
+    /// admits padding beside the `=` that this production refuses.
     pub whitespace_beside_equals: bool,
 }
 
