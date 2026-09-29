@@ -438,6 +438,15 @@ impl Rule for HostAndAuthorityConsistent {
             //
             // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
             let host = trim_ows(&value);
+            // The same sentence excludes a userinfo from `Host` itself, and a
+            // `Host` carrying one is `host_header`'s `host_userinfo_forbidden`,
+            // quoting it for exactly that value. Over HTTP/1.1 the comparison
+            // is of the authorities, so the field's own userinfo is left to that
+            // finding rather than reported a second time as a disagreement.
+            let host = match version {
+                1 => crate::helpers::authority::split_userinfo(host).1,
+                _ => host,
+            };
 
             // Every gate above ends the rule, and a request carrying both fields is
             // the only one this can report.
@@ -818,6 +827,8 @@ mod tests {
     #[case("http://example.com/p", b"", Some("host_conflicting"))]
     #[case("http://example.com/p", b"example.com", None)]
     #[case("http://user@example.com/p", b"example.com", None)]
+    #[case("http://example.com/p", b"user@example.com", None)]
+    #[case("http://example.com/p", b"user@example.org", Some("host_conflicting"))]
     #[case("http://example.com:80/p", b"example.com", None)]
     #[case("http://Example.COM/p", b"example.com", None)]
     #[case("example.com:443", b"example.com", None)]
