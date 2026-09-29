@@ -315,7 +315,7 @@ impl Rule for StrictTransportSecurityValid {
 
                 let mut saw_max_age = false;
                 let mut max_age_count = 0usize;
-                let mut saw_empty_directive = false;
+                let mut empty_directives = 0usize;
                 // One finding per directive. `[ directive ] *( ";" [ directive ] )`
                 // writes them beside each other rather than inside each other,
                 // so a policy naming two of them badly is two things to
@@ -341,7 +341,7 @@ impl Rule for StrictTransportSecurityValid {
                     // and the one directive this field is required to carry is
                     // looked for only after the whole value has been read.
                     if member.is_empty() {
-                        saw_empty_directive = true;
+                        empty_directives += 1;
                         continue;
                     }
                     if let Some((def, message)) =
@@ -376,8 +376,27 @@ impl Rule for StrictTransportSecurityValid {
                     // wrote and is worth correcting alongside the missing
                     // `max-age` rather than behind it.
                     out.push(ctx.report(&STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING));
-                } else if saw_empty_directive {
-                    out.push(ctx.report(&STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY));
+                } else if empty_directives > 0 {
+                    // The value and the count, because the one-line sentence
+                    // this was named neither: an operator reading it could not
+                    // tell a trailing `;` from a doubled one in the middle, and
+                    // every one on the web is the first.
+                    let what = if empty_directives == 1 {
+                        "an empty directive, a ';' with nothing on one side of it".to_string()
+                    } else {
+                        format!(
+                            "{empty_directives} empty directives, each a ';' with nothing on one \
+                             side of it"
+                        )
+                    };
+                    out.push(ctx.report_with(
+                        &STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY,
+                        format!(
+                            "Strict-Transport-Security '{v}' has {what}; RFC 6797 \u{a7}6.1's \
+                             grammar admits it, and the policy reads the same with the stray ';' \
+                             removed"
+                        ),
+                    ));
                 }
 
                 out
@@ -814,7 +833,12 @@ mod tests {
     #[case::empty_value("", "must not be empty", "strict_transport_security_empty")]
     #[case::empty_directive(
         "max-age=1;;preload",
-        "Empty directive in",
+        "'max-age=1;;preload' has an empty directive",
+        "strict_transport_security_directive_empty"
+    )]
+    #[case::empty_directives_counted(
+        "; max-age=1;",
+        "'; max-age=1;' has 2 empty directives",
         "strict_transport_security_directive_empty"
     )]
     #[case::empty_name("max-age=1; =2", "Empty directive name", "token_empty")]

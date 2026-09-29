@@ -4342,21 +4342,21 @@ sources:
     snippet: directive-name            = token
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 509
+      line: 528
   - label: strict_transport_security_valid (3)
     section: § 6.1
     snippet: directive-value           = token | quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 538
+      line: 557
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 618
+      line: 637
   - label: max-age carries a value
     section: § 6.1.1
     snippet: 'The syntax of the max-age directive''s REQUIRED value (after quoted-string unescaping, if necessary) is defined as:'
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 539
+      line: 558
     - file: lint-http-rules/src/violations/strict_transport_security.rs
       line: 153
   - label: strict_transport_security_valid (4)
@@ -4370,7 +4370,7 @@ sources:
     snippet: An HSTS Host MUST NOT include the STS header field in HTTP responses conveyed over non-secure transport.
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 419
+      line: 438
     - file: lint-http-rules/src/violations/strict_transport_security.rs
       line: 213
   - label: strict_transport_security_valid (6)
@@ -4384,7 +4384,7 @@ sources:
     snippet: If an HTTP response is received over insecure transport, the UA MUST ignore any present STS header field(s).
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 420
+      line: 439
     - file: lint-http-rules/src/violations/strict_transport_security.rs
       line: 214
 - label: RFC 6838

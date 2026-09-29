@@ -109,7 +109,7 @@ defects! {
     STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY = {
         id: "strict_transport_security_directive_empty",
         title: "The policy holds a separator with no directive",
-        message: "Empty directive in Strict-Transport-Security header",
+        message: "",
         default_severity: Severity::Info,
         spec: &[],
     }

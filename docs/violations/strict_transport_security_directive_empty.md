@@ -10,7 +10,7 @@ The policy holds a separator with no directive
 
 ## Message
 
-Empty directive in Strict-Transport-Security header
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 
