@@ -193,7 +193,7 @@ defects! {
     }
 
     /// A response's `rel=preload` whose `as` names no preload destination:
-    /// `as=document`, `as=Font`.
+    /// `as=document`, `as=fonts`.
     ///
     /// The same early return one step later. HTML translates the value and
     /// returns false when the translation is null, and the set it translates
@@ -201,10 +201,12 @@ defects! {
     /// destinations — so `as=document` names a Fetch destination and is
     /// discarded all the same.
     ///
-    /// **The comparison keeps case, and that is the algorithm's own contrast**:
-    /// the steps beside this one say *an ASCII case-insensitive match* about
-    /// `crossorigin` and `fetchpriority` in as many words, and this one says
-    /// nothing of the kind. `Font` is a string the set does not hold.
+    /// **The comparison ignores case.** The steps beside this one say *an
+    /// ASCII case-insensitive match* about `crossorigin` and `fetchpriority` in
+    /// as many words and this one does not, and the entry once read that
+    /// contrast as a case-sensitive set and reported `as=Font`. Every engine
+    /// folds the value on this path, as it does for the element's `as`, which
+    /// is an enumerated attribute, so `Font` names the font destination.
     ///
     /// `_invalid` rather than `_malformed`: the value is a perfectly good
     /// `token` and what refuses it is a set one document keeps.

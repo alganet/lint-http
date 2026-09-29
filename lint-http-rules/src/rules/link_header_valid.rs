@@ -390,10 +390,12 @@ impl RuleMeta for LinkHeaderValid {
          table.** *Translate a preload destination* refuses membership before Fetch's *translate \
          a potential destination* is ever consulted, so the set is `fetch`, `font`, `image`, \
          `script`, `style`, `track` — and `as=document`, a Fetch destination, is discarded like \
-         any other non-member, while `as=fetch` conforms. The match keeps case, and deliberately: \
-         the neighbouring steps of the same algorithm say *\"an ASCII case-insensitive match\"* \
-         about `crossorigin` and `fetchpriority` in as many words and this step says nothing of \
-         the kind, so `as=Font` is a string the set does not hold. A repeated `as` is not \
+         any other non-member, while `as=fetch` conforms. The match ignores case. The \
+         neighbouring steps of the same algorithm say *\"an ASCII case-insensitive match\"* about \
+         `crossorigin` and `fetchpriority` and this one does not, and this rule once read that \
+         contrast as a case-sensitive set; every engine folds the value on this path, as it does \
+         for the element's `as`, an enumerated attribute, so `as=Font` preloads a font. A \
+         repeated `as` is not \
          reported and only the first is judged: RFC 8288's parsing algorithm deduplicates only \
          the four attributes §3.4.1 bounds, and the map read HTML performs takes the first \
          entry.\
@@ -1444,19 +1446,25 @@ fn preload_defects(
         // one step later: translation refuses anything outside the six-string
         // set, the refusal is null, and null is `return false`.
         //
-        // The match keeps case, and that is the algorithm's own contrast: the
-        // steps beside this one say *"an ASCII case-insensitive match"* about
-        // `crossorigin` and `fetchpriority` in as many words, and this step
-        // says nothing of the kind — so `Font` is a string the set does not
-        // hold.
+        // The match ignores case. The steps beside this one say *"an ASCII
+        // case-insensitive match"* about `crossorigin` and `fetchpriority` in
+        // as many words and this one does not, which read alone makes `Font` a
+        // string the set does not hold -- and this rule used to report it so.
+        // Every engine folds the value on this path, as it does for the
+        // element's `as`, which is an enumerated attribute and so matched
+        // ASCII case-insensitively: `as=Font` preloads a font.
         // cite(HTML Semantics § 4.2.4.4): "Let destination be the result of translating attribs["as"]."
         // cite(HTML Semantics § 4.2.4.4): "If destination is null, then return false."
         // cite(HTML Semantics § 4.2.4.4): "If attribs["crossorigin"] exists and is an ASCII case-insensitive match for one of the CORS settings attribute keywords"
-        if !PRELOAD_DESTINATIONS.contains(&as_value.as_str()) {
+        // cite(HTML Semantics § 4.2.4): "The as attribute specifies either a preload destination or a module preload destination for a preload request for the resource given by the href attribute. It is an enumerated attribute."
+        if !PRELOAD_DESTINATIONS
+            .iter()
+            .any(|destination| as_value.eq_ignore_ascii_case(destination))
+        {
             out.push(Defect::named(
                 &LINK_PRELOAD_AS_INVALID,
                 format!(
-                    "'{}' asks for a preload whose as='{}' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything",
+                    "'{}' asks for a preload whose as='{}' names no preload destination (fetch, font, image, script, style, track), so the HTML processing model for a response's Link headers stops before fetching anything",
                     shown_in_finding(member),
                     shown_in_finding(&as_value)
                 ),
@@ -1814,6 +1822,9 @@ mod tests {
     // deduplicates only the four bounded attributes, and HTML's map read
     // takes the first.
     #[case(b"<https://example.com/a.css>; rel=preload; as=style; as=nonsense")]
+    // Every engine folds the value, as it does the element's enumerated `as`.
+    #[case(b"</f.woff2>; rel=preload; as=Font; crossorigin")]
+    #[case(b"</a.css>; rel=preload; as=STYLE")]
     // %xE9 inside a quoted-string is `qdtext`, and reading the field through
     // `to_str` used to report the whole message for it.
     #[case(b"<https://example.com/>; rel=next; title=\"caf\xe9\"")]
@@ -1942,23 +1953,18 @@ mod tests {
     // header path refuses membership before Fetch's table is consulted.
     #[case(
         b"</a>; rel=preload; as=document",
-        "member 1 '</a>; rel=preload; as=document' asks for a preload whose as='document' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything"
-    )]
-    // The neighbouring steps fold case in as many words; this one does not.
-    #[case(
-        b"</a>; rel=preload; as=Font",
-        "member 1 '</a>; rel=preload; as=Font' asks for a preload whose as='Font' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything"
+        "member 1 '</a>; rel=preload; as=document' asks for a preload whose as='document' names no preload destination (fetch, font, image, script, style, track), so the HTML processing model for a response's Link headers stops before fetching anything"
     )]
     // A valueless `as` and an `as=""` both translate the empty string, which
     // is not in the set.
     #[case(
         b"</a>; rel=preload; as",
-        "member 1 '</a>; rel=preload; as' asks for a preload whose as='' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything"
+        "member 1 '</a>; rel=preload; as' asks for a preload whose as='' names no preload destination (fetch, font, image, script, style, track), so the HTML processing model for a response's Link headers stops before fetching anything"
     )]
     // First entry wins, so the conforming second cannot rescue the first.
     #[case(
         b"</a>; rel=preload; as=nonsense; as=style",
-        "member 1 '</a>; rel=preload; as=nonsense; as=style' asks for a preload whose as='nonsense' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything"
+        "member 1 '</a>; rel=preload; as=nonsense; as=style' asks for a preload whose as='nonsense' names no preload destination (fetch, font, image, script, style, track), so the HTML processing model for a response's Link headers stops before fetching anything"
     )]
     fn every_branch_states_its_own_finding(#[case] value: &[u8], #[case] expected: &str) {
         assert_eq!(
