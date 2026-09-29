@@ -331,10 +331,12 @@ protocol elements that do not match the grammar defined by the corresponding ABN
 binds the sender, so a finding here reports at `error` by default."
         }
         Strength::Unstated => {
-            "**No sentence obliges the sender of this message.** Either nothing \
-states a requirement about this defect, or the keyword in the text it cites binds the *recipient* \
-and so says nothing about the peer being reported. The severity below is a judgement, argued in \
-the catalogue entry."
+            "**No one sentence sets this level.** Nothing states a requirement \
+about this defect; or the keyword in the text it cites binds the *recipient* and so says nothing \
+about the peer being reported; or the message cannot show that its sender is the party the \
+keyword binds; or the defect is reported in two places that two sentences of different strength \
+govern, and one level has to answer for both. The severity below is a judgement, argued in the \
+catalogue entry."
         }
     }
 }
@@ -1295,5 +1297,43 @@ mod tests {
         };
         let page = render_violation_doc(&def, &[]);
         assert!(page.contains("_No rule reports this defect._"));
+    }
+
+    /// The obligation line names the level [`Strength::default_severity`]
+    /// gives its strength, and the `Unstated` line names none: a severity it
+    /// printed would be a second copy of the mapping, which is what
+    /// `a_stated_strength_sets_the_default_severity` holds the catalogue to.
+    #[test]
+    fn the_obligation_line_names_the_level_the_mapping_implies() {
+        for strength in [
+            Strength::Must,
+            Strength::Should,
+            Strength::May,
+            Strength::Grammar,
+            Strength::Unstated,
+        ] {
+            let def = ViolationDef {
+                id: "widget_count_malformed",
+                title: "Widget-Count is written with something other than digits on it",
+                message: "",
+                default_severity: Severity::Warn,
+                spec: &[],
+                induced: lint_http_rules::violations::Induced::No,
+                unreachable: None,
+                strength,
+                departure: None,
+            };
+            let line = obligation(&def);
+            let named: Vec<&str> = ["error", "warn", "info"]
+                .into_iter()
+                .filter(|level| line.contains(&format!("`{level}`")))
+                .collect();
+            let implied: Vec<&str> = strength
+                .default_severity()
+                .map(Severity::name)
+                .into_iter()
+                .collect();
+            assert_eq!(named, implied, "{}: {line}", strength.name());
+        }
     }
 }
