@@ -11,7 +11,7 @@ SPDX-License-Identifier: ISC
 RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest` (for message content), `Repr-Digest` (for representation data) and their preference counterparts `Want-Content-Digest` / `Want-Repr-Digest`. This rule validates:
 
 - **Legacy** `Digest` (`alg=base64`) and `Want-Digest` (algorithms, each with an optional `;q=` weight) header syntax, and flags their use as obsoleted by RFC 9530.
-- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64.
+- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64. A member's parameters are not part of its value: RFC 9530 defines none and RFC 9651 gives every member room for them, so `sha-256=:BASE64:;x=1` is read as the digest it carries, and only a parameter that is not one is reported.
 - **Integrity preference** fields (`Want-Content-Digest`, `Want-Repr-Digest`) use algorithm=weight pairs where weight is an integer in 0..=10.
 - **Obsolete field**: presence of `Content-MD5` is flagged. It was removed from HTTP by RFC 7231 (not by RFC 9530, which does not mention it); prefer `Content-Digest`.
 
@@ -31,6 +31,7 @@ Algorithm names in the RFC 9530 fields are structured-field Dictionary keys and 
 - [qvalue_malformed](../violations/qvalue_malformed.md) — Weight is not a qvalue
 - [structured_field_key_malformed](../violations/structured_field_key_malformed.md) — Structured field key is not a key production
 - [structured_field_member_empty](../violations/structured_field_member_empty.md) — Structured field writes a comma with no member beside it
+- [structured_field_value_malformed](../violations/structured_field_value_malformed.md) — Structured field value is none of the bare item types
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
 - [token_empty](../violations/token_empty.md) — Token is written with no characters in it
 - [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
@@ -49,6 +50,9 @@ Algorithm names in the RFC 9530 fields are structured-field Dictionary keys and 
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 - [RFC 9651 §4.2.3.3](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.3.3): Parsing a Key: a `key` opens with `lcalpha` or `*` and continues with `lcalpha`, DIGIT, `_`, `-`, `.` or `*` — the production every Dictionary member name and every parameter name is written in, and the one an uppercase letter fails
 - [RFC 9651 §4.2.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.2): Parsing a Dictionary: a member is a key and, optionally, an `=` and a value — a bare key carries the Boolean true rather than being a member without one — and the loop fails on a comma with nothing after it
+- [RFC 9651 §3.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-3.2): Dictionaries — keys cannot contain uppercase, unknown members are ignored by recipients, members may be spread across field lines, and an empty Dictionary is spelled by leaving the field out
+- [RFC 9651 §4.2.3.1](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.3.1): Parsing a Bare Item — seven types chosen by the value's first character, and a single step for a value that is none of them
+- [RFC 9651 §2.3](https://www.rfc-editor.org/rfc/rfc9651.html#section-2.3): Parameters are the extension point every Item carries, and a field specification is discouraged from making an unrecognized one an error — so a digest member carrying a parameter RFC 9530 never defined is a digest, read without it
 - [RFC 4648 §3.3](https://www.rfc-editor.org/rfc/rfc4648.html#section-3.3): Interpretation of non-alphabet characters — a MUST to reject data outside the base alphabet, unless the referring specification says otherwise
 - [RFC 3230 §4.2](https://www.rfc-editor.org/rfc/rfc3230.html#section-4.2): Instance digests: `instance-digest = digest-algorithm "=" <encoded digest output>`, the production a legacy `Digest` member is written in — three parts with nothing bracketed, and an encoding the algorithm's own definition supplies
 - [RFC 9530](https://www.rfc-editor.org/rfc/rfc9530.html): Digest Fields, which obsoletes RFC 3230 and the `Digest` and `Want-Digest` fields with it — the sentence that makes a well-formed legacy field a finding rather than a style preference
@@ -67,6 +71,12 @@ enabled = true
 
 ```http
 Content-Digest: sha-256=:YWJj:
+```
+
+### ✅ Good — a parameter RFC 9530 never defined is read past, comma and all, as RFC 9651 § 2.3 asks
+
+```http
+Content-Digest: sha-256=:YWJj:;note="a, b"
 ```
 
 ### ❌ Bad

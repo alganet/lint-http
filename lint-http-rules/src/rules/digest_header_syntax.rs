@@ -15,7 +15,9 @@ use crate::violations::qvalue::{
     QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_DUPLICATED, WEIGHT_MALFORMED, WEIGHT_MISSING,
 };
 use crate::violations::structured_fields::{
-    RFC_9651_4_2_2, RFC_9651_4_2_3_3, STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY,
+    structured_field_defect, RFC_9651_3_2, RFC_9651_4_2_2, RFC_9651_4_2_3_1, RFC_9651_4_2_3_3,
+    STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY,
+    STRUCTURED_FIELD_VALUE_MALFORMED,
 };
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
@@ -26,7 +28,7 @@ use base64::Engine;
 
 pub struct DigestHeaderSyntax;
 
-/// Eighteen defects, ten of them productions this rule borrows and eight
+/// Nineteen defects, eleven of them productions this rule borrows and eight
 /// statements the digest documents make — about their own members, and about
 /// the two fields that no longer exist.
 /// `the_census_above_is_the_declared_list` holds the two numbers.
@@ -45,7 +47,7 @@ pub struct DigestHeaderSyntax;
 /// the algorithm for as long as it existed, and reported each weighted one —
 /// the section's own example among them — as a `token` holding a `;`.
 ///
-/// **The RFC 9530 half borrows one thing, and it is the interesting half.**
+/// **The RFC 9530 half borrows two things, and the first is the interesting one.**
 /// `Content-Digest` and its three siblings are Structured Field Dictionaries,
 /// not `#rule` lists: an algorithm is a `key` — lowercase, and the helper that
 /// owns that grammar says so — and a value is a Byte Sequence or an Integer. A
@@ -55,7 +57,11 @@ pub struct DigestHeaderSyntax;
 /// `key` rather than to any of these fields, so it is
 /// [`structured_fields`](crate::violations::structured_fields)' — a subject
 /// shared by construction, the way `token` is, and one whose second declarer is
-/// already visible in `permissions_policy_directives_valid`.
+/// already visible in `permissions_policy_directives_valid`. The second is a
+/// member's parameters, which RFC 9530 never defines and RFC 9651 § 3.2 admits on
+/// every member anyway: they are read past rather than taken for the value, and
+/// the three ways one fails to derive are that subject's entries too, since no
+/// other rule reads these fields.
 ///
 /// **The value half of a member is a subject now**, and it is one subject over
 /// both generations: what a `Digest` and a `Content-Digest` carry is the same
@@ -87,6 +93,7 @@ static DECLARED: &[&ViolationDef] = &[
     &BASE64_MALFORMED,
     &STRUCTURED_FIELD_KEY_MALFORMED,
     &STRUCTURED_FIELD_MEMBER_EMPTY,
+    &STRUCTURED_FIELD_VALUE_MALFORMED,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -145,6 +152,13 @@ const RFC_3230_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4.3.1"),
     url: "https://www.rfc-editor.org/rfc/rfc3230.html#section-4.3.1",
     note: "Historical `Want-Digest`, obsoleted by RFC 9530: `#(digest-algorithm [ \";\" \"q\" \"=\" qvalue])` — each algorithm may carry a weight, in RFC 2616's notation, which lets whitespace stand around the `;` and the `=`",
+};
+
+const RFC_9651_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9651",
+    section: Some("2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-2.3",
+    note: "Parameters are the extension point every Item carries, and a field specification is discouraged from making an unrecognized one an error — so a digest member carrying a parameter RFC 9530 never defined is a digest, read without it",
 };
 
 /// Which side of the exchange a field is read on.
@@ -378,40 +392,44 @@ struct MemberDefect {
     message: &'static str,
 }
 
-/// Split a comma-separated list of `key=value` members.
+/// Split a list of `key=value` members, each handed over as written and as the
+/// part of it that holds the key and the value.
 ///
-/// Splitting on a bare comma is safe for every field routed through here: the
-/// Dictionary values are Byte Sequences and Integers, neither of which can
-/// contain a comma, and the legacy `Digest` value is base64, which has no comma
-/// in its alphabet either. A quote-aware split would find nothing extra.
-/// (Dictionary *parameters*, which could complicate this, are not defined for
-/// any of these fields.)
+/// The two are the same text for RFC 3230's `Digest`, a `#` list of
+/// `alg=base64` with no parameter and no quoted-string anywhere in it, so a
+/// bare comma is every separator it has ([`legacy_members`]). They are not the
+/// same for RFC 9530's Dictionaries, whose members carry parameters
+/// ([`dictionary_members`]), and the wording names what the sender wrote.
 fn key_value_members(
-    value: &str,
+    members: Vec<(&str, &str)>,
     empty_member: MemberDefect,
     missing_eq: MemberDefect,
     empty_algorithm: MemberDefect,
 ) -> (Vec<(String, String)>, Vec<Defect>) {
-    let mut members = Vec::new();
     let mut out = Vec::new();
+    let mut read = Vec::new();
     // The empty member belongs to the field: `a=1,,,b=2` is one hole the
     // sender left however many commas it ran together, and the sentence names
     // no member because there is no member to name.
     let mut saw_an_empty_member = false;
-    for member in value.split(',') {
-        let member = member.trim();
+    for (member, head) in members {
+        let (member, head) = (member.trim(), head.trim());
         if member.is_empty() {
             saw_an_empty_member = true;
             continue;
         }
-        let Some(eq) = member.find('=') else {
-            out.push(Defect::named(
-                missing_eq.def,
-                missing_eq.message.replace("{}", member),
-            ));
+        let Some(eq) = head.find('=') else {
+            // A member that opens on its first `;` has written parameters and
+            // no key, which is the key's defect and not a missing `=`.
+            let def = if head.is_empty() {
+                empty_algorithm
+            } else {
+                missing_eq
+            };
+            out.push(Defect::named(def.def, def.message.replace("{}", member)));
             continue;
         };
-        let algorithm = member[..eq].trim();
+        let algorithm = head[..eq].trim();
         if algorithm.is_empty() {
             out.push(Defect::named(
                 empty_algorithm.def,
@@ -419,7 +437,7 @@ fn key_value_members(
             ));
             continue;
         }
-        members.push((algorithm.to_string(), member[eq + 1..].trim().to_string()));
+        read.push((algorithm.to_string(), head[eq + 1..].trim().to_string()));
     }
     if saw_an_empty_member {
         out.push(Defect::named(
@@ -427,7 +445,51 @@ fn key_value_members(
             empty_member.message.to_string(),
         ));
     }
-    (members, out)
+    (read, out)
+}
+
+/// RFC 3230's members: the text between two commas, whole.
+fn legacy_members(value: &str) -> Vec<(&str, &str)> {
+    value.split(',').map(|member| (member, member)).collect()
+}
+
+/// RFC 9530's members, read the way RFC 9651 reads a Dictionary: cut at the
+/// commas outside a String or an Inner List, and each cut again before its
+/// first `;` outside one, since what follows is the member's parameters and
+/// not its value.
+///
+/// **A field that defines no parameter still receives them.** § 3.2 gives every
+/// Dictionary member a `parameters` slot, § 2.3 makes that slot the extension
+/// point every Item carries and discourages a field from treating an
+/// unrecognized parameter as an error, and RFC 9530 defines none and refuses
+/// none. So `sha-256=:…:;x=1` is a digest and a parameter, and a comma inside a
+/// parameter's String ends no member. Reading the member's rest as its value
+/// reported the first as "not a byte sequence" and the second as a member named
+/// after the String's tail.
+///
+/// The parameters are judged here and nowhere else — `structured_headers_valid`
+/// leaves the digest fields to this rule — and by the shared § 4.2.3.2 reader,
+/// under the entry every Structured Field answers a parameter with.
+///
+// cite(RFC 9651 § 3.2): "the values are Items (Section 3.3) or arrays of Items, both of which can be Parameterized (Section 3.1.2)."
+// cite(RFC 9651 § 2.3): "To preserve forward compatibility, field specifications are discouraged from defining the presence of an unrecognized parameter as an error condition."
+fn dictionary_members<'a>(value: &'a str, out: &mut Vec<Defect>) -> Vec<(&'a str, &'a str)> {
+    use crate::helpers::structured_fields::{
+        parse_parameters, split_commas_outside_quotes, split_semicolons_outside_quotes,
+    };
+    split_commas_outside_quotes(value)
+        .into_iter()
+        .map(|member| {
+            let parts = split_semicolons_outside_quotes(member);
+            if let Some(defect) = parse_parameters(&parts[1..]) {
+                out.push(Defect::named(
+                    structured_field_defect(defect.kind),
+                    format!("{} on member '{}'", defect.message, member),
+                ));
+            }
+            (member, parts[0])
+        })
+        .collect()
 }
 
 /// The RFC 3230 preference shape: an algorithm token, and an optional weight.
@@ -572,7 +634,7 @@ fn legacy_want_digest_defect(value: &str) -> Vec<Defect> {
 /// delimiters and no structured field anywhere in it.
 fn legacy_digest_defect(value: &str) -> Vec<Defect> {
     let (members, mut out) = key_value_members(
-        value,
+        legacy_members(value),
         MemberDefect {
             def: &DIGEST_MEMBER_EMPTY,
             message: "Digest header contains empty member",
@@ -641,8 +703,9 @@ fn legacy_digest_defect(value: &str) -> Vec<Defect> {
 
 /// The RFC 9530 shape: a Dictionary key and a Byte Sequence.
 fn structured_digest_defect(value: &str) -> Vec<Defect> {
-    let (members, mut out) = key_value_members(
-        value,
+    let mut out = Vec::new();
+    let (members, member_defects) = key_value_members(
+        dictionary_members(value, &mut out),
         MemberDefect {
             def: &STRUCTURED_FIELD_MEMBER_EMPTY,
             message: "Digest field contains empty member",
@@ -659,6 +722,7 @@ fn structured_digest_defect(value: &str) -> Vec<Defect> {
             message: "Digest member '{}' has empty algorithm",
         },
     );
+    out.extend(member_defects);
 
     // As above: a member's own checks are a chain, and the member boundary is
     // not one.
@@ -731,8 +795,9 @@ fn structured_digest_defect(value: &str) -> Vec<Defect> {
 
 /// The RFC 9530 preference shape: a Dictionary key and a weight.
 fn want_preference_defect(value: &str) -> Vec<Defect> {
-    let (members, mut out) = key_value_members(
-        value,
+    let mut out = Vec::new();
+    let (members, member_defects) = key_value_members(
+        dictionary_members(value, &mut out),
         MemberDefect {
             def: &STRUCTURED_FIELD_MEMBER_EMPTY,
             message: "Want-* header contains empty member",
@@ -748,6 +813,7 @@ fn want_preference_defect(value: &str) -> Vec<Defect> {
             message: "Want member '{}' has empty algorithm",
         },
     );
+    out.extend(member_defects);
 
     for (algorithm, weight) in members {
         // Same Dictionary-key rule as the digest fields above.
@@ -806,7 +872,7 @@ impl RuleMeta for DigestHeaderSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest` (for message content), `Repr-Digest` (for representation data) and their preference counterparts `Want-Content-Digest` / `Want-Repr-Digest`. This rule validates:\n\n- **Legacy** `Digest` (`alg=base64`) and `Want-Digest` (algorithms, each with an optional `;q=` weight) header syntax, and flags their use as obsoleted by RFC 9530.\n- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64.\n- **Integrity preference** fields (`Want-Content-Digest`, `Want-Repr-Digest`) use algorithm=weight pairs where weight is an integer in 0..=10.\n- **Obsolete field**: presence of `Content-MD5` is flagged. It was removed from HTTP by RFC 7231 (not by RFC 9530, which does not mention it); prefer `Content-Digest`.\n\nAlgorithm names in the RFC 9530 fields are structured-field Dictionary keys and so must be lowercase (`sha-256`, not the `SHA-256` spelling used by the obsolete `Digest` field, whose algorithm token is case-insensitive)."
+        "RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest` (for message content), `Repr-Digest` (for representation data) and their preference counterparts `Want-Content-Digest` / `Want-Repr-Digest`. This rule validates:\n\n- **Legacy** `Digest` (`alg=base64`) and `Want-Digest` (algorithms, each with an optional `;q=` weight) header syntax, and flags their use as obsoleted by RFC 9530.\n- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64. A member's parameters are not part of its value: RFC 9530 defines none and RFC 9651 gives every member room for them, so `sha-256=:BASE64:;x=1` is read as the digest it carries, and only a parameter that is not one is reported.\n- **Integrity preference** fields (`Want-Content-Digest`, `Want-Repr-Digest`) use algorithm=weight pairs where weight is an integer in 0..=10.\n- **Obsolete field**: presence of `Content-MD5` is flagged. It was removed from HTTP by RFC 7231 (not by RFC 9530, which does not mention it); prefer `Content-Digest`.\n\nAlgorithm names in the RFC 9530 fields are structured-field Dictionary keys and so must be lowercase (`sha-256`, not the `SHA-256` spelling used by the obsolete `Digest` field, whose algorithm token is case-insensitive)."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -820,6 +886,9 @@ impl RuleMeta for DigestHeaderSyntax {
             RFC_9110_5_6_2,
             RFC_9651_4_2_3_3,
             RFC_9651_4_2_2,
+            RFC_9651_3_2,
+            RFC_9651_4_2_3_1,
+            RFC_9651_2_3,
             RFC_4648_3_3,
             RFC_3230_4_2,
             RFC_9530,
@@ -846,6 +915,11 @@ impl RuleMeta for DigestHeaderSyntax {
                 compliance: Compliance::Compliant,
                 label: None,
                 snippet: "Content-Digest: sha-256=:YWJj:",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a parameter RFC 9530 never defined is read past, comma and all, as RFC 9651 § 2.3 asks"),
+                snippet: "Content-Digest: sha-256=:YWJj:;note=\"a, b\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -1084,12 +1158,71 @@ mod tests {
             .iter()
             .filter(|d| d.id.starts_with("digest_") || d.id.starts_with("content_md5_"))
             .count();
-        assert_eq!((DECLARED.len() - own, own), (10, 8));
+        assert_eq!((DECLARED.len() - own, own), (11, 8));
     }
 
     /// An algorithm refused for a character is named with the character
     /// rendered, in both generations' `token` readers: a NBSP octet printed as
     /// itself reads as a space, and the finding exists to point at it.
+    /// A digest Dictionary member's parameters are not its value. RFC 9530
+    /// defines none, RFC 9651 § 3.2 gives every member room for them, so a
+    /// parameter RFC 9530 never named leaves the member the digest it was — a
+    /// comma inside its String included — and only a parameter that is not one
+    /// is reported, under the entry every Structured Field answers it with.
+    /// RFC 3230's `Digest` has no parameters, so there the same text is not
+    /// base64. Every finding, not the first.
+    #[rstest]
+    #[case::a_token_parameter("content-digest", "sha-256=:YWJj:;x=1", &[])]
+    #[case::a_comma_in_a_parameter_string(
+        "content-digest",
+        r#"sha-256=:YWJj:;x="a, sha-512""#,
+        &[]
+    )]
+    #[case::a_parameter_then_a_member("repr-digest", "sha-256=:YWJj:;x=?1, sha-512=:YWJj:", &[])]
+    #[case::a_parameter_on_a_weight("want-content-digest", "sha-256=10;x=1, sha-512=3", &[])]
+    #[case::a_parameter_on_a_bare_key(
+        "content-digest",
+        "sha-256;x=1",
+        &["digest_value_malformed"]
+    )]
+    #[case::a_separator_alone("content-digest", "sha-256=:YWJj:;", &["structured_field_member_empty"])]
+    #[case::a_parameter_key_in_upper_case(
+        "repr-digest",
+        "sha-256=:YWJj:;X=1",
+        &["structured_field_key_malformed"]
+    )]
+    #[case::a_parameter_value_no_item_derives(
+        "want-repr-digest",
+        "sha-256=3;x=@",
+        &["structured_field_value_malformed"]
+    )]
+    #[case::parameters_and_no_key(
+        "content-digest",
+        ";x=1, sha-256=:YWJj:",
+        &["structured_field_key_malformed"]
+    )]
+    #[case::the_legacy_field_has_no_parameters(
+        "digest",
+        "sha-256=YWJj;x=1",
+        &["base64_malformed"]
+    )]
+    fn a_dictionary_members_parameters_are_not_its_value(
+        #[case] field: &str,
+        #[case] value: &str,
+        #[case] expected: &[&str],
+    ) {
+        let found: Vec<String> = crate::test_helpers::run_rule_all(
+            &DigestHeaderSyntax,
+            &crate::test_helpers::make_test_transaction_with_response(200, &[(field, value)]),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]),
+        )
+        .into_iter()
+        .map(|v| v.violation)
+        .collect();
+        assert_eq!(found, expected, "{field}: {value}");
+    }
+
     #[rstest]
     #[case::want_digest("want-digest", b"sha\xa01;q=0.5")]
     #[case::digest("digest", b"sha\xa01=YWJj")]
