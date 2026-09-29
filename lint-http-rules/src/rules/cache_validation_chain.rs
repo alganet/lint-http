@@ -69,7 +69,7 @@ impl RuleMeta for CacheValidationChain {
     }
 
     fn description(&self) -> &'static str {
-        "Caches must validate stored responses using up-to-date validators.  When a server supplies an `ETag` or `Last-Modified` header, a well-behaved cache will include that validator in subsequent conditional requests (`If-None-Match` or `If-Modified-Since`).  The value in those request headers should match the most recently observed validator for the resource; if it does not, revalidation may fail and clients can receive stale or unexpected content.\n\nThis rule applies weak comparison semantics for entity-tags, meaning a weak ETag (`W/\"tag\"`) is considered equivalent to its strong counterpart when the opaque tag matches.\n\nThis rule examines the recorded history for the same client+resource and recomputes the current validator, taking into account updates that may arrive in `304 Not Modified` responses.\n\n**The validator is the one of an entry this request could be revalidating**, not the newest one seen. RFC 9111 §4 lets a stored response answer a request only where the method allows it and the request presents the fields the response's `Vary` nominates, and §3 decides whether there was an entry at all. So a resource varied on `Accept-Encoding` with a tag per coding has one current validator per variant, and a request asking for gzip is compared against the gzip response's tag however recently the identity one arrived; a `no-store` answer, an `OPTIONS` answer, or a response no cache was licensed to keep does not replace the entry before it. A `304` does renew it: it is never stored itself, but it freshens the stored response it validated (§4.3.4).  If the current request contains a conditional header whose value does not match the known validator, a violation is raised.  The rule ignores requests that are not conditional and situations where no validator was ever seen."
+        "Caches must validate stored responses using up-to-date validators.  When a server supplies an `ETag` or `Last-Modified` header, a well-behaved cache will include that validator in subsequent conditional requests (`If-None-Match` or `If-Modified-Since`).  The value in those request headers should match the most recently observed validator for the resource; if it does not, revalidation may fail and clients can receive stale or unexpected content.\n\nThis rule applies weak comparison semantics for entity-tags, meaning a weak ETag (`W/\"tag\"`) is considered equivalent to its strong counterpart when the opaque tag matches.\n\nThis rule examines the recorded history for the same client+resource and recomputes the current validator, taking into account updates that may arrive in `304 Not Modified` responses.\n\n**The validator is the one of an entry this request could be revalidating**, not the newest one seen. RFC 9111 §4 lets a stored response answer a request only where the method allows it and the request presents the fields the response's `Vary` nominates, and §3 decides whether there was an entry at all. So a resource varied on `Accept-Encoding` with a tag per coding has one current validator per variant, and a request asking for gzip is compared against the gzip response's tag however recently the identity one arrived; a `no-store` answer, an `OPTIONS` answer, or a response no cache was licensed to keep does not replace the entry before it. A `304` does renew it: it is never stored itself, but it freshens the stored response it validated (§4.3.4).  If the current request contains a conditional header whose value does not match the known validator, a violation is raised.  The rule ignores requests that are not conditional and situations where no validator was ever seen.\n\n**Only validators from after the client's last write are compared.** A `2xx` or `3xx` answer to an unsafe method sent by the same client to the same URI makes its cache invalidate the stored responses (RFC 9111 §4.4), and the write's own answer may carry the new representation's validators, which RFC 9110 §9.3.4 says a client can use in later conditional requests. After such a write, both the old validator and the new one are ones the client may send, so neither is reported; an entry stored after the write is compared as before."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -155,13 +155,22 @@ impl Rule for CacheValidationChain {
             // query, so no URI or client filter is needed.
             // cite(RFC 9111 § 4): "request header fields nominated by the stored response (if any) match those presented (see Section 4.1)"
             // cite(RFC 9111 § 4.3.4): "When a cache receives a 304 (Not Modified) response, it needs to identify stored responses that are suitable for updating with the new information provided, and then do so."
-            let (etag, last_modified) = history
-                .responses()
-                .filter(|(past, _)| crate::helpers::stored_response::is_entry_for(past, req))
-                .map(|(_, resp)| {
-                    crate::helpers::validator::extract_validators_from_response(&resp.headers)
-                })
-                .find(|(etag, last_modified)| etag.is_some() || last_modified.is_some())?;
+            //
+            // **And none from before the client's last write.** A 2xx or 3xx to
+            // an unsafe method invalidated every entry before it (RFC 9111 § 4.4),
+            // and the write's own answer may hand back the new representation's
+            // validators, which RFC 9110 § 9.3.4 says a client can use in later
+            // conditional requests. After one, the old tag (a marked entry's) and
+            // the new one are both a validator the client may send, so neither
+            // says the chain broke.
+            // cite(RFC 9110 § 9.3.4): "The new validator(s) received in the response can be used for future conditional requests in order to prevent accidental overwrites (Section 13.1)."
+            let (etag, last_modified) =
+                crate::helpers::stored_response::responses_since_invalidation(history)
+                    .filter(|(past, _)| crate::helpers::stored_response::is_entry_for(past, req))
+                    .map(|(_, resp)| {
+                        crate::helpers::validator::extract_validators_from_response(&resp.headers)
+                    })
+                    .find(|(etag, last_modified)| etag.is_some() || last_modified.is_some())?;
 
             // Within that response ETag wins over Last-Modified, matching the
             // MUST-vs-SHOULD strength §4.3.1 assigns to the two validators when a
@@ -392,6 +401,43 @@ mod tests {
                     ),
                 ],
                 vec![("if-none-match", "\"v1\"")],
+                1,
+            ),
+            (
+                "the tag a PUT's answer handed back",
+                vec![
+                    ("GET", vec![], 200, vec![("etag", "\"v1\"")]),
+                    ("PUT", vec![], 200, vec![("etag", "\"v2\"")]),
+                ],
+                vec![("if-none-match", "\"v2\"")],
+                0,
+            ),
+            (
+                "the tag of an entry a POST marked for validation",
+                vec![
+                    ("GET", vec![], 200, vec![("etag", "\"v1\"")]),
+                    ("POST", vec![], 204, vec![]),
+                ],
+                vec![("if-none-match", "\"v1\"")],
+                0,
+            ),
+            (
+                "a write the origin refused replaced nothing",
+                vec![
+                    ("GET", vec![], 200, vec![("etag", "\"v1\"")]),
+                    ("PUT", vec![], 409, vec![("etag", "\"v2\"")]),
+                ],
+                vec![("if-none-match", "\"v2\"")],
+                1,
+            ),
+            (
+                "an entry stored after the write is the chain again",
+                vec![
+                    ("GET", vec![], 200, vec![("etag", "\"v1\"")]),
+                    ("PUT", vec![], 204, vec![]),
+                    ("GET", vec![], 200, vec![("etag", "\"v3\"")]),
+                ],
+                vec![("if-none-match", "\"v2\"")],
                 1,
             ),
         ];

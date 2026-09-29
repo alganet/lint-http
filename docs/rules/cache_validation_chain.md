@@ -16,6 +16,8 @@ This rule examines the recorded history for the same client+resource and recompu
 
 **The validator is the one of an entry this request could be revalidating**, not the newest one seen. RFC 9111 §4 lets a stored response answer a request only where the method allows it and the request presents the fields the response's `Vary` nominates, and §3 decides whether there was an entry at all. So a resource varied on `Accept-Encoding` with a tag per coding has one current validator per variant, and a request asking for gzip is compared against the gzip response's tag however recently the identity one arrived; a `no-store` answer, an `OPTIONS` answer, or a response no cache was licensed to keep does not replace the entry before it. A `304` does renew it: it is never stored itself, but it freshens the stored response it validated (§4.3.4).  If the current request contains a conditional header whose value does not match the known validator, a violation is raised.  The rule ignores requests that are not conditional and situations where no validator was ever seen.
 
+**Only validators from after the client's last write are compared.** A `2xx` or `3xx` answer to an unsafe method sent by the same client to the same URI makes its cache invalidate the stored responses (RFC 9111 §4.4), and the write's own answer may carry the new representation's validators, which RFC 9110 §9.3.4 says a client can use in later conditional requests. After such a write, both the old validator and the new one are ones the client may send, so neither is reported; an entry stored after the write is compared as before.
+
 ## Violations
 
 - [conditional_validator_conflicting](../violations/conditional_validator_conflicting.md) — A precondition names a validator older than the last one seen

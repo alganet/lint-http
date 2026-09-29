@@ -7200,6 +7200,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
       line: 128
+  - label: cache_validation_chain (2)
+    section: § 9.3.4
+    snippet: The new validator(s) received in the response can be used for future conditional requests in order to prevent accidental overwrites (Section 13.1).
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_validation_chain.rs
+      line: 166
   - label: cached_validators_reused
     section: § 13.1.2
     snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
@@ -11069,7 +11075,7 @@ sources:
     snippet: Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 396
+      line: 417
   - label: range_request_and_caching (2)
     section: § 13.1.5
     snippet: Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2.
@@ -12460,15 +12466,15 @@ sources:
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 178
+      line: 187
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 214
+      line: 223
   - label: cache_validation_chain (3)
     section: § 4.3.1
     snippet: MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated.
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 169
+      line: 178
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 210
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
@@ -12480,7 +12486,7 @@ sources:
     snippet: SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value.
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 170
+      line: 179
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 272
   - label: cached_validators_reused
