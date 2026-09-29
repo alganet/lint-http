@@ -122,8 +122,8 @@ impl RuleMeta for CacheControlDirectiveRegistered {
 #
 # Unlike the ALPN list next door, this one ships complete: § 5.2.4 puts the
 # namespace under IETF Review, so a directive arrives with an RFC rather than
-# between two of them. The 16 below are the whole registry — RFC 9111's
-# fourteen, RFC 5861's two — plus RFC 8246's `immutable`.
+# between two of them. The 16 below are the whole registry: RFC 9111's
+# thirteen, RFC 5861's two and RFC 8246's `immutable`.
 #
 # Extend it where a deployment runs a private directive its own caches
 # implement. Adding a name here is the claim that something on this path acts
@@ -416,14 +416,21 @@ mod tests {
         assert_eq!(cfg.allowed.len(), 16, "{:?}", cfg.allowed);
 
         // And `config_example` ships exactly it — the list an operator gets is
-        // the list this file's tests are about.
-        let example = CacheControlDirectiveRegistered.config_example();
-        for name in REGISTERED {
-            assert!(
-                example.contains(&format!("\"{name}\"")),
-                "config_example does not ship '{name}'"
-            );
-        }
+        // the list this file's tests are about. Compared as sets, not by
+        // searching the text for each name, so a seventeenth name in the
+        // example fails here too.
+        let example: toml::Table = toml::from_str(CacheControlDirectiveRegistered.config_example())
+            .expect("the shipped config example is TOML");
+        let mut shipped: Vec<&str> = example["allowed"]
+            .as_array()
+            .expect("the shipped config example has an 'allowed' array")
+            .iter()
+            .map(|v| v.as_str().expect("every shipped name is a string"))
+            .collect();
+        shipped.sort_unstable();
+        let mut registry = REGISTERED.to_vec();
+        registry.sort_unstable();
+        assert_eq!(shipped, registry);
     }
 
     /// The finding this entry exists for: a name one hyphen from a registered

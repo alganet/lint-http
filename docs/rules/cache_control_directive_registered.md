@@ -40,8 +40,8 @@ enabled = true
 #
 # Unlike the ALPN list next door, this one ships complete: § 5.2.4 puts the
 # namespace under IETF Review, so a directive arrives with an RFC rather than
-# between two of them. The 16 below are the whole registry — RFC 9111's
-# fourteen, RFC 5861's two — plus RFC 8246's `immutable`.
+# between two of them. The 16 below are the whole registry: RFC 9111's
+# thirteen, RFC 5861's two and RFC 8246's `immutable`.
 #
 # Extend it where a deployment runs a private directive its own caches
 # implement. Adding a name here is the claim that something on this path acts
