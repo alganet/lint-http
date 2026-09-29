@@ -233,21 +233,37 @@ impl Rule for CachedValidatorsReused {
                 && !has_if_match
                 && !has_if_unmodified_since
             {
+                // Name the validators the response carried, and only those: the
+                // message used to print both slots and fill an absent one with
+                // "none", which read as the server providing a validator called
+                // none. The value is shown as written, so an `ETag` carrying
+                // `obs-text` -- which `to_str` refuses -- is named rather than
+                // reported absent beside the finding that it was offered.
+                let offered: Vec<String> = [("ETag", "etag"), ("Last-Modified", "last-modified")]
+                    .into_iter()
+                    .filter_map(|(shown, name)| {
+                        resp.headers.get(name).map(|hv| {
+                            format!(
+                                "{shown}: {}",
+                                crate::helpers::shown::shown_in_finding(
+                                    &crate::helpers::headers::field_line_as_written(hv)
+                                )
+                            )
+                        })
+                    })
+                    .collect();
+                let noun = if offered.len() == 1 {
+                    "a validator"
+                } else {
+                    "validators"
+                };
                 Some(ctx.report_with(
                     &CONDITIONAL_MISSING,
                     format!(
-                        "Client re-requesting resource with no precondition on it. Server \
-                         provided validators (ETag: {}, Last-Modified: {}) and the request \
-                         carries none of If-None-Match, If-Modified-Since, If-Match, \
-                         If-Unmodified-Since or If-Range.",
-                        resp.headers
-                            .get("etag")
-                            .and_then(|v| v.to_str().ok())
-                            .unwrap_or("none"),
-                        resp.headers
-                            .get("last-modified")
-                            .and_then(|v| v.to_str().ok())
-                            .unwrap_or("none")
+                        "Client re-requesting resource with no precondition on it. The server \
+                         provided {noun} ({}) and the request carries none of If-None-Match, \
+                         If-Modified-Since, If-Match, If-Unmodified-Since or If-Range.",
+                        offered.join("; ")
                     ),
                 ))
             } else {
@@ -672,6 +688,78 @@ mod tests {
         );
         assert!(violation.is_none(), "{method} is not a GET request");
         Ok(())
+    }
+
+    /// The message names the validators the response carried and no others,
+    /// with the noun agreeing, and shows a value `to_str` would refuse.
+    #[rstest]
+    #[case(&[("etag", "\"v1\"")], "a validator (ETag: \"v1\")")]
+    #[case(
+        &[("last-modified", "Mon, 01 Jan 2020 00:00:00 GMT")],
+        "a validator (Last-Modified: Mon, 01 Jan 2020 00:00:00 GMT)"
+    )]
+    #[case(
+        &[("etag", "\"v1\""), ("last-modified", "Mon, 01 Jan 2020 00:00:00 GMT")],
+        "validators (ETag: \"v1\"; Last-Modified: Mon, 01 Jan 2020 00:00:00 GMT)"
+    )]
+    fn the_message_names_what_was_offered(
+        #[case] offered_headers: &[(&str, &str)],
+        #[case] named: &str,
+    ) {
+        let rule = CachedValidatorsReused;
+        let offered =
+            crate::test_helpers::make_test_transaction_with_response(200, offered_headers);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.timestamp = offered.timestamp + chrono::Duration::seconds(5);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![offered]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(
+            v.message,
+            format!(
+                "Client re-requesting resource with no precondition on it. The server provided \
+                 {named} and the request carries none of If-None-Match, If-Modified-Since, \
+                 If-Match, If-Unmodified-Since or If-Range."
+            )
+        );
+        assert!(!v.message.contains("none,") && !v.message.contains(": none"));
+    }
+
+    /// An `ETag` carrying an `obs-text` octet is a validator the response
+    /// offered; `to_str` refuses it, and the message used to call it "none".
+    #[test]
+    fn an_obs_text_etag_is_named_not_called_none() {
+        let rule = CachedValidatorsReused;
+        let mut offered = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        if let Some(resp) = offered.response.as_mut() {
+            resp.headers.insert(
+                "etag",
+                hyper::header::HeaderValue::from_bytes(b"\"v\xe91\"")
+                    .expect("obs-text is a field value"),
+            );
+        }
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.timestamp = offered.timestamp + chrono::Duration::seconds(5);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![offered]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert!(
+            v.message.contains("a validator (ETag: \"v\u{e9}1\")"),
+            "{}",
+            v.message
+        );
     }
 
     #[test]
