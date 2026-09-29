@@ -117,12 +117,11 @@ impl ContentSecurityPolicyValid {
             if position > 0 {
                 return Vec::new();
             }
+            // The sentence names no position: this is only ever the first,
+            // and "at position 0" read as a character offset into the value.
             return vec![ctx.report_with(
                 &CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY,
-                format!(
-                    "{} opens with a ';' and names no directive at position {}",
-                    shown, position
-                ),
+                format!("{shown} opens a policy with a ';' and names no directive before it"),
             )];
         }
 
@@ -145,11 +144,16 @@ impl ContentSecurityPolicyValid {
         {
             out.push(ctx.report_with(
                 &CONTENT_SECURITY_POLICY_DIRECTIVE_NAME_CHARACTER_FORBIDDEN,
+                // `position` counts directives, not characters, and the
+                // sentence used to print it bare -- "at position 2" for the
+                // third directive, which a reader counting characters in
+                // `b@d` took to be the `d`. Counted from one, as the member
+                // numbers other findings print are.
                 format!(
-                    "Invalid character {} in {shown} directive-name '{}', at position {}",
+                    "Invalid character {} in {shown} directive-name '{}', in directive {} of its policy",
                     crate::helpers::shown::describe_char(c),
                     crate::helpers::shown::shown_in_finding(name),
-                    position
+                    position + 1
                 ),
             ));
         }
@@ -769,7 +773,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             v.message,
-            "Invalid character 0xFF in Content-Security-Policy directive-name '\u{ff}', at position 0"
+            "Invalid character 0xFF in Content-Security-Policy directive-name '\u{ff}', in directive 1 of its policy"
         );
     }
 
@@ -1288,5 +1292,28 @@ mod tests {
             &cfg,
         );
         assert!(v.is_none());
+    }
+
+    /// The number a directive-name finding prints is the directive's, counted
+    /// from one: `b@d` in the third directive used to read "at position 2",
+    /// and a reader counting characters took that to be the `d`.
+    #[test]
+    fn a_directive_name_finding_counts_directives_from_one() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "content-security-policy",
+            "script-src 'self'; img-src 'self'; b@d 'self'",
+        )]);
+        let all = crate::test_helpers::run_rule_all(
+            &ContentSecurityPolicyValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
+        let messages: Vec<&str> = all.iter().map(|v| v.message.as_str()).collect();
+        assert_eq!(
+            messages,
+            ["Invalid character '@' in Content-Security-Policy directive-name 'b@d', in directive 3 of its policy"]
+        );
     }
 }
