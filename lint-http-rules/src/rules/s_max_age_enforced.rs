@@ -47,7 +47,7 @@ impl RuleMeta for SMaxAgeEnforced {
     }
 
     fn description(&self) -> &'static str {
-        "Responses that include a `Cache-Control: s-maxage=<seconds>` directive are intended to limit how long **shared** caches may consider the representation fresh.  Private caches (e.g. in a browser or single-client proxy) **must ignore** `s-maxage` and instead rely on the ordinary freshness lifetime (`max-age`, `Expires`, heuristics, etc.).  Misinterpreting `s-maxage` on the client side can lead to unnecessary conditional requests and wasted network traffic.\n\nThis rule watches a series of transactions from the same client and examines the most recent prior response for the same resource that carried both an `<s-maxage>` value and a larger `max-age`.  If the client subsequently issues a conditional request **after** the `s-maxage` interval but **before** the `max-age` interval has elapsed, the cached entry was still fresh according to the private-cache semantics and revalidation was premature.  A warning is issued in that case."
+        "Responses that include a `Cache-Control: s-maxage=<seconds>` directive are intended to limit how long **shared** caches may consider the representation fresh.  Private caches (e.g. in a browser or single-client proxy) **must ignore** `s-maxage` and instead rely on the ordinary freshness lifetime (`max-age`, `Expires`, heuristics, etc.).  Misinterpreting `s-maxage` on the client side can lead to unnecessary conditional requests and wasted network traffic.\n\nThis rule watches a series of transactions from the same client and examines the most recent prior response for the same resource that carried both an `<s-maxage>` value and a larger `max-age`.  If the client subsequently issues a conditional request **after** the `s-maxage` interval but **before** the `max-age` interval has elapsed, the cached entry was still fresh according to the private-cache semantics and revalidation was premature.  A warning is issued in that case.\n\nA request that refused the entry itself is not reported: `no-cache` (or `Pragma: no-cache` with no `Cache-Control`), a `max-age` the entry has outlived, or a `min-fresh` the private lifetime cannot meet (RFC 9111 §5.2.1). Such a request has stated why it revalidated, and it was not `s-maxage`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -70,6 +70,11 @@ impl RuleMeta for SMaxAgeEnforced {
                 compliance: Compliance::Compliant,
                 label: Some("— a variant this request did not select"),
                 snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n> Accept-Encoding: gzip\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=3600, s-maxage=60\n< Vary: Accept-Encoding\n< ETag: \"v1\"\n\n# after 120s, the same resource asked for without a coding preference:\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"\n\n# the entry holding both directives is the gzip variant, which could not have\n# answered this request, so no cache read s-maxage as its freshness limit",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a request that refused the entry itself"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=3600, s-maxage=60\n< Age: 120\n< ETag: \"v1\"\n\n# a reload, after s-maxage and inside max-age\n> GET /resource HTTP/1.1\n> Host: example.com\n> Cache-Control: max-age=0\n> If-None-Match: \"v1\"\n\n# the request says why it revalidated, and it was not s-maxage",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -155,7 +160,21 @@ impl Rule for SMaxAgeEnforced {
             // a cache from revalidating a still-fresh response, so the flag is an inference (it also
             // assumes the observed client is private, which cannot be verified from traffic).
             // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field."
-            if has_conditional && current_age >= s_max_age && current_age < max_age {
+            //
+            // A request that refused the entry itself explains its revalidation
+            // without any reading of `s-maxage`: `no-cache`, a `max-age` the
+            // entry has outlived, or a `min-fresh` the private lifetime cannot
+            // meet. The finding's claim is about why the client revalidated, and
+            // there the request has already said why.
+            if has_conditional
+                && current_age >= s_max_age
+                && current_age < max_age
+                && !crate::helpers::stored_response::request_refuses_entry(
+                    &tx.request.headers,
+                    current_age,
+                    max_age,
+                )
+            {
                 return Some(ctx.report_with(&CACHE_CONTROL_S_MAXAGE_IGNORED, format!(
                         "Resource revalidated after s-maxage={} but before max-age={} (age {}) — private caches must ignore s-maxage and use max-age for freshness",
                         s_max_age, max_age, current_age
@@ -188,6 +207,44 @@ mod tests {
         prev.client = crate::test_helpers::make_test_client();
         prev.timestamp = ts;
         prev
+    }
+
+    /// A request that refused the entry revalidated for its own stated reason,
+    /// and not because it read `s-maxage` as its limit. At age 20 of a private
+    /// lifetime of 100, `max-age=20` still accepts the entry.
+    #[rstest::rstest]
+    #[case(&[], true)]
+    #[case(&[("cache-control", "max-age=0")], false)]
+    #[case(&[("cache-control", "no-cache")], false)]
+    #[case(&[("cache-control", "min-fresh=90")], false)]
+    #[case(&[("cache-control", "max-age=20")], true)]
+    fn a_request_that_refused_the_entry_explains_its_revalidation(
+        #[case] request: &[(&str, &str)],
+        #[case] expect_finding: bool,
+    ) {
+        let base = Utc::now();
+        let prev = make_prev_with_headers(
+            &[
+                ("cache-control", "max-age=100, s-maxage=10"),
+                ("etag", "\"e\""),
+            ],
+            base,
+        );
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+        let mut headers = vec![("if-none-match", "\"e\"")];
+        headers.extend_from_slice(request);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&headers);
+        tx.timestamp = base + chrono::Duration::seconds(20);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &SMaxAgeEnforced,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["s_max_age_enforced"]),
+        );
+        assert_eq!(v.is_some(), expect_finding, "{request:?} -> {v:?}");
     }
 
     #[test]

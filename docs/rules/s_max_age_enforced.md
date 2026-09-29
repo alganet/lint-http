@@ -12,6 +12,8 @@ Responses that include a `Cache-Control: s-maxage=<seconds>` directive are inten
 
 This rule watches a series of transactions from the same client and examines the most recent prior response for the same resource that carried both an `<s-maxage>` value and a larger `max-age`.  If the client subsequently issues a conditional request **after** the `s-maxage` interval but **before** the `max-age` interval has elapsed, the cached entry was still fresh according to the private-cache semantics and revalidation was premature.  A warning is issued in that case.
 
+A request that refused the entry itself is not reported: `no-cache` (or `Pragma: no-cache` with no `Cache-Control`), a `max-age` the entry has outlived, or a `min-fresh` the private lifetime cannot meet (RFC 9111 §5.2.1). Such a request has stated why it revalidated, and it was not `s-maxage`.
+
 ## Violations
 
 - [cache_control_s_maxage_ignored](../violations/cache_control_s_maxage_ignored.md) — A cache that s-maxage does not address used it for freshness
@@ -48,6 +50,26 @@ enabled = true
 
 # the entry holding both directives is the gzip variant, which could not have
 # answered this request, so no cache read s-maxage as its freshness limit
+```
+
+### ✅ Good — a request that refused the entry itself
+
+```http
+> GET /resource HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Cache-Control: max-age=3600, s-maxage=60
+< Age: 120
+< ETag: "v1"
+
+# a reload, after s-maxage and inside max-age
+> GET /resource HTTP/1.1
+> Host: example.com
+> Cache-Control: max-age=0
+> If-None-Match: "v1"
+
+# the request says why it revalidated, and it was not s-maxage
 ```
 
 ### ❌ Bad — premature revalidation based on `s-maxage`

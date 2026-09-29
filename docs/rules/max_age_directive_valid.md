@@ -14,6 +14,8 @@ This rule reconstructs a very small piece of cache state for a given client+reso
 
 One thing is reported: sending a **conditional request** (`If-None-Match` or `If-Modified-Since`) while the cached copy is still fresh (age < max‑age).  Revalidation at this point is a redundant round‑trip — a fresh response can be reused without contacting the origin at all.
 
+**Unless the request refused the stored response itself.** A request carrying `no-cache` (or `Pragma: no-cache` with no `Cache-Control`), a `max-age` the entry has outlived, or a `min-fresh` it cannot meet has told the cache not to reuse the entry unvalidated (RFC 9111 §5.2.1). That is what a browser sends on a reload, and it is not reported: the round-trip is the one the client asked for.
+
 It is an efficiency finding rather than a protocol violation: RFC 9111 §4.2 frames fresh reuse as something a cache *can* do, not an obligation, so the entry names no sentence.  The exception is `Cache-Control: immutable`, which does turn early revalidation into a SHOULD NOT; that is [a separate rule](immutable_cache_never_stale.md).
 
 **The other side of the comparison is not reported here.** A stale entry refetched without a conditional request is [`cached_validators_reused`](cached_validators_reused.md)'s finding, from the same evidence: that rule asks for a validator on the stored response and no precondition on this request, without consulting freshness at all, so it makes every report this rule could make and does not need the freshness estimate to make it.
@@ -103,6 +105,27 @@ enabled = true
 
 # the fresh entry is the gzip variant, which could not have answered this
 # request, so the round trip was not spent confirming a copy it could use
+```
+
+### ✅ Good — a reload, which refuses the stored response itself
+
+```http
+> GET /data HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Cache-Control: max-age=60
+< Age: 5
+< ETag: "v1"
+
+# the user reloads: the browser asks for a response no older than 0s
+> GET /data HTTP/1.1
+> Host: example.com
+> Cache-Control: max-age=0
+> If-None-Match: "v1"
+
+# the stored response is older than the request accepts, so validating it is
+# what the client asked for
 ```
 
 ### ❌ Bad — unnecessary revalidation while still fresh

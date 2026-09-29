@@ -59,7 +59,7 @@ impl RuleMeta for MaxAgeDirectiveValid {
     }
 
     fn description(&self) -> &'static str {
-        "Responses tagged with a `Cache-Control` `max-age=<seconds>` directive promise that the representation may safely be reused without revalidation for `<seconds>` seconds after it was stored.\n\nThis rule reconstructs a very small piece of cache state for a given client+resource by examining the most recent prior response that included a parseable `max-age` directive.  It then computes an approximate \"age\" for that stored response using any `Age` header it carried plus the time elapsed since it was observed.\n\nOne thing is reported: sending a **conditional request** (`If-None-Match` or `If-Modified-Since`) while the cached copy is still fresh (age < max‑age).  Revalidation at this point is a redundant round‑trip — a fresh response can be reused without contacting the origin at all.\n\nIt is an efficiency finding rather than a protocol violation: RFC 9111 §4.2 frames fresh reuse as something a cache *can* do, not an obligation, so the entry names no sentence.  The exception is `Cache-Control: immutable`, which does turn early revalidation into a SHOULD NOT; that is [a separate rule](immutable_cache_never_stale.md).\n\n**The other side of the comparison is not reported here.** A stale entry refetched without a conditional request is [`cached_validators_reused`](cached_validators_reused.md)'s finding, from the same evidence: that rule asks for a validator on the stored response and no precondition on this request, without consulting freshness at all, so it makes every report this rule could make and does not need the freshness estimate to make it."
+        "Responses tagged with a `Cache-Control` `max-age=<seconds>` directive promise that the representation may safely be reused without revalidation for `<seconds>` seconds after it was stored.\n\nThis rule reconstructs a very small piece of cache state for a given client+resource by examining the most recent prior response that included a parseable `max-age` directive.  It then computes an approximate \"age\" for that stored response using any `Age` header it carried plus the time elapsed since it was observed.\n\nOne thing is reported: sending a **conditional request** (`If-None-Match` or `If-Modified-Since`) while the cached copy is still fresh (age < max‑age).  Revalidation at this point is a redundant round‑trip — a fresh response can be reused without contacting the origin at all.\n\n**Unless the request refused the stored response itself.** A request carrying `no-cache` (or `Pragma: no-cache` with no `Cache-Control`), a `max-age` the entry has outlived, or a `min-fresh` it cannot meet has told the cache not to reuse the entry unvalidated (RFC 9111 §5.2.1). That is what a browser sends on a reload, and it is not reported: the round-trip is the one the client asked for.\n\nIt is an efficiency finding rather than a protocol violation: RFC 9111 §4.2 frames fresh reuse as something a cache *can* do, not an obligation, so the entry names no sentence.  The exception is `Cache-Control: immutable`, which does turn early revalidation into a SHOULD NOT; that is [a separate rule](immutable_cache_never_stale.md).\n\n**The other side of the comparison is not reported here.** A stale entry refetched without a conditional request is [`cached_validators_reused`](cached_validators_reused.md)'s finding, from the same evidence: that rule asks for a validator on the stored response and no precondition on this request, without consulting freshness at all, so it makes every report this rule could make and does not need the freshness estimate to make it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -103,6 +103,11 @@ impl RuleMeta for MaxAgeDirectiveValid {
                 compliance: Compliance::Compliant,
                 label: Some("— a validator for a variant this request did not select"),
                 snippet: "> GET /style.css HTTP/1.1\n> Host: example.com\n> Accept-Encoding: gzip\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=600\n< Vary: Accept-Encoding\n< ETag: \"v1\"\n\n# later, the same resource asked for without a coding preference:\n> GET /style.css HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"\n\n# the fresh entry is the gzip variant, which could not have answered this\n# request, so the round trip was not spent confirming a copy it could use",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a reload, which refuses the stored response itself"),
+                snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=60\n< Age: 5\n< ETag: \"v1\"\n\n# the user reloads: the browser asks for a response no older than 0s\n> GET /data HTTP/1.1\n> Host: example.com\n> Cache-Control: max-age=0\n> If-None-Match: \"v1\"\n\n# the stored response is older than the request accepts, so validating it is\n# what the client asked for",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -204,7 +209,20 @@ impl Rule for MaxAgeDirectiveValid {
             // — which is what this reports. (`immutable` is the one directive that
             // turns this into a SHOULD NOT, and that is a separate rule.)
             // cite(RFC 9111 § 4.2): "When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency"
-            if current_age < max_age && has_conditional {
+            //
+            // **Early against what the client asked for, not against the entry
+            // alone.** A request stating `no-cache`, a `max-age` the entry has
+            // outlived (a browser's reload is `max-age=0`) or a `min-fresh` it
+            // cannot meet has refused the stored response itself, so the
+            // round-trip this reports as wasted is the one it asked for.
+            if current_age < max_age
+                && has_conditional
+                && !crate::helpers::stored_response::request_refuses_entry(
+                    &tx.request.headers,
+                    current_age,
+                    max_age,
+                )
+            {
                 return Some(ctx.report_with(&CONDITIONAL_REDUNDANT, format!(
                         "Request revalidated resource while response is still fresh (age {} < max-age {})",
                         current_age, max_age
@@ -252,6 +270,43 @@ mod tests {
         prev.client = crate::test_helpers::make_test_client();
         prev.timestamp = ts;
         prev
+    }
+
+    /// **Early against what the client asked for.** A request that refuses the
+    /// entry itself -- a browser's reload is `max-age=0`, a force reload
+    /// `no-cache` -- asked for the round-trip this rule reports as wasted. An
+    /// entry ten seconds into sixty: `max-age=30` and `min-fresh=50` it still
+    /// meets, so those two revalidations were early.
+    #[rstest::rstest]
+    #[case(&[], true)]
+    #[case(&[("cache-control", "max-age=0")], false)]
+    #[case(&[("cache-control", "no-cache")], false)]
+    #[case(&[("pragma", "no-cache")], false)]
+    #[case(&[("cache-control", "max-age=30")], true)]
+    #[case(&[("cache-control", "min-fresh=55")], false)]
+    #[case(&[("cache-control", "min-fresh=50")], true)]
+    fn a_request_that_refused_the_entry_asked_for_the_revalidation(
+        #[case] request: &[(&str, &str)],
+        #[case] expect_finding: bool,
+    ) {
+        let base = Utc::now();
+        let prev =
+            make_prev_with_headers(&[("cache-control", "max-age=60"), ("etag", "\"a\"")], base);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+        let mut headers = vec![("if-none-match", "\"a\"")];
+        headers.extend_from_slice(request);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&headers);
+        tx.timestamp = base + chrono::Duration::seconds(10);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &MaxAgeDirectiveValid,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
+        );
+        assert_eq!(v.is_some(), expect_finding, "{request:?} -> {v:?}");
     }
 
     /// The finding names the peer that wrote the precondition. A report read

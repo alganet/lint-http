@@ -291,8 +291,103 @@ pub fn is_entry_for(
         && selecting_fields_match(&past.request.headers, &resp.headers, &presented.headers)
 }
 
+/// Whether the presented request asks for any stored response to be validated
+/// before it is used — the client's own `no-cache`.
+///
+/// **The fourth question, and the one asked of the request rather than of the
+/// pairing.** The three above decide whether an earlier exchange left an entry
+/// that *could* answer this request; this decides whether the client would let
+/// it. A client that says `no-cache` has asked for exactly the validation that
+/// the rules calling this report as early, so their finding is untrue of it.
+///
+/// `Pragma: no-cache` is the HTTP/1.0 spelling of the same request, and it is
+/// read only where the message carries no `Cache-Control` at all. § 5.4 gives
+/// `Pragma` to clients speaking to caches that predate `Cache-Control`, so a
+/// request carrying `Cache-Control` has said what it wants in the field that
+/// means something today. The member search is the one
+/// `cache_control_and_pragma_consistent` makes, for the reason it gives: the
+/// question is whether the list holds the directive at all.
+// cite(RFC 9111 § 5.2.1.4): "The no-cache request directive indicates that the client prefers a stored response not be used to satisfy the request without successful validation on the origin server."
+// cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
+pub fn request_asks_for_validation(request: &hyper::HeaderMap) -> bool {
+    if request.contains_key("cache-control") {
+        return super::cache_control::has(request, "no-cache");
+    }
+    super::headers::combined_field_value_as_written(request, "pragma").is_some_and(|value| {
+        super::list::list_members(&value).any(|m| m.eq_ignore_ascii_case("no-cache"))
+    })
+}
+
+/// Whether the presented request refuses an entry of this age and lifetime
+/// unvalidated: [`request_asks_for_validation`], or a request directive the
+/// entry cannot meet.
+///
+/// `max-age=N` refuses an entry older than N seconds, which is what a browser's
+/// reload sends as `max-age=0`. `min-fresh=N` refuses one that will not still
+/// be fresh N seconds from now. Each is the client stating that the entry
+/// in hand does not satisfy it, so validating it is what the client asked for
+/// and not a round-trip it wasted. `max-stale` only widens what a client
+/// accepts, so it never refuses an entry and is not read.
+///
+/// `current_age` is the caller's estimate, whole seconds. An entry of age 0
+/// meets `max-age=0`, so a reload inside the same second as the response it
+/// revalidates is not excused. That is the directive's own arithmetic, and the
+/// strict direction here is the one that keeps a finding rather than drops it.
+// cite(RFC 9111 § 5.2.1.1): "The max-age request directive indicates that the client prefers a response whose age is less than or equal to the specified number of seconds."
+// cite(RFC 9111 § 5.2.1.3): "The min-fresh request directive indicates that the client prefers a response whose freshness lifetime is no less than its current age plus the specified time in seconds."
+pub fn request_refuses_entry(request: &hyper::HeaderMap, current_age: i64, lifetime: i64) -> bool {
+    request_asks_for_validation(request)
+        || super::cache_control::delta_seconds(request, "max-age").is_some_and(|n| current_age > n)
+        || super::cache_control::delta_seconds(request, "min-fresh")
+            .is_some_and(|n| lifetime < current_age.saturating_add(n))
+}
+
 #[cfg(test)]
 mod tests {
+
+    /// The request's own refusal, each directive alone and the two it must not
+    /// be read from.
+    #[rstest::rstest]
+    #[case(&[], false)]
+    #[case(&[("cache-control", "no-cache")], true)]
+    #[case(&[("cache-control", "max-age=0")], true)]
+    #[case(&[("cache-control", "max-age=5")], false)]
+    #[case(&[("cache-control", "max-age=4")], true)]
+    #[case(&[("cache-control", "min-fresh=595")], false)]
+    #[case(&[("cache-control", "min-fresh=596")], true)]
+    #[case(&[("cache-control", "max-stale=0")], false)]
+    #[case(&[("pragma", "no-cache")], true)]
+    #[case(&[("pragma", "No-Cache")], true)]
+    #[case(&[("pragma", "x-custom")], false)]
+    #[case(&[("pragma", "no-cache"), ("cache-control", "max-age=60")], false)]
+    fn the_request_refuses_an_entry_of_age_5_and_lifetime_600(
+        #[case] request: &[(&str, &str)],
+        #[case] refuses: bool,
+    ) {
+        let request = crate::test_helpers::make_headers_from_pairs(request);
+        assert_eq!(
+            request_refuses_entry(&request, 5, 600),
+            refuses,
+            "{request:?}"
+        );
+    }
+
+    /// Only `no-cache` asks for validation whatever the entry's age: a
+    /// `max-age=0` is a statement about age, and it is the one reload that
+    /// RFC 8246 still has a client not revalidate an immutable response on.
+    #[test]
+    fn only_no_cache_asks_for_validation_outright() {
+        let h = crate::test_helpers::make_headers_from_pairs;
+        assert!(request_asks_for_validation(&h(&[(
+            "cache-control",
+            "no-cache"
+        )])));
+        assert!(request_asks_for_validation(&h(&[("pragma", "no-cache")])));
+        assert!(!request_asks_for_validation(&h(&[(
+            "cache-control",
+            "max-age=0"
+        )])));
+    }
     use super::*;
 
     /// The three questions and the one exception, each turned off alone.
