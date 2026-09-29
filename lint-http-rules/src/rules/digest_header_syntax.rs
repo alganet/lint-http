@@ -298,6 +298,20 @@ const FIELDS: &[Field] = &[
         obsolete: Some(OBSOLETE_DIGEST),
         in_trailers: false,
     },
+    // A response too. RFC 3230 defines the field for "the sender", in the words
+    // it uses for `Digest` beside it, and RFC 9530 § 4 says what its successors
+    // mean there: a server asking for a digest on the requests that follow.
+    // cite(RFC 3230 § 4.3.1): "The Want-Digest message header field indicates the sender's desire to receive an instance digest"
+    // cite(RFC 9530 § 4): "If Want-Content-Digest or Want-Repr-Digest are used in a response, it indicates that the server would like the client to provide the respective Integrity field on future requests."
+    Field {
+        name: "want-digest",
+        display: "Want-Digest",
+        side: Side::Response,
+        syntax: Syntax::LegacyWantDigest,
+        reference: "obsoleted by RFC 9530",
+        obsolete: Some(OBSOLETE_WANT_DIGEST),
+        in_trailers: false,
+    },
     Field {
         name: "content-digest",
         display: "Content-Digest",
@@ -1416,6 +1430,47 @@ mod tests {
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("obsoleted") || msg.contains("prefer Want-Content-Digest"));
+    }
+
+    /// `Want-Digest` is a field of either message, as `Digest` is, so a server
+    /// asking for a digest sends a retired field as much as a client does: a
+    /// well-formed value draws the obsolescence, a malformed one its grammar's
+    /// finding, and each names the side and the party.
+    #[rstest]
+    #[case("request", "sha-256", &["digest_field_obsolete"])]
+    #[case("request", "sha-256;q=2", &["qvalue_malformed"])]
+    #[case("response", "sha-256", &["digest_field_obsolete"])]
+    #[case("response", "sha-256;q=2", &["qvalue_malformed"])]
+    fn want_digest_is_read_in_either_message(
+        #[case] side: &str,
+        #[case] value: &str,
+        #[case] expected: &[&str],
+    ) {
+        let tx = match side {
+            "request" => make_req_want_digest(value),
+            _ => crate::test_helpers::make_test_transaction_with_response(
+                200,
+                &[("want-digest", value)],
+            ),
+        };
+        let found = crate::test_helpers::run_rule_all(
+            &DigestHeaderSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[DigestHeaderSyntax.id()]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, expected, "{found:?}");
+        let party = if side == "request" {
+            crate::lint::Party::Client
+        } else {
+            crate::lint::Party::Server
+        };
+        assert!(found.iter().all(|v| v.party == Some(party)), "{found:?}");
+        assert!(
+            found.iter().all(|v| v.message.contains("Want-Digest")),
+            "{found:?}"
+        );
     }
 
     #[test]

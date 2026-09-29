@@ -2172,16 +2172,22 @@ sources:
     snippet: All digest-algorithm values are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 689
+      line: 703
   - label: digest_header_syntax (2)
     section: § 4.1.1
     snippet: digest-algorithm = token
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 550
+      line: 564
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 688
+      line: 702
   - label: digest_header_syntax (3)
+    section: § 4.3.1
+    snippet: The Want-Digest message header field indicates the sender's desire to receive an instance digest
+    cited_by:
+    - file: lint-http-rules/src/rules/digest_header_syntax.rs
+      line: 304
+  - label: digest_header_syntax (4)
     section: § 4.3.1
     snippet: 'Want-Digest = "Want-Digest" ":" #(digest-algorithm [ ";" "q" "=" qvalue])'
     cited_by:
@@ -9923,7 +9929,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 290
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 630
+      line: 644
     - file: lint-http-rules/src/violations/qvalue.rs
       line: 97
   - label: lint-http-rules/src/helpers/request_target.rs
@@ -14672,16 +14678,22 @@ sources:
     snippet: key conveys the hashing algorithm (see Section 5) used to compute the digest;
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 753
+      line: 767
   - label: digest_header_syntax (2)
     section: § 2
     snippet: value is a Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded version of the byte output produced by the digest calculation.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 769
+      line: 783
     - file: lint-http-rules/src/violations/digest.rs
       line: 236
   - label: digest_header_syntax (3)
+    section: § 4
+    snippet: If Want-Content-Digest or Want-Repr-Digest are used in a response, it indicates that the server would like the client to provide the respective Integrity field on future requests.
+    cited_by:
+    - file: lint-http-rules/src/rules/digest_header_syntax.rs
+      line: 305
+  - label: digest_header_syntax (4)
     section: § 4
     snippet: 'Want-Content-Digest and Want-Repr-Digest are of type Dictionary where each:'
     cited_by:
@@ -14692,7 +14704,7 @@ sources:
     snippet: value is an Integer (Section 3.3.1 of [STRUCTURED-FIELDS]) that conveys an ascending, relative, weighted preference. It must be in the range 0 to 10 inclusive.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 850
+      line: 864
     - file: lint-http-rules/src/violations/digest.rs
       line: 281
     - file: lint-http-rules/src/violations/digest.rs
@@ -14706,7 +14718,7 @@ sources:
     - file: lint-http-rules/src/rules/content_md5_vs_digest_preference.rs
       line: 111
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 996
+      line: 1010
   - label: lint-http-rules/src/helpers/field_placement.rs (2)
     section: § 3
     snippet: Repr-Digest can be sent in a trailer section.
@@ -14714,7 +14726,7 @@ sources:
     - file: lint-http-rules/src/helpers/field_placement.rs
       line: 225
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 997
+      line: 1011
 - label: RFC 9651
   url: https://www.rfc-editor.org/rfc/rfc9651.html
   fragments:
@@ -14729,13 +14741,13 @@ sources:
     snippet: To preserve forward compatibility, field specifications are discouraged from defining the presence of an unrecognized parameter as an error condition.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 491
+      line: 505
   - label: digest_header_syntax (2)
     section: § 3.2
     snippet: the values are Items (Section 3.3) or arrays of Items, both of which can be Parameterized (Section 3.1.2).
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 490
+      line: 504
   - label: lint-http-rules/src/helpers/structured_fields.rs
     section: § 2.3
     snippet: Fields that erroneously defined as another type (e.g., Integer) are assumed to be Items (i.e., they allow Parameters).
