@@ -56,8 +56,8 @@
 /// Whether a stored response recorded against `stored` may be used to answer a
 /// request that presents `presented`.
 ///
-/// Two conditions, and both belong here rather than in the caller's staleness
-/// arithmetic, because both decide whether there is an entry to reason about.
+/// Three conditions, and all belong here rather than in the caller's staleness
+/// arithmetic, because each decides whether there is an entry to reason about.
 ///
 /// A method that defines no caching semantics leaves nothing stored behind, so
 /// an `OPTIONS` is not a reuse even of an earlier `OPTIONS` — there was never a
@@ -70,9 +70,22 @@
 /// freshening a stored `GET` for the same reason. Everything else is equality:
 /// a stored `GET` is no candidate for an `OPTIONS`, a `TRACE`, or an unsafe
 /// method, which invalidates a stored response rather than reusing one.
+///
+/// **Except for `POST`, where equality is the one pairing its definition
+/// forbids.** § 9.3.3 has a stored POST response answer a later `GET` or
+/// `HEAD`, and says a `POST` it cannot answer, because the method is unsafe.
+/// The `GET` and the `HEAD` it can answer only where the response carried a
+/// `Content-Location` equal to the target, and that needs the target resolved
+/// against a reference this module never sees, so a stored `POST` answers
+/// nothing here: the same refusal, and the same direction, as
+/// [`response_is_storable`]. Read as equality, a `POST` answered `no-cache`
+/// with an `ETag` made the next `POST` to the URI a client declining a
+/// validator, told that a `304` could have spared it a body, which is an
+/// answer § 15.4.5 gives only a `GET` or a `HEAD`.
 // cite(RFC 9111 § 4): "the request method associated with the stored response allows it to be used for the presented request"
+// cite(RFC 9110 § 9.3.3): "A cached POST response can be reused to satisfy a later GET or HEAD request. In contrast, a POST request cannot be satisfied by a cached POST response because POST is potentially unsafe; see Section 4 of [CACHING]."
 pub fn method_allows(stored: &str, presented: &str) -> bool {
-    if !defines_caching_semantics(stored) {
+    if !defines_caching_semantics(stored) || stored == "POST" {
         return false;
     }
     stored == presented || (stored == "GET" && presented == "HEAD")
@@ -575,7 +588,6 @@ mod tests {
     // The same method is the ordinary candidate.
     #[case("GET", "GET", true)]
     #[case("HEAD", "HEAD", true)]
-    #[case("POST", "POST", true)]
     // § 4's one asymmetry: a stored GET answers a HEAD, never the reverse.
     #[case("GET", "HEAD", true)]
     #[case("HEAD", "GET", false)]
@@ -589,6 +601,11 @@ mod tests {
     #[case("GET", "PUT", false)]
     #[case("GET", "DELETE", false)]
     #[case("GET", "POST", false)]
+    // A stored POST answers no POST (§ 9.3.3), and the GET or HEAD it can
+    // answer needs a `Content-Location` this reader cannot compare.
+    #[case("POST", "POST", false)]
+    #[case("POST", "GET", false)]
+    #[case("POST", "HEAD", false)]
     fn a_stored_response_answers_only_what_its_method_allows(
         #[case] stored: &str,
         #[case] presented: &str,
