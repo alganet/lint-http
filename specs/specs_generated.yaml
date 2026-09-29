@@ -11421,7 +11421,7 @@ sources:
     snippet: Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols.
     cited_by:
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 241
+      line: 251
   - label: status_103_early_hints_before_final
     section: § 15.2
     snippet: The 1xx (Informational) class of status code indicates an interim response for communicating connection status or request progress prior to completing the requested action and sending a final response.
@@ -13837,6 +13837,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
       line: 456
+  - label: status_101_switching_protocols
+    section: § 8.6
+    snippet: HTTP/2 does not support the 101 (Switching Protocols) informational status code
+    cited_by:
+    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
+      line: 211
   - label: the TE exception
     section: § 8.2.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".

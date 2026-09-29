@@ -199,13 +199,23 @@ impl Rule for Status101SwitchingProtocols {
                     return Vec::new();
                 }
 
-                if crate::http_version::is_major(&tx.request.version, 2) {
+                // Which version forbids the status is the one it travelled
+                // over, and that is the response's. A capture's two halves are
+                // two connections -- the client's leg and the origin's -- and an
+                // HTTP/2 client's request can be answered over HTTP/1.1, where a
+                // `101` is how a WebSocket handshake is accepted. Reading the
+                // request's version told that origin it had used a status its
+                // connection does not have, and said nothing to an origin that
+                // sent a `101` over HTTP/2 to an HTTP/1.1 client's request.
+                //
+                // cite(RFC 9113 § 8.6): "HTTP/2 does not support the 101 (Switching Protocols) informational status code"
+                if crate::http_version::is_major(&resp.version, 2) {
                     let message = "101 Switching Protocols must not be sent over HTTP/2, which \
                      does not support the status code (RFC 9113 §8.6)";
                     return vec![ctx.report_with(&STATUS_101_UNSOLICITED, message.into())];
                 }
 
-                if crate::http_version::is_major(&tx.request.version, 3) {
+                if crate::http_version::is_major(&resp.version, 3) {
                     let message = "101 Switching Protocols must not be sent over HTTP/3, which \
                      does not support the status code or the upgrade mechanism (RFC 9114 §4.5)";
                     return vec![ctx.report_with(&STATUS_101_UNSOLICITED, message.into())];
@@ -343,6 +353,9 @@ mod tests {
     ) -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(resp_status, &[]);
         tx.request.version = req_version.into();
+        // One connection's version on both halves, as a capture made without an
+        // intermediary records it; the test below that separates them says so.
+        tx.response.as_mut().unwrap().version = req_version.into();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(req_headers);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(resp_headers);
@@ -672,6 +685,45 @@ mod tests {
         )
         .unwrap();
         assert!(v.message.contains("HTTP/2"));
+    }
+
+    /// The two halves on different versions: the verdict follows the
+    /// connection the `101` came over, not the one the request went out on.
+    #[rstest]
+    #[case("HTTP/2.0", "HTTP/1.1", None)]
+    #[case("HTTP/3.0", "HTTP/1.1", None)]
+    #[case("HTTP/1.1", "HTTP/2.0", Some("HTTP/2"))]
+    #[case("HTTP/1.1", "HTTP/3.0", Some("HTTP/3"))]
+    fn a_101_is_judged_by_the_connection_it_came_over(
+        #[case] request: &str,
+        #[case] response: &str,
+        #[case] named: Option<&str>,
+    ) {
+        let mut tx = make_upgrade_tx(
+            request,
+            &[("upgrade", "websocket")],
+            101,
+            &[("upgrade", "websocket")],
+        );
+        tx.response.as_mut().unwrap().version = response.into();
+        let found: Vec<_> = crate::test_helpers::run_rule_all(
+            &Status101SwitchingProtocols,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "status_101_switching_protocols",
+            ]),
+        )
+        .into_iter()
+        .filter(|v| v.violation == "status_101_unsolicited")
+        .collect();
+        match named {
+            None => assert!(found.is_empty(), "{found:?}"),
+            Some(version) => assert!(
+                found.len() == 1 && found[0].message.contains(version),
+                "{found:?}"
+            ),
+        }
     }
 
     // ── Violation: HTTP/3 ──
