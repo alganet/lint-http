@@ -173,6 +173,15 @@ impl Rule for SunsetAndDeprecationConsistent {
                         // carrying one is not the structured form this branch
                         // recognises.
                         let s = crate::helpers::headers::trim_ows(s_raw.as_str());
+                        // The Date is an Item's, read from in front of any
+                        // parameter. A parameter that does not derive fails the
+                        // whole field for a recipient, which then has no Date to
+                        // compare, and the syntax rule reports it.
+                        // cite(RFC 9651 § 2.3): "Fields that erroneously defined as another type (e.g., Integer) are assumed to be Items (i.e., they allow Parameters)."
+                        let s = match crate::helpers::structured_fields::split_item(s) {
+                            (date, None) => date,
+                            (_, Some(_)) => "",
+                        };
                         // Deprecation is a Structured Field Date (`@` + integer epoch
                         // seconds); this recognises exactly that form and defers the
                         // legacy/invalid forms to `deprecation_header_syntax`.
@@ -281,6 +290,23 @@ mod tests {
             ("deprecation", "@1000000000"),
             ("sunset", "Fri, 01 Jan 2027 00:00:00 GMT"),
             ("sunset", "Sat, 02 Jan 2027 00:00:00 GMT"),
+        ],
+        0
+    )]
+    // `Deprecation` is an Item (RFC 9745 § 2.1), so its Date is read from in
+    // front of a parameter; a parameter that does not derive fails the field,
+    // and a recipient that ignores it has no Date to compare.
+    #[case::a_date_carrying_a_parameter(
+        &[
+            ("deprecation", "@1767225600;x=\"a, b;c\""),
+            ("sunset", "Thu, 01 Jan 2015 00:00:00 GMT"),
+        ],
+        1
+    )]
+    #[case::a_date_behind_a_parameter_that_does_not_parse(
+        &[
+            ("deprecation", "@1767225600;X=1"),
+            ("sunset", "Thu, 01 Jan 2015 00:00:00 GMT"),
         ],
         0
     )]

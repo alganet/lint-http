@@ -6,12 +6,23 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::deprecation::{DEPRECATION_MALFORMED, RFC_9745_2_1};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::structured_fields::{
+    structured_field_defect, RFC_9651_4_2_2, RFC_9651_4_2_3_1, RFC_9651_4_2_3_3,
+    STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY,
+    STRUCTURED_FIELD_VALUE_MALFORMED,
+};
 use crate::violations::ViolationDef;
 
 /// § 5.3's repeated field line, which this rule reports for its own field.
 /// The sentence is the catalogue's; what stays here is the reading that says
 /// this field's definition has no comma-separated-list alternative.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED, &DEPRECATION_MALFORMED];
+static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
+    &DEPRECATION_MALFORMED,
+    &STRUCTURED_FIELD_MEMBER_EMPTY,
+    &STRUCTURED_FIELD_KEY_MALFORMED,
+    &STRUCTURED_FIELD_VALUE_MALFORMED,
+];
 
 pub struct DeprecationHeaderSyntax;
 
@@ -40,7 +51,14 @@ impl RuleMeta for DeprecationHeaderSyntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9745_2_1, RFC_9651_3_3_7, RFC_9110_5_3]
+        &[
+            RFC_9745_2_1,
+            RFC_9651_3_3_7,
+            RFC_9110_5_3,
+            RFC_9651_4_2_2,
+            RFC_9651_4_2_3_3,
+            RFC_9651_4_2_3_1,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -116,6 +134,17 @@ impl Rule for DeprecationHeaderSyntax {
             // the date alone.
             let s = crate::helpers::headers::trim_ows(&s);
 
+            // An Item carries parameters whether or not its field names any,
+            // and RFC 9745 names none: the Date is what precedes the first `;`
+            // outside a String, and the parameters are judged after it, in the
+            // order § 4.2.3 parses them. A value that opens on its `;` has no
+            // Date for them to follow, and is judged whole below.
+            // cite(RFC 9651 § 2.3): "Fields that erroneously defined as another type (e.g., Integer) are assumed to be Items (i.e., they allow Parameters)."
+            let (s, parameters) = match crate::helpers::structured_fields::split_item(s) {
+                ("", _) => (s, None),
+                item => item,
+            };
+
             // The valid form is a Structured Field Date: `@` followed by an integer epoch.
             // (Digits-only, so a *negative* SF Date `@-N` — a legal pre-1970 delta per §3.3.7 —
             // is treated as non-structured and falls through to the invalid branch; a negative
@@ -123,7 +152,17 @@ impl Rule for DeprecationHeaderSyntax {
             // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
             // cite(RFC 9651 § 3.3.7): "their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@"."
             if s.starts_with('@') && s.len() > 1 && s[1..].chars().all(|c| c.is_ascii_digit()) {
-                return None; // valid Structured Field Date
+                // A valid Structured Field Date, and only a parameter that does
+                // not derive is left to say anything about.
+                return parameters.map(|defect| {
+                    ctx.report_with(
+                        structured_field_defect(defect.kind),
+                        format!(
+                            "Deprecation carries a parameter that does not parse: {}",
+                            defect.message
+                        ),
+                    )
+                });
             }
 
             // Every remaining form fails §2.1's "value MUST be a Date"; the specific 'true' and
@@ -187,6 +226,15 @@ mod tests {
     #[rstest]
     #[case(200, &[("deprecation", "@1688169599")], false)]
     #[case(200, &[("deprecation", "@0")], false)]
+    // An Item carries parameters RFC 9745 never names (RFC 9651 § 2.3): the Date
+    // is read from in front of them, and only one that does not derive is
+    // reported; a value that opens on its `;` has no Date at all.
+    #[case(200, &[("deprecation", "@1688169599;x=\"a, b;c\"")], false)]
+    #[case(200, &[("deprecation", "@1688169599;x=1;y")], false)]
+    #[case(200, &[("deprecation", "@1688169599;X=1")], true)]
+    #[case(200, &[("deprecation", "@1688169599;")], true)]
+    #[case(200, &[("deprecation", ";x=1")], true)]
+    #[case(200, &[("deprecation", "true;x=1")], true)]
     #[case(200, &[("deprecation", "true")], true)]
     #[case(200, &[("deprecation", "Sun, 11 Nov 2018 23:59:59 GMT")], true)]
     #[case(200, &[("deprecation", "bad")], true)]
