@@ -349,7 +349,7 @@ under `--format json`, so one reader serves all three:
           "rule": "cache_control_present",
           "violation": "cache_control_missing",
           "severity": "info",
-          "message": "Response 200 without Cache-Control header",
+          "message": "Response 200 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own",
           "cite": {
             "spec": "RFC 9111",
             "section": "4.2.2",

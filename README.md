@@ -39,7 +39,8 @@ GET https://example.com/ -> 200
         without an explicit signal
         [RFC 9110 §12.5.3 https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3]
   info  cache_control_missing
-        Response 200 without Cache-Control header
+        Response 200 carries neither Cache-Control nor Expires, so every cache
+        that stores it may assign a heuristic freshness lifetime of its own
         [RFC 9111 §4.2.2 https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.2]
   info  content_type_charset_missing
         Text-based Content-Type header missing charset parameter.

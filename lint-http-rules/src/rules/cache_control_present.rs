@@ -4,7 +4,8 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::cache_control::{CACHE_CONTROL_MISSING, RFC_9111_4_2_2};
+use crate::violations::cache_control::{CACHE_CONTROL_MISSING, RFC_9111_4_2_1, RFC_9111_4_2_2};
+use crate::violations::expires::RFC_9111_5_3;
 use crate::violations::ViolationDef;
 
 /// One entry: a lifetime left to be guessed, separately, by every cache.
@@ -37,11 +38,11 @@ impl RuleMeta for CacheControlPresent {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if `200 OK` responses include a `Cache-Control` header.\n\nThe `Cache-Control` header is the primary mechanism for defining the caching policies of a resource. Even if a resource should not be cached, it is best practice to explicitly state this (e.g., `Cache-Control: no-store`) rather than relying on default browser behaviors or heuristic caching."
+        "This rule reports a `200 OK` response a cache could store that carries neither `Cache-Control` nor `Expires`. With neither, RFC 9111 §4.2.2 lets every cache assign the response a heuristic freshness lifetime of its own, estimated from other fields such as `Last-Modified`, so how long the response is reused is decided by each cache separately rather than by the origin.\n\nThe `Cache-Control` header is the primary mechanism for defining the caching policies of a resource. Even if a resource should not be cached, it is best practice to explicitly state this (e.g., `Cache-Control: no-store`) rather than relying on default browser behaviors or heuristic caching.\n\nAn `Expires` on its own is not reported. §4.2.1 takes `Expires` minus `Date` as an explicit freshness lifetime, and §5.3 has a recipient read an invalid `Expires` — the value `0` among them — as a time already past, so a response carrying one has specified its lifetime and left nothing to guess."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_4_2_2, RFC_9111_5_2]
+        &[RFC_9111_4_2_2, RFC_9111_4_2_1, RFC_9111_5_3, RFC_9111_5_2]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -59,6 +60,11 @@ impl RuleMeta for CacheControlPresent {
                 compliance: Compliance::Compliant,
                 label: Some("Response"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: application/json\nCache-Control: no-store",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(`Expires` alone \u{2014} \u{a7}4.2.1: an explicit lifetime, so nothing is left to guess)"),
+                snippet: "HTTP/1.1 200 OK\nDate: Thu, 01 Jan 2026 00:00:00 GMT\nExpires: Fri, 02 Jan 2026 00:00:00 GMT\nContent-Type: application/json",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -134,7 +140,21 @@ impl Rule for CacheControlPresent {
                 // [HTTP])" — 203, 204, 206, 300, 301, 308, 404, 410, 451 among them — so the
                 // same advice applies to those too. 200 is the overwhelmingly common case and
                 // the least noisy to flag; widening the set is a behavior change, left out.
-                if resp.status == 200 && !resp.headers.contains_key("cache-control") {
+                //
+                // The heuristic is the branch § 4.2.1 falls to when the response
+                // specifies no explicit time, and `Expires` is one of the ways it
+                // specifies one. A value that is not a date does not undo that:
+                // § 5.3 has a recipient read it as a time already past, so the
+                // lifetime is explicit and zero rather than absent. So the field's
+                // presence is the whole question, and a response carrying it has
+                // left nothing for a cache to guess.
+                // cite(RFC 9111 § 4.2.1): "If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or"
+                // cite(RFC 9111 § 4.2.1): "Otherwise, no explicit expiration time is present in the response. A heuristic freshness lifetime might be applicable; see Section 4.2.2."
+                // cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
+                if resp.status == 200
+                    && !resp.headers.contains_key("cache-control")
+                    && !resp.headers.contains_key("expires")
+                {
                     return Some(ctx.report(&CACHE_CONTROL_MISSING));
                 }
             }
@@ -166,16 +186,20 @@ mod tests {
         200,
         None,
         true,
-        Some("Response 200 without Cache-Control header")
+        Some("Response 200 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own")
     )]
     #[case(
         "HEAD",
         200,
         None,
         true,
-        Some("Response 200 without Cache-Control header")
+        Some("Response 200 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own")
     )]
     #[case("GET", 200, Some(("cache-control", "no-cache")), false, None)]
+    // An `Expires` is an explicit lifetime, and so is one that is not a date.
+    #[case("GET", 200, Some(("expires", "Thu, 01 Jan 2099 00:00:00 GMT")), false, None)]
+    #[case("GET", 200, Some(("expires", "0")), false, None)]
+    #[case("HEAD", 200, Some(("expires", "-1")), false, None)]
     #[case("GET", 404, None, false, None)]
     #[case("OPTIONS", 200, None, false, None)]
     #[case("TRACE", 200, None, false, None)]

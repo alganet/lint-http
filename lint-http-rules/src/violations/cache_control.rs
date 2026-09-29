@@ -875,13 +875,20 @@ defects! {
         strength: Strength::Should,
     }
 
-    /// A `200` carrying no `Cache-Control` at all.
+    /// A `200` carrying no `Cache-Control` at all, and no `Expires` either.
     ///
     /// **Nothing requires the field**, and the entry is about what its absence
     /// hands to somebody else: § 4.2.2 lets a cache assign an expiration time
     /// of its own, estimated from whatever other fields it can see. So the
     /// origin has not declined to be cached — it has left the lifetime to be
     /// guessed, by each cache separately.
+    ///
+    /// **`Expires` answers it as fully as `Cache-Control` does.** § 4.2.1
+    /// takes the lifetime from `Expires` minus `Date` before it ever reaches
+    /// the heuristic, and § 5.3 reads an `Expires` that is not a date as one
+    /// already past, so a response carrying the field in any form has
+    /// specified its lifetime. Reporting it said the lifetime was left to be
+    /// guessed when the response had stated it.
     ///
     /// `_missing` rather than `_empty`: the field was never written.
     ///
@@ -892,7 +899,7 @@ defects! {
     CACHE_CONTROL_MISSING = {
         id: "cache_control_missing",
         title: "A 200 leaves its freshness lifetime to be guessed",
-        message: "Response 200 without Cache-Control header",
+        message: "Response 200 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own",
         default_severity: Severity::Info,
         spec: &[RFC_9111_4_2_2],
         strength: Strength::Unstated,

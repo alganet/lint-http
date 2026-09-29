@@ -10,7 +10,7 @@ A 200 leaves its freshness lifetime to be guessed
 
 ## Message
 
-Response 200 without Cache-Control header
+Response 200 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own
 
 ## Obligation
 

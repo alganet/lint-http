@@ -9715,7 +9715,7 @@ sources:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 226
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 933
+      line: 940
   - label: 3xx redirection class
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
@@ -9749,7 +9749,7 @@ sources:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 196
     - file: lint-http-rules/src/rules/cache_control_present.rs
-      line: 115
+      line: 121
     - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
       line: 106
   - label: lint-http-rules/src/helpers/token.rs
@@ -12032,13 +12032,37 @@ sources:
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 466
   - label: cache_control_present
+    section: § 4.2.1
+    snippet: If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_control_present.rs
+      line: 151
+  - label: cache_control_present (2)
+    section: § 4.2.1
+    snippet: Otherwise, no explicit expiration time is present in the response. A heuristic freshness lifetime might be applicable; see Section 4.2.2.
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_control_present.rs
+      line: 152
+  - label: cache_control_present (3)
     section: § 4.2.2
     snippet: Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_present.rs
-      line: 130
+      line: 136
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 891
+      line: 898
+  - label: cache_control_present (4)
+    section: § 5.3
+    snippet: A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired").
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_control_present.rs
+      line: 153
+    - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
+      line: 255
+    - file: lint-http-rules/src/rules/expires_date_syntax.rs
+      line: 138
+    - file: lint-http-rules/src/violations/expires.rs
+      line: 159
   - label: cache_validation_chain
     section: § 4
     snippet: request header fields nominated by the stored response (if any) match those presented (see Section 4.1)
@@ -12149,16 +12173,6 @@ sources:
       line: 357
   - label: expires_and_cache_control_consistent (3)
     section: § 5.3
-    snippet: A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired").
-    cited_by:
-    - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 255
-    - file: lint-http-rules/src/rules/expires_date_syntax.rs
-      line: 138
-    - file: lint-http-rules/src/violations/expires.rs
-      line: 159
-  - label: expires_and_cache_control_consistent (4)
-    section: § 5.3
     snippet: If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field.
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
@@ -12169,7 +12183,7 @@ sources:
       line: 173
     - file: lint-http-rules/src/violations/expires.rs
       line: 105
-  - label: expires_and_cache_control_consistent (5)
+  - label: expires_and_cache_control_consistent (4)
     section: § 5.3
     snippet: In both these cases, the value in Expires is only intended for recipients that have not yet implemented the Cache-Control header field.
     cited_by:
