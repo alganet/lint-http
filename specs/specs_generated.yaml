@@ -144,15 +144,15 @@ sources:
     snippet: It is used for all HTTP fetches whose request’s response tainting is "cors", as well as those where request’s method is neither `GET` nor `HEAD`.
     cited_by:
     - file: lint-http-rules/src/rules/request_origin_header_present_for_cors.rs
-      line: 123
+      line: 118
   - label: request_origin_header_present_for_cors (2)
     section: § 3.2
     snippet: The `Origin` request header indicates where a fetch originates from.
     cited_by:
     - file: lint-http-rules/src/rules/request_origin_header_present_for_cors.rs
-      line: 167
+      line: 154
     - file: lint-http-rules/src/violations/origin.rs
-      line: 116
+      line: 117
   - label: sec_fetch_dest_value_valid
     section: § 2.2.5
     snippet: 'A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt".'

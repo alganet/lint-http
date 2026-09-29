@@ -4,16 +4,13 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# Origin Header Presence for CORS Preflight and Cross-Origin Absolute-form Requests
+# Origin Header Presence for CORS Preflight Requests
 
 ## Description
 
-This rule enforces that requests which indicate cross-origin intent include an `Origin` header. In particular:
+This rule enforces that a CORS preflight request includes an `Origin` header: an `OPTIONS` request with `Access-Control-Request-Method` or `Access-Control-Request-Headers` MUST include one, and its value must be syntactically plausible (a serialized origin such as `https://example.com` or the literal `null`). This rule applies to client requests.
 
-- CORS preflight requests (an `OPTIONS` request with `Access-Control-Request-Method` or `Access-Control-Request-Headers`) MUST include an `Origin` header.
-- If a client uses an absolute-form request-target whose origin differs from the `Host` header, the request is treated as cross-origin and SHOULD include an `Origin` header.
-
-The rule validates that `Origin` is present where required and that its value is syntactically plausible (a serialized origin such as `https://example.com` or the literal `null`). This rule applies to client requests.
+**A `Host` that disagrees with the request-target is not a cross-origin request.** `Origin` names where a fetch was initiated — the origin of the document or worker that made it — and nothing about the request's own target and `Host` can say what that was. This rule used to treat an absolute-form target whose authority differs from `Host` as cross-origin and ask for an `Origin` header, which is a requirement no specification states and a repair that fixes nothing: the two fields naming different authorities is its own defect, RFC 9112 §3.2's over HTTP/1.1 and RFC 9113 §8.3.1's and RFC 9114 §4.3.1's over the later versions, and `host_and_authority_consistent` reports it for all three.
 
 ## Violations
 
@@ -64,11 +61,4 @@ Host: example.com
 OPTIONS /resource HTTP/1.1
 Host: example.com
 Access-Control-Request-Method: POST
-```
-
-### ❌ Bad (absolute-form to other origin missing Origin)
-
-```http
-GET http://other.example/resource HTTP/1.1
-Host: example.com
 ```

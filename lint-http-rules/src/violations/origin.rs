@@ -100,15 +100,16 @@ defects! {
     }
 
     /// A request that needs to say where it came from and does not: a CORS
-    /// preflight, or a cross-origin request written in absolute form.
+    /// preflight, found from its method and its `Access-Control-Request-*`
+    /// fields, which leaves a server asked to make a decision about an origin
+    /// it was not told.
     ///
-    /// **One entry for two gates, because the sender's mistake is one.** A
-    /// preflight without an `Origin` and a cross-origin `absolute-form` request
-    /// without one are found by different reasoning — the first from the method
-    /// and the `Access-Control-Request-*` fields, the second by comparing the
-    /// target's authority with the `Host` — and they leave a server the same
-    /// way: asked to make a decision about an origin it was not told. The
-    /// message says which gate found it.
+    /// **A request-target and a `Host` naming different authorities is not
+    /// this.** The entry had a second gate that read that disagreement as a
+    /// cross-origin request and asked for the field, and no document says so:
+    /// `Origin` names the fetch's initiator, and the disagreement is its own
+    /// defect, `host_conflicting` over HTTP/1.1 and `authority_conflicting`
+    /// over the later versions.
     ///
     /// `warn`. The request is well formed and a server may answer it; what
     /// cannot happen is the CORS decision the request was asking for.

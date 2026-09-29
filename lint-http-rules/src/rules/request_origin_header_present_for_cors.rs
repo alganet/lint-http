@@ -52,11 +52,11 @@ impl RuleMeta for RequestOriginHeaderPresentForCors {
     }
 
     fn title(&self) -> Option<&'static str> {
-        Some("Origin Header Presence for CORS Preflight and Cross-Origin Absolute-form Requests")
+        Some("Origin Header Presence for CORS Preflight Requests")
     }
 
     fn description(&self) -> &'static str {
-        "This rule enforces that requests which indicate cross-origin intent include an `Origin` header. In particular:\n\n- CORS preflight requests (an `OPTIONS` request with `Access-Control-Request-Method` or `Access-Control-Request-Headers`) MUST include an `Origin` header.\n- If a client uses an absolute-form request-target whose origin differs from the `Host` header, the request is treated as cross-origin and SHOULD include an `Origin` header.\n\nThe rule validates that `Origin` is present where required and that its value is syntactically plausible (a serialized origin such as `https://example.com` or the literal `null`). This rule applies to client requests."
+        "This rule enforces that a CORS preflight request includes an `Origin` header: an `OPTIONS` request with `Access-Control-Request-Method` or `Access-Control-Request-Headers` MUST include one, and its value must be syntactically plausible (a serialized origin such as `https://example.com` or the literal `null`). This rule applies to client requests.\n\n**A `Host` that disagrees with the request-target is not a cross-origin request.** `Origin` names where a fetch was initiated — the origin of the document or worker that made it — and nothing about the request's own target and `Host` can say what that was. This rule used to treat an absolute-form target whose authority differs from `Host` as cross-origin and ask for an `Origin` header, which is a requirement no specification states and a repair that fixes nothing: the two fields naming different authorities is its own defect, RFC 9112 §3.2's over HTTP/1.1 and RFC 9113 §8.3.1's and RFC 9114 §4.3.1's over the later versions, and `host_and_authority_consistent` reports it for all three."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -94,11 +94,6 @@ impl RuleMeta for RequestOriginHeaderPresentForCors {
                 compliance: Compliance::NonCompliant,
                 label: Some("(preflight missing Origin)"),
                 snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\nAccess-Control-Request-Method: POST",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(absolute-form to other origin missing Origin)"),
-                snippet: "GET http://other.example/resource HTTP/1.1\nHost: example.com",
             },
         ]
     }
@@ -151,36 +146,12 @@ impl Rule for RequestOriginHeaderPresentForCors {
                 }
             }
 
-            // If request-target is absolute-form and its origin differs from Host header,
-            // consider it cross-origin and require Origin header to be present.
-            if let Some(target_origin) =
-                crate::helpers::origin::extract_origin_if_absolute(&req.uri)
-            {
-                if let Some(host_hdr) = crate::helpers::headers::get_header_str(headers, "host") {
-                    // host header may include port; compare authority portion
-                    let host_authority = host_hdr.trim();
-                    // extract authority from target_origin (after '://')
-                    if let Some(delimiter_pos) = target_origin.find("://") {
-                        let target_authority = &target_origin[delimiter_pos + 3..];
-                        if !target_authority.eq_ignore_ascii_case(host_authority) {
-                            // they differ; require Origin header
-                            // cite(Fetch § 3.2): "The `Origin` request header indicates where a fetch originates from."
-                            // Presence, again — an unreadable line is a header that
-                            // is there.
-                            if headers.get("origin").is_none() {
-                                return Some(
-                                    ctx.report_with(
-                                        &ORIGIN_MISSING,
-                                        "Cross-origin absolute-form request missing Origin header"
-                                            .into(),
-                                    ),
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-
+            // Nothing else here asks for the field. It names where a fetch was
+            // initiated, which a request's own target and `Host` cannot tell --
+            // an absolute-form target naming another authority than `Host` was
+            // read as cross-origin until it was measured, and that disagreement
+            // is `host_and_authority_consistent`'s finding.
+            // cite(Fetch § 3.2): "The `Origin` request header indicates where a fetch originates from."
             None
         };
         Vec::from_iter(finding())
@@ -280,70 +251,25 @@ mod tests {
         assert!(v.unwrap().message.contains("Origin header invalid"));
     }
 
+    /// No request-target and `Host` makes a request cross-origin, so none of
+    /// these asks for an `Origin` -- including the one whose two authorities
+    /// disagree, which is `host_and_authority_consistent`'s finding. The OAuth
+    /// row carries an absolute URL in its query as data, and the empty-path row
+    /// has its query directly after the authority: both were read as a second
+    /// authority while this rule compared the two.
     #[rstest]
-    fn absolute_form_cross_origin_missing_origin_is_violation() {
+    #[case("http://other.example/resource", "example.com")]
+    #[case("http://example.com/resource", "example.com")]
+    #[case(
+        "/oauth/authorize?redirect_uri=https://client.example/cb",
+        "auth.example"
+    )]
+    #[case("http://example.com?x=1", "example.com")]
+    fn a_target_and_host_ask_for_no_origin(#[case] uri: &str, #[case] host: &str) {
         let rule = RequestOriginHeaderPresentForCors;
         let mut tx = make_test_transaction();
-        tx.request.uri = "http://other.example/resource".into();
-        tx.request.headers = make_headers_from_pairs(&[("host", "example.com")]);
-
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v
-            .unwrap()
-            .message
-            .contains("Cross-origin absolute-form request missing Origin header"));
-    }
-
-    #[rstest]
-    fn absolute_form_same_origin_without_origin_ok() {
-        let rule = RequestOriginHeaderPresentForCors;
-        let mut tx = make_test_transaction();
-        tx.request.uri = "http://example.com/resource".into();
-        tx.request.headers = make_headers_from_pairs(&[("host", "example.com")]);
-
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[rstest]
-    fn origin_form_target_carrying_a_url_in_its_query_is_not_cross_origin() {
-        // An OAuth authorize request is origin-form; the absolute URL lives in a
-        // query parameter as data. Mistaking it for the request-target's
-        // authority demands an Origin header on an ordinary same-origin GET.
-        let rule = RequestOriginHeaderPresentForCors;
-        let mut tx = make_test_transaction();
-        tx.request.uri = "/oauth/authorize?redirect_uri=https://client.example/cb".into();
-        tx.request.headers = make_headers_from_pairs(&[("host", "auth.example")]);
-
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none(), "unexpected violation: {v:?}");
-    }
-
-    #[rstest]
-    fn absolute_form_target_with_an_empty_path_is_not_cross_origin() {
-        // `path-abempty` may be empty, so the query follows the authority
-        // directly. Reading it as part of the authority makes a same-origin
-        // request look cross-origin.
-        let rule = RequestOriginHeaderPresentForCors;
-        let mut tx = make_test_transaction();
-        tx.request.uri = "http://example.com?x=1".into();
-        tx.request.headers = make_headers_from_pairs(&[("host", "example.com")]);
+        tx.request.uri = uri.into();
+        tx.request.headers = make_headers_from_pairs(&[("host", host)]);
 
         let v = crate::test_helpers::run_rule(
             &rule,
