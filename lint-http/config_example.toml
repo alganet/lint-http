@@ -1098,7 +1098,7 @@ severity = "info"
 severity = "warn"
 
 [violations.access_control_allow_origin_credentials_conflicting]
-# The wildcard origin sits on a response that also allows credentials
+# The wildcard origin sits beside an Access-Control-Allow-Credentials of `true`
 severity = "warn"
 
 [violations.access_control_allow_origin_empty]

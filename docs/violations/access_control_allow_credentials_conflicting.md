@@ -10,7 +10,7 @@ Access-Control-Allow-Credentials claims `true` beside a wildcard origin
 
 ## Message
 
-Access-Control-Allow-Credentials must not be 'true' when Access-Control-Allow-Origin is '*'
+Access-Control-Allow-Credentials is 'true' beside Access-Control-Allow-Origin '*', and the 'true' turns nothing on: the CORS check shares on the wildcard only with a request that carries no credentials, never reading this field for it, and refuses a credentialed request on the wildcard. To share with credentials, answer with the requesting origin in place of '*'; otherwise delete this line
 
 ## Obligation
 

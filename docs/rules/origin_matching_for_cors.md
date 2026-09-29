@@ -10,13 +10,13 @@ SPDX-License-Identifier: ISC
 
 When a server responds to a cross-origin request the `Access-Control-Allow-Origin`
 header must either repeat the origin that asked or use the wildcard `*`.
-Furthermore, the wildcard may **not** be used in conjunction with credentials
-(`Access-Control-Allow-Credentials: true`).
+The wildcard shares only with a request that carries no credentials, so beside
+`Access-Control-Allow-Credentials: true` it leaves that `true` turning nothing on.
 
 This rule looks at transactions where the client supplied an `Origin` header
 and the server returned an `Access-Control-Allow-Origin` header.  It
 validates that the header set is semantically consistent with the request
-origin and enforces the credential restriction on `*`.  If the request's
+origin and reports a `*` beside a credentials `true`.  If the request's
 `Origin` value is syntactically invalid the rule also raises a violation.
 
 **The comparison is asymmetric, because Fetch §4.10 names two different things on its two sides.** The check compares *the result of byte-serializing the request's origin* against the response field's value as it arrived. The left-hand side is an algorithm run over an origin triple — RFC 6454 §6.2, whose port step is conditional on the port differing from the scheme's default, over a triple §4 has already lower-cased — and the right-hand side is not normalised at all. So the request's `Origin` is serialized before it is compared and the response's value is not, and the two directions are genuinely different findings: `Origin: https://a.example:443` answered with `Access-Control-Allow-Origin: https://a.example` is *correct* and draws nothing, because 443 is the `https` default port and no user agent would have serialized it; the same pair the other way round — a canonical `Origin` answered by a value that writes the port out — fails the check in every user agent and is reported.
@@ -26,7 +26,7 @@ This check applies to server responses.
 ## Violations
 
 - [access_control_allow_origin_conflicting](../violations/access_control_allow_origin_conflicting.md) — Access-Control-Allow-Origin echoes an origin that did not ask
-- [access_control_allow_origin_credentials_conflicting](../violations/access_control_allow_origin_credentials_conflicting.md) — The wildcard origin sits on a response that also allows credentials
+- [access_control_allow_origin_credentials_conflicting](../violations/access_control_allow_origin_credentials_conflicting.md) — The wildcard origin sits beside an Access-Control-Allow-Credentials of `true`
 - [access_control_allow_origin_malformed](../violations/access_control_allow_origin_malformed.md) — Access-Control-Allow-Origin states a value that is none of `*`, `null` and a serialized origin
 - [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
 - [origin_malformed](../violations/origin_malformed.md) — An Origin derives from neither null nor a serialized origin

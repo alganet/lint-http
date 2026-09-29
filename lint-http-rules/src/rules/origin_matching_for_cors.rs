@@ -82,7 +82,7 @@ impl RuleMeta for OriginMatchingForCors {
     }
 
     fn description(&self) -> &'static str {
-        "When a server responds to a cross-origin request the `Access-Control-Allow-Origin`\nheader must either repeat the origin that asked or use the wildcard `*`.\nFurthermore, the wildcard may **not** be used in conjunction with credentials\n(`Access-Control-Allow-Credentials: true`).\n\nThis rule looks at transactions where the client supplied an `Origin` header\nand the server returned an `Access-Control-Allow-Origin` header.  It\nvalidates that the header set is semantically consistent with the request\norigin and enforces the credential restriction on `*`.  If the request's\n`Origin` value is syntactically invalid the rule also raises a violation.\n\n**The comparison is asymmetric, because Fetch §4.10 names two different things on its two sides.** The check compares *the result of byte-serializing the request's origin* against the response field's value as it arrived. The left-hand side is an algorithm run over an origin triple — RFC 6454 §6.2, whose port step is conditional on the port differing from the scheme's default, over a triple §4 has already lower-cased — and the right-hand side is not normalised at all. So the request's `Origin` is serialized before it is compared and the response's value is not, and the two directions are genuinely different findings: `Origin: https://a.example:443` answered with `Access-Control-Allow-Origin: https://a.example` is *correct* and draws nothing, because 443 is the `https` default port and no user agent would have serialized it; the same pair the other way round — a canonical `Origin` answered by a value that writes the port out — fails the check in every user agent and is reported.\n\nThis check applies to server responses."
+        "When a server responds to a cross-origin request the `Access-Control-Allow-Origin`\nheader must either repeat the origin that asked or use the wildcard `*`.\nThe wildcard shares only with a request that carries no credentials, so beside\n`Access-Control-Allow-Credentials: true` it leaves that `true` turning nothing on.\n\nThis rule looks at transactions where the client supplied an `Origin` header\nand the server returned an `Access-Control-Allow-Origin` header.  It\nvalidates that the header set is semantically consistent with the request\norigin and reports a `*` beside a credentials `true`.  If the request's\n`Origin` value is syntactically invalid the rule also raises a violation.\n\n**The comparison is asymmetric, because Fetch §4.10 names two different things on its two sides.** The check compares *the result of byte-serializing the request's origin* against the response field's value as it arrived. The left-hand side is an algorithm run over an origin triple — RFC 6454 §6.2, whose port step is conditional on the port differing from the scheme's default, over a triple §4 has already lower-cased — and the right-hand side is not normalised at all. So the request's `Origin` is serialized before it is compared and the response's value is not, and the two directions are genuinely different findings: `Origin: https://a.example:443` answered with `Access-Control-Allow-Origin: https://a.example` is *correct* and draws nothing, because 443 is the `https` default port and no user agent would have serialized it; the same pair the other way round — a canonical `Origin` answered by a value that writes the port out — fails the check in every user agent and is reported.\n\nThis check applies to server responses."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -610,7 +610,15 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
         .unwrap();
-        assert!(v.message.contains("'*' is not allowed"));
+        assert_eq!(
+            v.violation,
+            "access_control_allow_origin_credentials_conflicting"
+        );
+        assert!(
+            v.message.contains("answer with the requesting origin"),
+            "the repair keeps the uncredentialed sharing `*` already gives: {}",
+            v.message
+        );
     }
 
     #[rstest]

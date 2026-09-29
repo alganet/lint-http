@@ -6,11 +6,11 @@ SPDX-License-Identifier: ISC
 
 # access_control_allow_origin_credentials_conflicting
 
-The wildcard origin sits on a response that also allows credentials
+The wildcard origin sits beside an Access-Control-Allow-Credentials of `true`
 
 ## Message
 
-Access-Control-Allow-Origin '*' is not allowed when Access-Control-Allow-Credentials is true
+Access-Control-Allow-Origin is '*' beside Access-Control-Allow-Credentials 'true': the wildcard shares this response only with a request that carries no credentials and refuses a credentialed one, so the 'true' turns nothing on. To share with credentials, answer with the requesting origin in place of '*'
 
 ## Obligation
 
@@ -24,7 +24,7 @@ Access-Control-Allow-Origin '*' is not allowed when Access-Control-Allow-Credent
 
 ```toml
 [violations.access_control_allow_origin_credentials_conflicting]
-# The wildcard origin sits on a response that also allows credentials
+# The wildcard origin sits beside an Access-Control-Allow-Credentials of `true`
 severity = "warn"
 ```
 

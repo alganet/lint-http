@@ -12,7 +12,7 @@ This rule reads the Cross-Origin Resource Sharing (CORS) response headers that d
 
 **The value.** `Access-Control-Allow-Credentials` carries one value and the CORS check compares it as bytes: `true` returns success and every other value falls through to the algorithm's failure. So `TRUE`, `false`, `1` or anything else is a header that is present and shares nothing, and is reported as that. The comparison here used to be case-insensitive, which told an operator that `TRUE` had enabled credentialed sharing.
 
-**The pairing.** A value of `true` must **not** accompany an `Access-Control-Allow-Origin` of `*`: the CORS check only succeeds on the wildcard for a request whose credentials mode is not "include", and a credentialed request must match the byte-serialized origin instead, which `*` never is. A server sending both is advertising a sharing it will never get.
+**The pairing.** A value of `true` beside an `Access-Control-Allow-Origin` of `*` turns nothing on. No sentence forbids the pair, and the wildcard still shares with a request that carries no credentials, for which the CORS check never reads this field. A credentialed request must match the byte-serialized origin instead, which `*` never is. A server sending both is advertising a sharing it will never get, and the repair depends on what it wanted: the requesting origin in place of `*` to share with credentials, or no credentials line to share without them.
 
 The origin header is only scanned for a `*` here; what its value may be is `access_control_allow_origin_valid`'s finding.
 

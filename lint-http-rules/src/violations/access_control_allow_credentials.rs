@@ -149,13 +149,21 @@ defects! {
     /// **`_conflicting` and not `_forbidden`**: no document forbids the pair.
     /// Each field is well-formed, each is honoured on its own, and what is
     /// wrong is that the two answers cannot both be acted on — which is the
-    /// same shape as a response stating two freshness lifetimes.
+    /// same shape as a response stating two freshness lifetimes. Fetch's own
+    /// table of these combinations has an uncredentialed request to `*` and
+    /// `true` shared, with the credentials field ignored, and a credentialed
+    /// one refused because of the wildcard. **The message used to say the
+    /// field "must not" be `true` here**, which is a prohibition no sentence
+    /// makes, and named the one line that is not refusing anybody. The
+    /// sentence now says what the pair does and gives both repairs, since
+    /// which one is right depends on whether the sender wanted credentials.
     ///
     // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
+    // cite(Fetch § 4.10): "If request’s credentials mode is not "include", then return success."
     ACCESS_CONTROL_ALLOW_CREDENTIALS_CONFLICTING = {
         id: "access_control_allow_credentials_conflicting",
         title: "Access-Control-Allow-Credentials claims `true` beside a wildcard origin",
-        message: "Access-Control-Allow-Credentials must not be 'true' when Access-Control-Allow-Origin is '*'",
+        message: "Access-Control-Allow-Credentials is 'true' beside Access-Control-Allow-Origin '*', and the 'true' turns nothing on: the CORS check shares on the wildcard only with a request that carries no credentials, never reading this field for it, and refuses a credentialed request on the wildcard. To share with credentials, answer with the requesting origin in place of '*'; otherwise delete this line",
         default_severity: Severity::Warn,
         spec: &[FETCH_4_10],
     }
