@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-This rule reports a response a cache could store that carries neither `Cache-Control` nor `Expires`, on any status RFC 9110 §15.1 defines as heuristically cacheable: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414` and `501`. With neither, RFC 9111 §4.2.2 lets every cache assign the response a heuristic freshness lifetime of its own, estimated from other fields such as `Last-Modified`, so how long the response is reused is decided by each cache separately rather than by the origin.
+This rule reports a response a cache could store that carries neither `Cache-Control` nor `Expires`, on any status defined as heuristically cacheable: RFC 9110 §15.1's `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414` and `501`, and RFC 7725's `451`. With neither, RFC 9111 §4.2.2 lets every cache assign the response a heuristic freshness lifetime of its own, estimated from other fields such as `Last-Modified`, so how long the response is reused is decided by each cache separately rather than by the origin.
 
 The `Cache-Control` header is the primary mechanism for defining the caching policies of a resource. Even if a resource should not be cached, it is best practice to explicitly state this (e.g., `Cache-Control: no-store`) rather than relying on default browser behaviors or heuristic caching.
 

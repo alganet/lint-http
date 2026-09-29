@@ -5494,6 +5494,15 @@ sources:
       line: 1243
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 46
+- label: RFC 7725
+  url: https://www.rfc-editor.org/rfc/rfc7725.html
+  fragments:
+  - label: lint-http-rules/src/helpers/status.rs
+    section: § 3
+    snippet: A 451 response is cacheable by default, i.e., unless otherwise indicated by the method definition or explicit cache controls; see [RFC7234].
+    cited_by:
+    - file: lint-http-rules/src/helpers/status.rs
+      line: 26
 - label: RFC 7838
   url: https://www.rfc-editor.org/rfc/rfc7838.html
   fragments:
@@ -10203,7 +10212,7 @@ sources:
     snippet: Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls
     cited_by:
     - file: lint-http-rules/src/helpers/status.rs
-      line: 18
+      line: 25
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 285
     - file: lint-http-rules/src/violations/cache_control.rs

@@ -875,9 +875,9 @@ defects! {
         strength: Strength::Should,
     }
 
-    /// A response a cache could store, on a status RFC 9110 § 15.1 defines as
-    /// heuristically cacheable, carrying no `Cache-Control` at all and no
-    /// `Expires` either.
+    /// A response a cache could store, on a status defined as heuristically
+    /// cacheable (RFC 9110 § 15.1's list, and RFC 7725's `451`), carrying no
+    /// `Cache-Control` at all and no `Expires` either.
     ///
     /// **Every status in the list, not a `200` alone.** The entry asked only a
     /// `200` by choice, so a `404`, a `206` or a `301` with no lifetime drew
@@ -917,8 +917,8 @@ defects! {
     /// no explicit freshness of its own.
     ///
     /// **The opposite outcome to the entry above, from the same silence.**
-    /// There a cache invents a lifetime; here § 15.1's list does not cover the
-    /// status, so nothing stores the response at all unless it says something
+    /// There a cache invents a lifetime; here no document defines the status
+    /// as heuristically cacheable, so nothing stores the response at all unless it says something
     /// that licenses storing it. Two entries because a sender reading one of
     /// them learns the wrong thing about the other.
     ///

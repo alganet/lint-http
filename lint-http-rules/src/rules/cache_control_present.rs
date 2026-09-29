@@ -38,7 +38,7 @@ impl RuleMeta for CacheControlPresent {
     }
 
     fn description(&self) -> &'static str {
-        "This rule reports a response a cache could store that carries neither `Cache-Control` nor `Expires`, on any status RFC 9110 §15.1 defines as heuristically cacheable: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414` and `501`. With neither, RFC 9111 §4.2.2 lets every cache assign the response a heuristic freshness lifetime of its own, estimated from other fields such as `Last-Modified`, so how long the response is reused is decided by each cache separately rather than by the origin.\n\nThe `Cache-Control` header is the primary mechanism for defining the caching policies of a resource. Even if a resource should not be cached, it is best practice to explicitly state this (e.g., `Cache-Control: no-store`) rather than relying on default browser behaviors or heuristic caching.\n\nAn `Expires` on its own is not reported. §4.2.1 takes `Expires` minus `Date` as an explicit freshness lifetime, and §5.3 has a recipient read an invalid `Expires` — the value `0` among them — as a time already past, so a response carrying one has specified its lifetime and left nothing to guess."
+        "This rule reports a response a cache could store that carries neither `Cache-Control` nor `Expires`, on any status defined as heuristically cacheable: RFC 9110 §15.1's `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414` and `501`, and RFC 7725's `451`. With neither, RFC 9111 §4.2.2 lets every cache assign the response a heuristic freshness lifetime of its own, estimated from other fields such as `Last-Modified`, so how long the response is reused is decided by each cache separately rather than by the origin.\n\nThe `Cache-Control` header is the primary mechanism for defining the caching policies of a resource. Even if a resource should not be cached, it is best practice to explicitly state this (e.g., `Cache-Control: no-store`) rather than relying on default browser behaviors or heuristic caching.\n\nAn `Expires` on its own is not reported. §4.2.1 takes `Expires` minus `Date` as an explicit freshness lifetime, and §5.3 has a recipient read an invalid `Expires` — the value `0` among them — as a time already past, so a response carrying one has specified its lifetime and left nothing to guess."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -140,7 +140,7 @@ impl Rule for CacheControlPresent {
                 // sentence that makes it advice worth taking.
                 // cite(RFC 9111 § 4.2.2): "Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time."
                 //
-                // **Every status § 15.1 lists, not a `200`.** § 4.2.2 permits the
+                // **Every heuristically cacheable status, not a `200`.** § 4.2.2 permits the
                 // heuristic on any status "defined as heuristically cacheable", and
                 // a `404` guessed fresh is the one an operator notices: the page
                 // that now exists stays missing for as long as a cache decided.
@@ -246,6 +246,14 @@ mod tests {
         None,
         true,
         Some("Response 410 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own")
+    )]
+    // RFC 7725 § 3 makes a 451 cacheable by default, outside § 15.1's list.
+    #[case(
+        "GET",
+        451,
+        None,
+        true,
+        Some("Response 451 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own")
     )]
     #[case("GET", 404, Some(("cache-control", "max-age=60")), false, None)]
     #[case("GET", 404, Some(("expires", "0")), false, None)]

@@ -259,7 +259,7 @@ impl Rule for StatusAndCachingSemantics {
             // What is left is § 3's last term, a disjunction, asked through the
             // reader `storage_allowed` asks it through so the two cannot read
             // it differently. Its members are the heuristically cacheable
-            // status (§ 15.1's list), `public`, `private`, `Expires`, `max-age`
+            // status (§ 15.1's list and RFC 7725's `451`), `public`, `private`, `Expires`, `max-age`
             // and `s-maxage`.
             //
             // `public` and `private` withdraw the finding rather than soften
