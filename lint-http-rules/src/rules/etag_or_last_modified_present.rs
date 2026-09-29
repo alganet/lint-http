@@ -113,7 +113,7 @@ impl Rule for EtagOrLastModifiedPresent {
             // accepts *either* validator, so it rests on both parallel SHOULD-send sentences.
             // (It flags every validator-less 200, not only those where a modification date /
             // change detection "can be reasonably and consistently determined" — a stricter
-            // default than the conditioned SHOULDs, recorded in the tracker.)
+            // default than the conditioned SHOULDs, argued on the entry itself.)
             // cite(RFC 9110 § 8.8.2.1): "An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined"
             // cite(RFC 9110 § 8.8.3.1): "An origin server SHOULD send an ETag for any selected representation for which detection of changes can be reasonably and consistently determined"
             if status == 200
@@ -147,6 +147,9 @@ mod tests {
     #[case("HEAD", 200, &[], true)]
     #[case("GET", 200, &[("etag", "\"12345\"")], false)]
     #[case("GET", 200, &[("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")], false)]
+    // A response nothing may store still hands a later `If-Match` its tag,
+    // and neither SHOULD is written for storable responses only.
+    #[case("GET", 200, &[("cache-control", "no-store")], true)]
     #[case("GET", 404, &[], false)]
     #[case("OPTIONS", 200, &[], false)]
     #[case("POST", 200, &[], false)]
@@ -180,8 +183,9 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         if expect_violation {
-            // `info`: the conforming case and the defect are the same bytes,
-            // because the exception the sentence carries is not on the wire.
+            // `warn`, although the conforming case and the defect are the same
+            // bytes: the exception the sentence carries is not on the wire,
+            // and the entry says why that does not lower it to `info`.
             let found = violation.clone().expect("a finding");
             assert_eq!(found.violation, "validator_missing");
             assert_eq!(found.severity, crate::lint::Severity::Warn);

@@ -64,8 +64,16 @@ defects! {
     /// indistinguishable from the defect, and only this one has a sentence
     /// telling the sender to do it. § 8.8.2.1 and § 8.8.3.1 each say an origin
     /// server SHOULD send the field for any representation where the answer can
-    /// reasonably be determined. What the finding buys is that every later
-    /// request for this resource has to be answered in full.
+    /// reasonably be determined. What the finding buys is that no later
+    /// request can be conditional on this representation: a cache holding it
+    /// has to fetch it in full again, and a client about to change it cannot
+    /// ask the server to refuse if someone else changed it first (§ 13.1.1).
+    ///
+    /// **A `no-store` response is still asked**, because only the first of
+    /// those needs a stored copy. Nothing will revalidate what no cache kept,
+    /// but a client that read it can still send its `ETag` back in `If-Match`
+    /// to avoid a lost update, and neither SHOULD makes an exception for a
+    /// response that cannot be stored.
     ///
     /// **Only a `200` answering a `GET` or a `HEAD` is asked.** Both sentences
     /// are about the *selected representation*, which § 3.2 defines as the one

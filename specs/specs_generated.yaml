@@ -7693,7 +7693,7 @@ sources:
     - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
       line: 117
     - file: lint-http-rules/src/violations/validator.rs
-      line: 85
+      line: 93
   - label: etag_or_last_modified_present (3)
     section: § 8.8.3.1
     snippet: An origin server SHOULD send an ETag for any selected representation for which detection of changes can be reasonably and consistently determined
@@ -7701,7 +7701,7 @@ sources:
     - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
       line: 118
     - file: lint-http-rules/src/violations/validator.rs
-      line: 86
+      line: 94
   - label: etag_or_last_modified_present (4)
     section: § 9.3.8
     snippet: Responses to the TRACE method are not cacheable.
