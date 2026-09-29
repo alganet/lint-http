@@ -2726,6 +2726,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/http_date.rs
       line: 197
+  - label: lint-http-core/src/http_date.rs
+    section: § 3.3
+    snippet: The year is any numeric year 1900 or later.
+    cited_by:
+    - file: lint-http-core/src/http_date.rs
+      line: 125
+  - label: lint-http-core/src/http_date.rs (2)
+    section: § 3.3
+    snippet: the time-of-day MUST be in the range 00:00:00 through 23:59:60
+    cited_by:
+    - file: lint-http-core/src/http_date.rs
+      line: 126
   - label: lint-http-rules/src/helpers/mailbox.rs
     section: § 3.2.1
     snippet: quoted-pair = ("\" (VCHAR / WSP)) / obs-qp
@@ -3235,16 +3247,28 @@ sources:
       line: 339
   - label: cookie_attribute_consistent (5)
     section: § 4.1.1
+    snippet: sane-cookie-date  = <rfc1123-date, defined in [RFC2616], Section 3.3.1>
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
+      line: 446
+  - label: cookie_attribute_consistent (6)
+    section: § 4.1.1
     snippet: secure-av         = "Secure"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
       line: 338
-  - label: cookie_attribute_consistent (6)
+  - label: cookie_attribute_consistent (7)
+    section: § 5.1.1
+    snippet: the second-value is greater than 59.
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
+      line: 447
+  - label: cookie_attribute_consistent (8)
     section: § 5.2.3
     snippet: If the attribute-value is empty, the behavior is undefined.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 557
+      line: 576
     - file: lint-http-rules/src/violations/cookie.rs
       line: 257
   - label: cookie_domain_matching
@@ -3508,7 +3532,7 @@ sources:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 435
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 522
+      line: 541
     - file: lint-http-rules/src/violations/cookie.rs
       line: 171
     - file: lint-http-rules/src/violations/cookie.rs
@@ -7299,7 +7323,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
       line: 192
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
-      line: 130
+      line: 135
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
       line: 127
   - label: conditional_etag_syntax
@@ -8223,7 +8247,7 @@ sources:
     snippet: OWS            = *( SP / HTAB )
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 176
+      line: 350
     - file: lint-http-rules/src/helpers/auth.rs
       line: 1130
     - file: lint-http-rules/src/helpers/headers.rs
@@ -8286,58 +8310,68 @@ sources:
       line: 81
   - label: lint-http-core/src/http_date.rs
     section: § 5.6.7
+    snippet: 00:00:00 - 23:59:60 (leap second)
+    cited_by:
+    - file: lint-http-core/src/http_date.rs
+      line: 124
+  - label: lint-http-core/src/http_date.rs (2)
+    section: § 5.6.7
     snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 32
+      line: 30
     - file: lint-http-core/src/http_date.rs
-      line: 51
-  - label: lint-http-core/src/http_date.rs (2)
+      line: 226
+  - label: lint-http-core/src/http_date.rs (3)
     section: § 5.6.7
     snippet: A sender MUST NOT generate additional whitespace in an HTTP-date beyond that specifically included as SP in the grammar
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 98
+      line: 272
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 773
     - file: lint-http-rules/src/violations/http_date.rs
       line: 157
-  - label: lint-http-core/src/http_date.rs (3)
+  - label: lint-http-core/src/http_date.rs (4)
     section: § 5.6.7
     snippet: HTTP-date = IMF-fixdate / obs-date
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 31
+      line: 29
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 246
     - file: lint-http-rules/src/violations/http_date.rs
       line: 64
     - file: lint-http-rules/src/violations/http_date.rs
       line: 104
-  - label: lint-http-core/src/http_date.rs (4)
+  - label: lint-http-core/src/http_date.rs (5)
     section: § 5.6.7
     snippet: IMF-fixdate  = day-name "," SP date1 SP time-of-day SP GMT
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 97
-  - label: lint-http-core/src/http_date.rs (5)
+      line: 150
+    - file: lint-http-core/src/http_date.rs
+      line: 271
+  - label: lint-http-core/src/http_date.rs (6)
     section: § 5.6.7
     snippet: The semantics of day-name, day, month, year, and time-of-day are the same as those defined for the Internet Message Format constructs with the corresponding name ([RFC5322], Section 3.3).
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 254
+      line: 123
     - file: lint-http-core/src/http_date.rs
-      line: 324
+      line: 427
+    - file: lint-http-core/src/http_date.rs
+      line: 501
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 791
     - file: lint-http-rules/src/violations/http_date.rs
       line: 196
-  - label: lint-http-core/src/http_date.rs (6)
+  - label: lint-http-core/src/http_date.rs (7)
     section: § 5.6.7
     snippet: When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format.
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 311
+      line: 488
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
       line: 194
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
@@ -8345,7 +8379,7 @@ sources:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 247
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
-      line: 131
+      line: 136
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
       line: 129
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
@@ -8354,12 +8388,12 @@ sources:
       line: 831
     - file: lint-http-rules/src/violations/http_date.rs
       line: 128
-  - label: lint-http-core/src/http_date.rs (7)
+  - label: lint-http-core/src/http_date.rs (8)
     section: § 5.6.7
     snippet: obs-date = rfc850-date / asctime-date
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 312
+      line: 489
   - label: lint-http-core/src/http_transaction.rs
     section: § 15
     snippet: 'A single request can have multiple associated responses: zero or more "interim" (non-final) responses with status codes in the "informational" (1xx) range, followed by exactly one "final" response with a status code in one of the other ranges.'
@@ -12166,7 +12200,7 @@ sources:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 264
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
-      line: 138
+      line: 143
     - file: lint-http-rules/src/violations/expires.rs
       line: 159
   - label: cache_validation_chain
@@ -12286,7 +12320,7 @@ sources:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 318
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
-      line: 173
+      line: 178
     - file: lint-http-rules/src/violations/expires.rs
       line: 105
   - label: expires_and_cache_control_consistent (4)
@@ -12302,7 +12336,7 @@ sources:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 150
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
-      line: 129
+      line: 134
     - file: lint-http-rules/src/violations/expires.rs
       line: 158
   - label: expires_date_syntax
@@ -12310,7 +12344,7 @@ sources:
     snippet: Likewise, if a response includes the s-maxage directive (Section 5.2.2.10), a shared cache recipient MUST ignore the Expires header field.
     cited_by:
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
-      line: 174
+      line: 179
   - label: immutable_cache_never_stale
     section: § 5.2.2.4
     snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response

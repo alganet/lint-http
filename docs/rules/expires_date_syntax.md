@@ -41,6 +41,16 @@ Expires: Wed, 21 Oct 2015 07:38:00 GMT
 Hello
 ```
 
+### ✅ Good — a leap second is a time of day, and names the midnight after it
+
+```http
+HTTP/1.1 200 OK
+Date: Sat, 31 Dec 2016 23:59:59 GMT
+Expires: Sat, 31 Dec 2016 23:59:60 GMT
+
+Hello
+```
+
 ### ❌ Bad — a cache reads this as already expired, not as ten minutes
 
 ```http

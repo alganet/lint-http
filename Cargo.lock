@@ -1064,7 +1064,6 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "chrono",
- "httpdate",
  "hyper",
  "parking_lot",
  "rstest",

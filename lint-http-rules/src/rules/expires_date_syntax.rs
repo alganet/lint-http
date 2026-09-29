@@ -85,6 +85,11 @@ impl RuleMeta for ExpiresDateSyntax {
                 snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nExpires: Wed, 21 Oct 2015 07:38:00 GMT\n\nHello",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a leap second is a time of day, and names the midnight after it"),
+                snippet: "HTTP/1.1 200 OK\nDate: Sat, 31 Dec 2016 23:59:59 GMT\nExpires: Sat, 31 Dec 2016 23:59:60 GMT\n\nHello",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— a cache reads this as already expired, not as ten minutes"),
                 snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nExpires: Wed, 21 Oct 2015 07:38:00 UTC\n\nHello",

@@ -12,27 +12,202 @@
 //! well-formed when it was sent" wants the second one, and saying `HTTP-date`
 //! where it means `IMF-fixdate` is how a check ends up unable to fail.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, TimeDelta, Utc, Weekday};
 
 /// Parse an HTTP-date string into a `chrono::DateTime<Utc>`.
 ///
 /// Accepts all three formats — IMF-fixdate, RFC 850, and asctime — which is what
 /// a recipient is required to do. Returns an `anyhow::Error` when parsing fails.
 ///
-/// **Nothing is trimmed here and nothing needs to be**, which is worth stating
-/// because the reverse was assumed for long enough to be written down. The
-/// dependency's own `FromStr` opens `if !s.is_ascii() { return Err(..) }` and then
-/// `s.trim()`, so a padded value parses and a value carrying any octet at or above
-/// %x80 is refused before the trim can touch it. A caller adding a trim in front
-/// of this is either duplicating the second step or defeating the first.
+/// **Nothing is trimmed by a caller and nothing needs to be**, which is worth
+/// stating because the reverse was assumed for long enough to be written down.
+/// The reader refuses a value carrying any octet at or above %x80 and
+/// only then trims, so a padded value parses and a non-ASCII one is refused
+/// before the trim can touch it. A caller adding a trim in front of this is
+/// either duplicating the second step or defeating the first.
 pub fn parse_http_date_to_datetime(s: &str) -> anyhow::Result<DateTime<Utc>> {
-    // The delegation is the claim: `httpdate` tries IMF-fixdate, then RFC 850,
-    // then asctime, which is exactly the required set.
     // cite(RFC 9110 § 5.6.7): "HTTP-date = IMF-fixdate / obs-date"
     // cite(RFC 9110 § 5.6.7): "A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats."
-    let st =
-        httpdate::parse_http_date(s).map_err(|e| anyhow::anyhow!("httpdate parse error: {}", e))?;
-    Ok(DateTime::<Utc>::from(st))
+    read_http_date(s)
+        .map(|(at, _)| at)
+        .ok_or_else(|| anyhow::anyhow!("not an HTTP-date: {s:?}"))
+}
+
+/// Which of § 5.6.7's three productions a timestamp derives from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Production {
+    ImfFixdate,
+    Rfc850,
+    Asctime,
+}
+
+/// The instant `s` names, and the production it was written in.
+///
+/// **The productions are read here, not by a dependency, because the
+/// dependency's type was narrower than the grammar.** It held a year from 1970
+/// and a second up to 59, so `Wed, 31 Dec 1969 23:59:59 GMT` and the leap
+/// second `Sat, 31 Dec 2016 23:59:60 GMT` were refused — and every field that
+/// carries a date reported both as deriving from no `HTTP-date`, and every
+/// comparison that needed their instant went quiet. The layout is the one the
+/// dependency read (fixed offsets, the exact capitalisation, an RFC 850
+/// two-digit year below 70 in the 2000s), and the bounds are the documents'.
+///
+/// The value is refused outright when it carries an octet at or above %x80,
+/// and only then trimmed, in that order: trimming first would remove an
+/// `obs-text` %xA0 read as U+00A0 and hand over a value that had become a date.
+fn read_http_date(s: &str) -> Option<(DateTime<Utc>, Production)> {
+    if !s.is_ascii() {
+        return None;
+    }
+    let b = s.trim().as_bytes();
+    read_imf_fixdate(b)
+        .map(|at| (at, Production::ImfFixdate))
+        .or_else(|| read_rfc850_date(b).map(|at| (at, Production::Rfc850)))
+        .or_else(|| read_asctime_date(b).map(|at| (at, Production::Asctime)))
+}
+
+/// The twelve `month`s, in the one capitalisation the grammar admits.
+const MONTHS: [&str; 12] = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/// RFC 850's `day-name-l`, in the order of [`DAY_NAMES`].
+const DAY_NAMES_LONG: [&str; 7] = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+];
+
+/// The digits of `b` as a number, or `None` unless every octet is a `DIGIT`.
+fn digits(b: &[u8]) -> Option<u32> {
+    b.iter().try_fold(0u32, |n, &d| {
+        d.is_ascii_digit().then(|| n * 10 + u32::from(d - b'0'))
+    })
+}
+
+fn weekday(names: &[&str; 7], name: &[u8]) -> Option<Weekday> {
+    let at = names.iter().position(|n| n.as_bytes() == name)?;
+    Weekday::try_from(u8::try_from(at).ok()?).ok()
+}
+
+fn month(name: &[u8]) -> Option<u32> {
+    let at = MONTHS.iter().position(|m| m.as_bytes() == name)?;
+    u32::try_from(at + 1).ok()
+}
+
+/// `hour ":" minute ":" second`, at the start of `b`.
+fn time_of_day(b: &[u8]) -> Option<(u32, u32, u32)> {
+    match b {
+        [h1, h2, b':', m1, m2, b':', s1, s2] => Some((
+            digits(&[*h1, *h2])?,
+            digits(&[*m1, *m2])?,
+            digits(&[*s1, *s2])?,
+        )),
+        _ => None,
+    }
+}
+
+/// The instant a date's parts name, if the calendar has it and every part
+/// agrees with the others.
+///
+/// RFC 5322 § 3.3 is where § 5.6.7 sends the meaning of these parts, and it
+/// bounds each of them: the year from 1900, the day within its month, the
+/// weekday the date implies, and the time of day up to the leap second. The
+/// only sixtieth second there is is the last one of a day, which names the
+/// same instant as the midnight after it.
+///
+/// cite(RFC 9110 § 5.6.7): "The semantics of day-name, day, month, year, and time-of-day are the same as those defined for the Internet Message Format constructs with the corresponding name ([RFC5322], Section 3.3)."
+/// cite(RFC 9110 § 5.6.7): "00:00:00 - 23:59:60 (leap second)"
+/// cite(RFC 5322 § 3.3): "The year is any numeric year 1900 or later."
+/// cite(RFC 5322 § 3.3): "the time-of-day MUST be in the range 00:00:00 through 23:59:60"
+fn instant(
+    written: Weekday,
+    year: u32,
+    month: u32,
+    day: u32,
+    (hour, minute, second): (u32, u32, u32),
+) -> Option<DateTime<Utc>> {
+    if year < 1900 {
+        return None;
+    }
+    let date = NaiveDate::from_ymd_opt(i32::try_from(year).ok()?, month, day)?;
+    if date.weekday() != written {
+        return None;
+    }
+    if (hour, minute, second) == (23, 59, 60) {
+        let last = date.and_hms_opt(23, 59, 59)?.and_utc();
+        return last.checked_add_signed(TimeDelta::seconds(1));
+    }
+    Some(date.and_hms_opt(hour, minute, second)?.and_utc())
+}
+
+/// `Sun, 06 Nov 1994 08:49:37 GMT`
+///
+/// cite(RFC 9110 § 5.6.7): "IMF-fixdate  = day-name "," SP date1 SP time-of-day SP GMT"
+fn read_imf_fixdate(b: &[u8]) -> Option<DateTime<Utc>> {
+    let [d1, d2, d3, b',', b' ', y1, y2, b' ', m1, m2, m3, b' ', rest @ ..] = b else {
+        return None;
+    };
+    let [a, b_, c, d, b' ', time @ .., b' ', b'G', b'M', b'T'] = rest else {
+        return None;
+    };
+    instant(
+        weekday(&DAY_NAMES, &[*d1, *d2, *d3])?,
+        digits(&[*a, *b_, *c, *d])?,
+        month(&[*m1, *m2, *m3])?,
+        digits(&[*y1, *y2])?,
+        time_of_day(time)?,
+    )
+}
+
+/// `Sunday, 06-Nov-94 08:49:37 GMT`
+///
+/// The two-digit year is read below 70 as the 2000s and from 70 as the 1900s,
+/// a fixed pivot. § 5.6.7 asks for a sliding one — a year more than fifty in
+/// the future is the most recent past year with those digits — which needs an
+/// instant to measure from that no caller of this function hands over.
+fn read_rfc850_date(b: &[u8]) -> Option<DateTime<Utc>> {
+    let comma = b.iter().position(|&c| c == b',')?;
+    let (name, rest) = b.split_at(comma);
+    let [b',', b' ', d1, d2, b'-', m1, m2, m3, b'-', y1, y2, b' ', rest @ ..] = rest else {
+        return None;
+    };
+    let [time @ .., b' ', b'G', b'M', b'T'] = rest else {
+        return None;
+    };
+    let yy = digits(&[*y1, *y2])?;
+    instant(
+        weekday(&DAY_NAMES_LONG, name)?,
+        if yy < 70 { 2000 + yy } else { 1900 + yy },
+        month(&[*m1, *m2, *m3])?,
+        digits(&[*d1, *d2])?,
+        time_of_day(time)?,
+    )
+}
+
+/// `Sun Nov  6 08:49:37 1994`, whose day is two digits or a space and one.
+fn read_asctime_date(b: &[u8]) -> Option<DateTime<Utc>> {
+    let [d1, d2, d3, b' ', m1, m2, m3, b' ', x1, x2, b' ', rest @ ..] = b else {
+        return None;
+    };
+    let [time @ .., b' ', y1, y2, y3, y4] = rest else {
+        return None;
+    };
+    let day = match x1 {
+        b' ' => digits(&[*x2])?,
+        _ => digits(&[*x1, *x2])?,
+    };
+    instant(
+        weekday(&DAY_NAMES, &[*d1, *d2, *d3])?,
+        digits(&[*y1, *y2, *y3, *y4])?,
+        month(&[*m1, *m2, *m3])?,
+        day,
+        time_of_day(time)?,
+    )
 }
 
 /// The named field read as a timestamp, if it carries one a recipient can read.
@@ -64,9 +239,8 @@ pub fn is_valid_http_date(s: &str) -> bool {
 /// Return true when the string is specifically an IMF-fixdate — the only format a
 /// sender is permitted to generate.
 ///
-/// IMF-fixdate is fixed-length, fixed-zone and fixed-capitalization, so it is the
-/// one format that survives a parse/format round trip unchanged. The two obsolete
-/// formats parse, then re-serialize into IMF-fixdate and no longer match, which is
+/// IMF-fixdate is fixed-length, fixed-zone and fixed-capitalization, and the
+/// reader says which of the three productions a value derives from, which is
 /// precisely the distinction being drawn.
 ///
 /// **This measures the string it is given, and the whitespace question is the
@@ -79,8 +253,8 @@ pub fn is_valid_http_date(s: &str) -> bool {
 /// field line, which is the caller's to know and not this function's to assume.
 /// Each caller now excludes `OWS` itself, and says which sentence puts it there.
 ///
-/// The round trip is also why the trim was not a harmless duplicate of the one
-/// `httpdate::parse_http_date` performs internally: the comparison ran against the
+/// The comparison is also why the trim was not a harmless duplicate of the one
+/// the reader performs itself: the comparison ran against the
 /// *trimmed* string, so `"Sun, 06 Nov 1994 08:49:37 GMT<%xA0>"` had its %xA0
 /// removed here, then reached a parser that refuses a non-ASCII string outright
 /// and never saw one — and the function answered `true` for a value no
@@ -118,7 +292,7 @@ pub enum HttpDateDefect {
     ObsoleteFormat,
     /// An IMF-fixdate with whitespace around it. The production prints `SP` at
     /// fixed offsets and nowhere else, so the padding derives from nothing —
-    /// but this parser trims before it reads, which is why the round trip
+    /// but this parser trims before it reads, which is why the production
     /// alone cannot tell this from an obsolete format.
     ///
     /// Where the value came off a field line, the `OWS` beside it is outside
@@ -133,7 +307,7 @@ pub enum HttpDateDefect {
     /// `day-name` and `date1` are separate elements of the ABNF and nothing in
     /// it ties them together, so a parser reading only the grammar admits this
     /// — which is why it arrived here as [`Unparsable`](Self::Unparsable) for
-    /// as long as the answer came from whether the dependency would parse it.
+    /// as long as the answer came from whether the parser would read it.
     /// What the value breaks is § 5.6.7's other sentence about `day-name`, the
     /// one that hands its *semantics* to RFC 5322 § 3.3, where a date-time
     /// MUST be semantically valid and the day-of-week MUST be the day the date
@@ -163,7 +337,7 @@ const DAY_NAMES: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /// repair: the seven day names are each written in front of the rest of the
 /// string, and the value conflicts when one of the other six produces an exact
 /// IMF-fixdate. Exact is what keeps the answer narrow — the repaired string
-/// must round-trip through `fmt_http_date` unchanged — so an obsolete
+/// is read as that production and nothing else, untrimmed — so an obsolete
 /// spelling, a padded value and a zone that is not `GMT` all stay unparsable,
 /// as they are.
 ///
@@ -189,7 +363,7 @@ fn conflicting_day_name(s: &str) -> bool {
 /// *whether* the weekday is the only fault means finding the repair that proves
 /// it, and the repair carries the time. [`conflicting_day_name`] is that
 /// question with the answer thrown away.
-fn day_name_repaired(s: &str) -> Option<std::time::SystemTime> {
+fn day_name_repaired(s: &str) -> Option<DateTime<Utc>> {
     let (claimed, rest) = s.split_once(", ")?;
     if !DAY_NAMES.contains(&claimed) {
         return None;
@@ -197,9 +371,8 @@ fn day_name_repaired(s: &str) -> Option<std::time::SystemTime> {
     DAY_NAMES.iter().find_map(|implied| {
         let repaired = format!("{implied}, {rest}");
         (*implied != claimed)
-            .then(|| httpdate::parse_http_date(&repaired).ok())
+            .then(|| read_imf_fixdate(repaired.as_bytes()))
             .flatten()
-            .filter(|&at| httpdate::fmt_http_date(at) == repaired)
     })
 }
 
@@ -267,7 +440,7 @@ fn read_one_spelling(s: &str) -> Option<DateTime<Utc>> {
         return Some(at);
     }
     if let Some(at) = day_name_repaired(s) {
-        return Some(DateTime::<Utc>::from(at));
+        return Some(at);
     }
     // The mail production, which is where § 5.6.7 says these constructs get
     // their meaning. It enforces the weekday itself, which is why the repair
@@ -289,14 +462,18 @@ fn with_gmt_for_utc(s: &str) -> Option<String> {
 
 /// [`is_valid_imf_fixdate`] with the three answers kept apart.
 ///
-/// The round trip is what finds them: IMF-fixdate is fixed-length, fixed-zone
-/// and fixed-capitalization, so it is the one format that survives a parse and
-/// a re-serialization unchanged. **It does not name them, though, and that is
-/// the trap this function exists to close.** The dependency trims before it
-/// parses, so a padded IMF-fixdate also comes back different — and calling that
-/// an obsolete format would report RFC 850 at a value written in the very
-/// format the sender was asked for. The two are separated by comparing against
-/// the trimmed string, which no `bool` could have carried.
+/// The reader says which production a value derives from, and that is what
+/// finds them. **It trims before it reads, though, and that is the trap this
+/// function exists to close**: a padded IMF-fixdate derives from the right
+/// production once the padding is off — and calling it an obsolete format
+/// would report RFC 850 at a value written in the very format the sender was
+/// asked for. The two are separated by asking whether the value was padded,
+/// which no `bool` could have carried.
+///
+/// This used to be a round trip — parse, re-serialise, compare — which is
+/// sound only while every IMF-fixdate the parser admits serialises back to
+/// itself. The leap second is one that does not: `23:59:60` names the instant
+/// of the midnight after it, which prints as `00:00:00` the next day.
 ///
 /// Everything else that is not an IMF-fixdate is refused by the parser outright
 /// — a lowercase day name, a doubled interior `SP`, a zone that is not `GMT` —
@@ -315,8 +492,8 @@ pub fn check_imf_fixdate(s: &str) -> Result<(), HttpDateDefect> {
     if is_only_ows(s) {
         return Err(HttpDateDefect::Empty);
     }
-    let Ok(st) = httpdate::parse_http_date(s) else {
-        // The dependency refuses a weekday its date does not fall on, and a
+    let Some((_, production)) = read_http_date(s) else {
+        // The reader refuses a weekday its date does not fall on, and a
         // refusal is all it says. Two different defects arrive here as one, so
         // the split is made before the verdict is: one of them derives from the
         // production and names the instant it meant.
@@ -327,16 +504,13 @@ pub fn check_imf_fixdate(s: &str) -> Result<(), HttpDateDefect> {
             false => HttpDateDefect::Unparsable,
         });
     };
-    let fixdate = httpdate::fmt_http_date(st);
-    if fixdate == s {
-        return Ok(());
-    }
-    // The trimmed comparison is the whole of the distinction: a value that is
-    // an IMF-fixdate once its padding is taken off was written in the format
+    // The padding is the whole of the distinction: a value that is an
+    // IMF-fixdate once its padding is taken off was written in the format
     // § 5.6.7 asks for, with octets around it the production never generates.
-    match fixdate == s.trim() {
-        true => Err(HttpDateDefect::SurroundingWhitespace),
-        false => Err(HttpDateDefect::ObsoleteFormat),
+    match (production, s.trim() == s) {
+        (Production::ImfFixdate, true) => Ok(()),
+        (Production::ImfFixdate, false) => Err(HttpDateDefect::SurroundingWhitespace),
+        (Production::Rfc850 | Production::Asctime, _) => Err(HttpDateDefect::ObsoleteFormat),
     }
 }
 
@@ -392,7 +566,7 @@ mod tests {
     /// strings were read off real responses: the first of January 1980 was a
     /// Tuesday and the twenty-sixth of July 1997 was a Saturday, and both
     /// values name their instant without any help from the weekday. The
-    /// repair-and-round-trip reading is narrow on purpose, so everything that
+    /// repair-and-reread reading is narrow on purpose, so everything that
     /// fails the production for a second reason stays unparsable.
     #[test]
     fn a_weekday_that_is_the_wrong_day_is_not_a_date_that_names_no_instant() {
@@ -483,7 +657,7 @@ mod tests {
 
     /// The %xA0 case is the one the removed trim answered backwards. Read one
     /// `char` per octet, the padding is U+00A0 — `obs-text`, and `str::trim`
-    /// removes it. Doing so *here* handed the dependency a string that had become
+    /// removes it. Doing so *here* handed the reader a string that had become
     /// pure ASCII, so its own `is_ascii` refusal never fired and the function
     /// returned `true` for a value no date production writes.
     #[test]
@@ -575,20 +749,78 @@ mod tests {
         }
     }
 
-    /// The dependency's two behaviours this module rests on, pinned in the crate
-    /// that owns the call. `httpdate::parse_http_date` goes through `FromStr`,
-    /// which refuses a non-ASCII string *before* trimming and then applies
-    /// `str::trim` itself — so the recipient's reader needs no trim of its own,
-    /// and adding one in front of it would defeat the refusal.
+    /// The reader's two behaviours this module rests on, in the order it
+    /// performs them: it refuses a non-ASCII string *before* trimming and then
+    /// applies `str::trim` itself — so a caller needs no trim of its own, and
+    /// adding one in front of it would defeat the refusal.
     #[test]
-    fn httpdate_refuses_non_ascii_and_trims_ascii_whitespace_itself() {
+    fn the_reader_refuses_non_ascii_and_trims_ascii_whitespace_itself() {
         let imf = "Sun, 06 Nov 1994 08:49:37 GMT";
-        assert!(httpdate::parse_http_date(&format!("  {imf}  ")).is_ok());
+        assert!(is_valid_http_date(&format!("  {imf}  ")));
 
         let non_ascii: String = b"Sun, 06 Nov 1994 08:49:37 GMT\xA0"
             .iter()
             .map(|&b| b as char)
             .collect();
-        assert!(httpdate::parse_http_date(&non_ascii).is_err());
+        assert!(!is_valid_http_date(&non_ascii));
+    }
+
+    /// The two edges where the reader's type used to be narrower than the
+    /// grammar, in each of the three productions and both directions. A year
+    /// from 1900 and the sixtieth second of a day's last minute are dates;
+    /// the year before, and a sixtieth second anywhere else, are not.
+    #[rstest::rstest]
+    #[case::imf_leap_second("Sat, 31 Dec 2016 23:59:60 GMT", Some("2017-01-01T00:00:00+00:00"))]
+    #[case::imf_before_the_epoch(
+        "Wed, 31 Dec 1969 23:59:59 GMT",
+        Some("1969-12-31T23:59:59+00:00")
+    )]
+    #[case::imf_1900("Mon, 01 Jan 1900 00:00:00 GMT", Some("1900-01-01T00:00:00+00:00"))]
+    #[case::asctime_leap_second("Sat Dec 31 23:59:60 2016", Some("2017-01-01T00:00:00+00:00"))]
+    #[case::asctime_before_the_epoch("Wed Dec 31 23:59:59 1969", Some("1969-12-31T23:59:59+00:00"))]
+    #[case::rfc850_leap_second(
+        "Saturday, 31-Dec-16 23:59:60 GMT",
+        Some("2017-01-01T00:00:00+00:00")
+    )]
+    #[case::imf_1899("Sun, 31 Dec 1899 23:59:59 GMT", None)]
+    #[case::imf_second_60_mid_day("Sat, 31 Dec 2016 12:00:60 GMT", None)]
+    #[case::imf_second_61("Sat, 31 Dec 2016 23:59:61 GMT", None)]
+    #[case::imf_hour_24("Sat, 31 Dec 2016 24:00:00 GMT", None)]
+    #[case::imf_no_such_day("Mon, 29 Feb 2027 00:00:00 GMT", None)]
+    #[case::imf_wrong_weekday_before_the_epoch("Thu, 31 Dec 1969 23:59:59 GMT", None)]
+    fn a_date_is_read_to_the_grammar_s_edges(#[case] value: &str, #[case] at: Option<&str>) {
+        assert_eq!(
+            parse_http_date_to_datetime(value)
+                .ok()
+                .map(|d| d.to_rfc3339()),
+            at.map(str::to_string),
+            "{value}",
+        );
+    }
+
+    /// The sender's verdict on the same edges. A leap second written as an
+    /// IMF-fixdate is one — it names the midnight after it, which prints
+    /// differently, and a round trip would have called it obsolete — and a
+    /// wrong weekday before the epoch is found as the weekday it is.
+    #[test]
+    fn the_sender_s_verdict_reads_the_production_not_a_round_trip() {
+        assert!(check_imf_fixdate("Sat, 31 Dec 2016 23:59:60 GMT").is_ok());
+        assert!(check_imf_fixdate("Wed, 31 Dec 1969 23:59:59 GMT").is_ok());
+        assert_eq!(
+            check_imf_fixdate("Sat Dec 31 23:59:60 2016"),
+            Err(HttpDateDefect::ObsoleteFormat),
+        );
+        assert_eq!(
+            check_imf_fixdate(" Sat, 31 Dec 2016 23:59:60 GMT"),
+            Err(HttpDateDefect::SurroundingWhitespace),
+        );
+        assert_eq!(
+            check_imf_fixdate("Thu, 31 Dec 1969 23:59:59 GMT"),
+            Err(HttpDateDefect::DayNameConflicting),
+        );
+        assert_eq!(
+            check_imf_fixdate("Sat, 31 Dec 1899 23:59:59 GMT"),
+            Err(HttpDateDefect::Unparsable),
+        );
     }
 }

@@ -436,7 +436,26 @@ impl CookieAttributeConsistent {
             // cite(RFC 6265 § 4.1.1): "expires-av        = "Expires=" sane-cookie-date"
             // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
             let Err(defect) = crate::http_date::check_imf_fixdate(value) else {
-                return None;
+                // One IMF-fixdate is not an `rfc1123-date`: the leap second.
+                // § 5.6.7's `time-of-day` runs to `23:59:60` and RFC 2616's
+                // `time`, the one § 4.1.1 names, stops a second short — and
+                // § 5.1.1 aborts on it, so the attribute is ignored and the
+                // cookie lasts for the session. Every other bound step 5 sets
+                // is one the IMF-fixdate reader already holds.
+                //
+                // cite(RFC 6265 § 4.1.1): "sane-cookie-date  = <rfc1123-date, defined in [RFC2616], Section 3.3.1>"
+                // cite(RFC 6265 § 5.1.1): "the second-value is greater than 59."
+                if crate::helpers::cookie::cookie_date_is_readable(value) {
+                    return None;
+                }
+                return Some(ctx.report_with(
+                    &HTTP_DATE_MALFORMED,
+                    about(&format!(
+                        "Set-Cookie attribute 'Expires' is an HTTP-date with a leap second, \
+                         which § 5.1.1 refuses, so a user agent ignores the attribute and \
+                         keeps the cookie for the session: '{value}'"
+                    )),
+                ));
             };
             return Some(match defect {
                 // An `Expires=` with nothing after the `=`. The bare attribute
@@ -1154,6 +1173,16 @@ mod tests {
     #[case(
         "SID=1; Expires=Thu, 29-Feb-2024 00:00:00 GMT",
         Some("cookie_expires_malformed")
+    )]
+    // A year before the Unix epoch is an `rfc1123-date` and § 5.1.1 reads it:
+    // the year floor there is 1601.
+    #[case("SID=1; Expires=Wed, 31 Dec 1969 23:59:59 GMT", None)]
+    #[case("SID=1; Expires=Mon, 01 Jan 1900 00:00:00 GMT", None)]
+    // The leap second is an HTTP-date and not an `rfc1123-date`, and step 5
+    // refuses it, so the cookie lasts for the session.
+    #[case(
+        "SID=1; Expires=Sat, 31 Dec 2016 23:59:60 GMT",
+        Some("http_date_malformed")
     )]
     fn expires_reports_what_a_user_agent_can_read(
         #[case] value: &str,
