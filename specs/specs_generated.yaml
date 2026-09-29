@@ -309,15 +309,15 @@ sources:
     snippet: The `X-Frame-Options` HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 109
+      line: 121
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 280
+      line: 292
   - label: content_security_policy_and_frame_options_consistent (2)
     section: § 7.7
     snippet: X-Frame-Options = "DENY" / "SAMEORIGIN"
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 299
+      line: 311
     - file: lint-http-rules/src/violations/x_frame_options.rs
       line: 60
   - label: refresh_header_syntax
@@ -627,42 +627,52 @@ sources:
     - file: lint-http-rules/src/violations/content_security_policy.rs
       line: 365
   - label: content_security_policy_and_frame_options_consistent
+    section: § 2.2
+    snippet: a comma-delimited series of serialized CSPs
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 70
+    - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
+      line: 136
+    - file: lint-http-rules/src/rules/content_security_policy_valid.rs
+      line: 404
+  - label: content_security_policy_and_frame_options_consistent (2)
+    section: § 2.2.1
+    snippet: directive set contains a directive whose name is directive name
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 71
+    - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
+      line: 169
+  - label: content_security_policy_and_frame_options_consistent (3)
     section: § 6.4.2
     snippet: The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
       line: 58
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 279
+      line: 291
     - file: lint-http-rules/src/violations/content_security_policy.rs
       line: 316
-  - label: content_security_policy_and_frame_options_consistent (2)
+  - label: content_security_policy_and_frame_options_consistent (4)
     section: § 6.4.2.2
     snippet: In order to allow backwards-compatible deployment, the frame-ancestors directive overrides the ``X-Frame-Options`` header.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 300
-  - label: content_security_policy_and_frame_options_consistent (3)
+      line: 312
+  - label: content_security_policy_and_frame_options_consistent (5)
     section: § 6.4.2.2
     snippet: the frame-ancestors directive overrides the ``X-Frame-Options`` header.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 278
+      line: 290
   - label: content_security_policy_report_to_named
-    section: § 2.2
-    snippet: a comma-delimited series of serialized CSPs
-    cited_by:
-    - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
-      line: 136
-    - file: lint-http-rules/src/rules/content_security_policy_valid.rs
-      line: 404
-  - label: content_security_policy_report_to_named (2)
     section: § 2.2.1
     snippet: Directive names are case-insensitive
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
       line: 170
-  - label: content_security_policy_report_to_named (3)
+  - label: content_security_policy_report_to_named (2)
     section: § 2.2.1
     snippet: Let directive value be the result of splitting token on ASCII whitespace
     cited_by:
@@ -670,12 +680,6 @@ sources:
       line: 180
     - file: lint-http-rules/src/violations/content_security_policy.rs
       line: 366
-  - label: content_security_policy_report_to_named (4)
-    section: § 2.2.1
-    snippet: directive set contains a directive whose name is directive name
-    cited_by:
-    - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
-      line: 169
   - label: report-to grammar
     section: § 6.5.2
     snippet: directive-value = token

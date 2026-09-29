@@ -60,16 +60,28 @@ impl FrameAncestors {
         let mut policy = Self::default();
         let mut named = false;
 
+        // Policies before directives, and one directive per policy. A line is
+        // a comma-delimited series of policies -- two lines a recipient joined
+        // with a comma are one -- so a `;` split alone read the `'none'` of a
+        // second policy's `default-src` as a frame-ancestors source. Within a
+        // policy only the first `frame-ancestors` is kept: a user agent skips a
+        // directive whose name the policy already holds.
+        //
+        // cite(CSP3 § 2.2): "a comma-delimited series of serialized CSPs"
+        // cite(CSP3 § 2.2.1): "directive set contains a directive whose name is directive name"
         for directive in crate::helpers::headers::field_lines(headers, "content-security-policy")
-            .flat_map(crate::helpers::list::parse_semicolon_list)
+            .flat_map(crate::helpers::list::list_members)
+            .filter_map(|policy| {
+                crate::helpers::list::parse_semicolon_list(policy).find(|directive| {
+                    directive
+                        .split_ascii_whitespace()
+                        .next()
+                        .is_some_and(|name| name.eq_ignore_ascii_case("frame-ancestors"))
+                })
+            })
         {
-            let mut parts = directive.split_whitespace();
-            if !parts
-                .next()
-                .is_some_and(|name| name.eq_ignore_ascii_case("frame-ancestors"))
-            {
-                continue;
-            }
+            let mut parts = directive.split_ascii_whitespace();
+            parts.next();
             // The directive is named even when it lists nothing, and a
             // `frame-ancestors` with no source expression permits no framing at
             // all — which is a finding for the rule that owns the grammar, not a
@@ -374,6 +386,17 @@ mod tests {
     #[case("frame-ancestors https://partner", "DENY", false)]
     #[case("frame-ancestors 'self' https://a", "SAMEORIGIN", false)]
     #[case("frame-ancestors 'self'", "ALLOW-FROM https://example", true)]
+    // A line holding two policies, which is what two lines become once a
+    // recipient joins them. The second policy's sources are not the first's
+    // directive's: `'none'` here belongs to `default-src`, and was read as
+    // forbidding the framing `'self'` permits.
+    #[case("frame-ancestors 'self', default-src 'none'", "SAMEORIGIN", false)]
+    #[case("frame-ancestors 'self', script-src 'self'", "DENY", true)]
+    #[case("default-src 'self', frame-ancestors 'self'", "DENY", true)]
+    #[case("default-src 'self', frame-ancestors 'none'", "SAMEORIGIN", true)]
+    // Only the first directive of a name counts in a policy.
+    #[case("frame-ancestors 'self'; frame-ancestors 'none'", "SAMEORIGIN", false)]
+    #[case("frame-ancestors 'none'; frame-ancestors 'self'", "SAMEORIGIN", true)]
     fn consistency_cases(#[case] csp: &str, #[case] xfo: &str, #[case] expect_violation: bool) {
         let rule = ContentSecurityPolicyAndFrameOptionsConsistent;
         let cfg = make_cfg();
