@@ -3298,7 +3298,7 @@ sources:
     snippet: cookie-value      = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE ) cookie-octet      = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 511
+      line: 530
   - label: lint-http-rules/src/helpers/cookie.rs (5)
     section: § 4.1.1
     snippet: set-cookie-string = cookie-pair *( ";" SP cookie-av )
@@ -3310,7 +3310,7 @@ sources:
     snippet: If no such date exists, abort these steps and fail to parse the cookie-date.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 744
+      line: 763
     - file: lint-http-rules/src/violations/cookie.rs
       line: 549
   - label: lint-http-rules/src/helpers/cookie.rs (6)
@@ -3318,49 +3318,49 @@ sources:
     snippet: If the year-value is greater than or equal to 70 and less than or
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 721
+      line: 740
   - label: lint-http-rules/src/helpers/cookie.rs (7)
     section: § 5.1.1
     snippet: The user agent MUST use an algorithm equivalent to the following algorithm to parse a cookie-date.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 640
+      line: 659
   - label: lint-http-rules/src/helpers/cookie.rs (8)
     section: § 5.1.1
     snippet: day-of-month    = 1*2DIGIT ( non-digit *OCTET )
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 688
+      line: 707
   - label: lint-http-rules/src/helpers/cookie.rs (9)
     section: § 5.1.1
     snippet: delimiter       = %x09 / %x20-2F / %x3B-40 / %x5B-60 / %x7B-7E
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 643
+      line: 662
   - label: lint-http-rules/src/helpers/cookie.rs (10)
     section: § 5.1.1
     snippet: hms-time        = time-field ":" time-field ":" time-field
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 681
+      line: 700
   - label: lint-http-rules/src/helpers/cookie.rs (11)
     section: § 5.1.1
     snippet: month           = ( "jan" / "feb" / "mar" / "apr" /
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 695
+      line: 714
   - label: lint-http-rules/src/helpers/cookie.rs (12)
     section: § 5.1.1
     snippet: the day-of-month-value is less than 1 or greater than 31,
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 728
+      line: 747
   - label: lint-http-rules/src/helpers/cookie.rs (13)
     section: § 5.1.1
     snippet: year            = 2*4DIGIT ( non-digit *OCTET )
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 705
+      line: 724
   - label: cookie domain-match
     section: § 5.1.3
     snippet: A string domain-matches a given domain string if at least one of the following conditions hold
@@ -3402,13 +3402,19 @@ sources:
     snippet: If the name-value-pair string lacks a %x3D ("=") character, ignore the set-cookie-string entirely.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 551
+      line: 570
   - label: lint-http-rules/src/helpers/cookie.rs (19)
     section: § 5.2.1
     snippet: If the attribute-name case-insensitively matches the string "Expires", the user agent MUST process the cookie-av as follows.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 250
+  - label: lint-http-rules/src/helpers/cookie.rs (20)
+    section: § 5.2.2
+    snippet: Otherwise, let the expiry-time be the current date and time plus delta-seconds seconds.
+    cited_by:
+    - file: lint-http-rules/src/helpers/cookie.rs
+      line: 513
   - label: cookie Path attribute
     section: § 5.2.4
     snippet: 'If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):'
@@ -3429,7 +3435,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 342
-  - label: lint-http-rules/src/helpers/cookie.rs (20)
+  - label: lint-http-rules/src/helpers/cookie.rs (21)
     section: § 5.3
     snippet: Set the cookie's host-only-flag to true.
     cited_by:
@@ -3445,15 +3451,15 @@ sources:
       line: 205
     - file: lint-http-rules/src/violations/cookie.rs
       line: 582
-  - label: lint-http-rules/src/helpers/cookie.rs (21)
+  - label: lint-http-rules/src/helpers/cookie.rs (22)
     section: § 5.4
     snippet: Output the cookie's name, the %x3D ("=") character, and the cookie's value.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 550
+      line: 569
     - file: lint-http-rules/src/rules/cookie_pair_valid.rs
       line: 189
-  - label: lint-http-rules/src/helpers/cookie.rs (22)
+  - label: lint-http-rules/src/helpers/cookie.rs (23)
     section: § 5.4
     snippet: The cookie's host-only-flag is true and the canonicalized request-host is identical to the cookie's domain.
     cited_by:

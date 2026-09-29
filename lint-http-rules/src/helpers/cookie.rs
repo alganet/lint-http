@@ -483,7 +483,7 @@ pub fn parse_set_cookie(
         if n <= 0 {
             Some(timestamp)
         } else {
-            Some(timestamp + chrono::Duration::seconds(n))
+            Some(expiry_after(timestamp, n))
         }
     } else {
         expires_attr
@@ -499,6 +499,25 @@ pub fn parse_set_cookie(
         expiration,
         same_site,
     })
+}
+
+/// The instant `seconds` after `from`, or the last one a `DateTime` holds.
+///
+/// **A lifetime is not bounded by the date type.** `1*DIGIT` has no width, and
+/// thirteen digits of seconds already reach past the last instant `chrono`
+/// represents; the `+` that computed this panicked on it. That took the whole
+/// run down on a value the grammar admits, once a later request sent the
+/// cookie back. The user agent keeps such a cookie past every instant any
+/// capture is compared against, and the last representable one says exactly
+/// that.
+// cite(RFC 6265 § 5.2.2): "Otherwise, let the expiry-time be the current date and time plus delta-seconds seconds."
+fn expiry_after(
+    from: chrono::DateTime<chrono::Utc>,
+    seconds: i64,
+) -> chrono::DateTime<chrono::Utc> {
+    chrono::TimeDelta::try_seconds(seconds)
+        .and_then(|lifetime| from.checked_add_signed(lifetime))
+        .unwrap_or(chrono::DateTime::<chrono::Utc>::MAX_UTC)
 }
 
 /// The first character in a `cookie-value` that is not a `cookie-octet`.
@@ -930,6 +949,19 @@ mod tests {
         let header = format!("z=1; Expires={}", exp_str);
         let c3 = parse_set_cookie(&header, "https://example.com/", &no_headers(), ts).unwrap();
         assert!(c3.expiration.is_some());
+    }
+
+    /// A lifetime past the last instant the date type holds is the last
+    /// instant, and not a panic. Thirteen digits is the first width that
+    /// crosses it; the widest `i64` also crosses `TimeDelta`'s own range.
+    #[rstest]
+    #[case("a=1; Max-Age=9999999999999")]
+    #[case("a=1; Max-Age=9223372036854775807")]
+    fn a_lifetime_past_the_date_type_is_the_last_instant(#[case] line: &str) {
+        let ts = chrono::Utc::now();
+        let c = parse_set_cookie(line, "https://example.com/", &no_headers(), ts).unwrap();
+        assert_eq!(c.expiration, Some(chrono::DateTime::<chrono::Utc>::MAX_UTC));
+        assert!(!c.is_expired_at(ts + chrono::Duration::days(365 * 1000)));
     }
 
     /// The store reads `Expires` with § 5.1.1, so the spellings a user agent
