@@ -112,7 +112,13 @@ const RFC_3986_6_2_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 3986",
     section: Some("6.2.2.3"),
     url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.3",
-    note: "Path Segment Normalization: dot-segments are removed from both sides before comparison, after the decoding above — §2.3 names the period among the octets a normalizer decodes, so `%2E%2E` is a dot segment. §6.2.3's scheme-based normalization is NOT applied, so a default port written out and one left off read as different authorities",
+    note: "Path Segment Normalization: dot-segments are removed from both sides before comparison, after the decoding above — §2.3 names the period among the octets a normalizer decodes, so `%2E%2E` is a dot segment",
+};
+const RFC_9110_4_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("4.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.3",
+    note: "http(s) Normalization and Comparison: the authorities compare in the normal form this section gives them, so a default or empty port and a percent-encoded host letter spell the target's own authority. Where neither side states a scheme, a difference is reported only if both schemes leave it",
 };
 
 impl RuleMeta for ContentLocationAndUriConsistent {
@@ -126,7 +132,7 @@ impl RuleMeta for ContentLocationAndUriConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Content-Location` header values. The value must derive from `Content-Location = absolute-URI / partial-URI`: written only with characters a URI is composed from (RFC 3986 §2, which excludes whitespace and the nine visible characters that are not URI characters either — less-than, greater-than, double quote, the two braces, pipe, backslash, caret and backtick — along with every octet at or above %x80), sound percent-encoding and a valid scheme where one is present, and — since neither alternative of the grammar is a comma-separated list — a message carries at most one `Content-Location` field line (RFC 9110 §5.3).\n\n**The value is not a `URI-reference`, and the fragment is the whole difference.** `URI` and `relative-ref` each end in an optional `[ \"#\" fragment ]` group; `absolute-URI` and `partial-URI` are those two rules with the group dropped, which RFC 9110 §4.1 states in as many words. So `Content-Location: /foo#frag` derives from no reading of the grammar and is reported. Unlike `Referer` — the other field carrying this production — no MUST NOT names the component here: the finding rests on the grammar and §2.2's sender requirement alone, and the message cites those. A percent-encoded `%23` is data, not a fragment.\n\nFor 2xx responses the rule additionally compares the value against the request target, resolving a `partial-URI` against it first as RFC 9110 §8.7 requires (\"after conversion to absolute form\"), so a relative reference that names the target resource is not reported.\n\n**A difference is not a protocol error.** RFC 9110 §8.7 attaches no requirement to a differing `Content-Location`: it means \"the origin server claims that the URI is an identifier for a different resource\", which is exactly what a negotiated variant, a 201 pointing at the created resource, or a POST report is supposed to say. The rule reports the difference as an advisory — `config_example.toml` ships it at `info` — because the claim \"can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP\", so it is worth a human glance and nothing stronger. Raise the severity only if your deployment intends `Content-Location` to always echo the target."
+        "Validate `Content-Location` header values. The value must derive from `Content-Location = absolute-URI / partial-URI`: written only with characters a URI is composed from (RFC 3986 §2, which excludes whitespace and the nine visible characters that are not URI characters either — less-than, greater-than, double quote, the two braces, pipe, backslash, caret and backtick — along with every octet at or above %x80), sound percent-encoding and a valid scheme where one is present, and — since neither alternative of the grammar is a comma-separated list — a message carries at most one `Content-Location` field line (RFC 9110 §5.3).\n\n**The value is not a `URI-reference`, and the fragment is the whole difference.** `URI` and `relative-ref` each end in an optional `[ \"#\" fragment ]` group; `absolute-URI` and `partial-URI` are those two rules with the group dropped, which RFC 9110 §4.1 states in as many words. So `Content-Location: /foo#frag` derives from no reading of the grammar and is reported. Unlike `Referer` — the other field carrying this production — no MUST NOT names the component here: the finding rests on the grammar and §2.2's sender requirement alone, and the message cites those. A percent-encoded `%23` is data, not a fragment.\n\nFor 2xx responses the rule additionally compares the value against the request target, resolving a `partial-URI` against it first as RFC 9110 §8.7 requires (\"after conversion to absolute form\"), so a relative reference that names the target resource is not reported. Both sides are compared in the normal form RFC 9110 §4.2.3 and RFC 3986 §6.2.2 give them — the scheme and host without regard to case, a percent-encoded `unreserved` octet decoded, dot segments removed, and a port that is empty or the scheme's default omitted — because \"Two HTTP URIs that are equivalent after normalization (using any method) can be assumed to identify the same resource\": `https://example.com:443/foo` names the target `https://example.com/foo`. Where neither the target nor the value states a scheme (an origin-form target and a network-path reference), the difference is reported only if it holds under both `http` and `https`.\n\n**A difference is not a protocol error.** RFC 9110 §8.7 attaches no requirement to a differing `Content-Location`: it means \"the origin server claims that the URI is an identifier for a different resource\", which is exactly what a negotiated variant, a 201 pointing at the created resource, or a POST report is supposed to say. The rule reports the difference as an advisory — `config_example.toml` ships it at `info` — because the claim \"can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP\", so it is worth a human glance and nothing stronger. Raise the severity only if your deployment intends `Content-Location` to always echo the target."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -141,6 +147,7 @@ impl RuleMeta for ContentLocationAndUriConsistent {
             RFC_3986_6_2_2_1,
             RFC_3986_6_2_2_2,
             RFC_3986_6_2_2_3,
+            RFC_9110_4_2_3,
             RFC_3986_2,
             RFC_3986_2_1,
             RFC_3986_3_1,
@@ -448,10 +455,11 @@ impl Rule for ContentLocationAndUriConsistent {
                     let cl_path_opt =
                         crate::helpers::reference::resolve_reference_path_and_query(&req_path, s);
 
-                    // If absolute, also compare origin
-                    let cl_origin_opt = crate::helpers::origin::extract_origin_if_absolute(s);
-                    let req_origin_opt =
-                        crate::helpers::origin::extract_origin_if_absolute(&tx.request.uri);
+                    // The scheme each side states, where it states one. An
+                    // origin-form target states none: RFC 9112 § 3.3 takes it
+                    // from the connection, which the message does not carry.
+                    let req_scheme = crate::helpers::scheme::scheme_prefix(&tx.request.uri);
+                    let cl_scheme = crate::helpers::scheme::scheme_prefix(s);
 
                     // The target URI's authority is in the request-target only when
                     // that is in absolute form; an origin-form target keeps it in
@@ -475,28 +483,46 @@ impl Rule for ContentLocationAndUriConsistent {
                         // they compare byte for byte. Both halves are one sentence.
                         // cite(RFC 3986 § 6.2.2.1): "the scheme and host are case-insensitive and therefore should be normalized to lowercase"
                         // cite(RFC 3986 § 6.2.2.1): "The other generic syntax components are assumed to be case-sensitive unless specifically defined otherwise by the scheme (see Section 6.2.3)."
-                        let origins_agree =
-                            match (req_origin_opt.as_deref(), cl_origin_opt.as_deref()) {
-                                (Some(req_origin), Some(cl_origin)) => {
-                                    req_origin.eq_ignore_ascii_case(cl_origin)
-                                }
-                                // Only one side carries a scheme, and the target URI's
-                                // scheme is not on the wire for an origin-form request.
-                                // The authority check below still applies.
-                                _ => true,
-                            };
+                        let schemes_agree = match (req_scheme, cl_scheme) {
+                            (Some(req), Some(cl)) => req.eq_ignore_ascii_case(cl),
+                            // Only one side carries a scheme, and the target URI's
+                            // scheme is not on the wire for an origin-form request.
+                            // The authority check below still applies.
+                            _ => true,
+                        };
+                        // The authorities compare in the normal form § 4.2.3 gives
+                        // them, so the target's own authority with its default
+                        // port written out, left empty, or with a letter
+                        // percent-encoded is the target's authority. This branch
+                        // reports a *difference*, so a spelling left apart here is
+                        // a finding claiming another resource. The scheme that
+                        // decides the default port is whichever side states one:
+                        // where only the reference does, the comparison above has
+                        // already read the target as sharing it. Where neither
+                        // does -- an origin-form target and a network-path
+                        // reference -- the connection decided it, and the two are
+                        // one authority if either scheme it could have been makes
+                        // them one: a difference is reported only when it holds
+                        // however the request arrived.
+                        //
+                        // cite(RFC 9110 § 4.2.3): "Two HTTP URIs that are equivalent after normalization (using any method) can be assumed to identify the same resource, and any HTTP component MAY perform normalization."
+                        let schemes: &[Option<&str>] = match req_scheme.or(cl_scheme) {
+                            Some(_) => &[req_scheme.or(cl_scheme)],
+                            None => &[Some("http"), Some("https")],
+                        };
                         let authorities_agree =
                             match (req_authority.as_deref(), cl_authority.as_deref()) {
-                                (Some(req_auth), Some(cl_auth)) => {
-                                    req_auth.eq_ignore_ascii_case(cl_auth)
-                                }
+                                (Some(req_auth), Some(cl_auth)) => schemes.iter().any(|&scheme| {
+                                    crate::helpers::authority::normal_form(req_auth, scheme)
+                                        == crate::helpers::authority::normal_form(cl_auth, scheme)
+                                }),
                                 // The reference defines no authority of its own, so
                                 // it inherits the target's — or the target's is
                                 // unknown (no Host, no absolute-form target), and
                                 // nothing can be concluded from it.
                                 _ => true,
                             };
-                        matches = origins_agree && authorities_agree && req_path == cl_path;
+                        matches = schemes_agree && authorities_agree && req_path == cl_path;
                     }
 
                     // This is the one branch in the rule that reports something the
@@ -1122,6 +1148,52 @@ mod tests {
             &cfg,
         );
         assert!(v.is_some());
+    }
+
+    /// RFC 9110 § 4.2.3's equivalents of the target are the target: a default
+    /// port written out or left empty, a host letter percent-encoded, and the
+    /// same on the target's side. A port the scheme does not default to, and
+    /// another scheme, stay another resource. Under an origin-form target a
+    /// reference stating no scheme either is compared under both, and reported
+    /// only for a difference neither removes.
+    #[rstest]
+    #[case::default_port("https://example.com/foo", "https://example.com:443/foo", false)]
+    #[case::empty_port("https://example.com/foo", "https://example.com:/foo", false)]
+    #[case::leading_zero_port("https://example.com/foo", "https://example.com:0443/foo", false)]
+    #[case::percent_encoded_host("https://example.com/foo", "https://%65xample.com/foo", false)]
+    #[case::network_path_port("https://example.com/foo", "//example.com:443/foo", false)]
+    #[case::target_port("https://example.com:443/foo", "https://example.com/foo", false)]
+    #[case::http_default_port("http://example.com/foo", "http://example.com:80/foo", false)]
+    #[case::scheme_case("https://example.com/foo", "HTTPS://example.com/foo", false)]
+    #[case::other_port("https://example.com/foo", "https://example.com:8443/foo", true)]
+    #[case::other_default_port("https://example.com/foo", "https://example.com:80/foo", true)]
+    #[case::other_scheme("https://example.com/foo", "http://example.com/foo", true)]
+    #[case::origin_form_either_default("/foo", "//example.com:443/foo", false)]
+    #[case::origin_form_neither_default("/foo", "//example.com:8443/foo", true)]
+    #[case::origin_form_stated_scheme("/foo", "https://example.com:443/foo", false)]
+    fn a_spelling_of_the_target_names_the_target(
+        #[case] req_uri: &str,
+        #[case] content_location: &str,
+        #[case] expect_violation: bool,
+    ) {
+        let rule = ContentLocationAndUriConsistent;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "content_location_and_uri_consistent",
+        ]);
+        let mut tx = make_tx_with_req_uri(req_uri, 200, &[("content-location", content_location)]);
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.as_ref().map(|v| v.violation.as_str()),
+            expect_violation.then_some("content_location_ambiguous"),
+            "{req_uri} + Content-Location: {content_location} -> {v:?}"
+        );
     }
 
     #[test]

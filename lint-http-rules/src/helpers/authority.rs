@@ -557,6 +557,108 @@ impl ConnectTunnelDefect<'_> {
     }
 }
 
+/// One authority in the normal form scheme-based normalization gives it.
+///
+/// RFC 9110 § 4.2.3 is where what that normalization involves for an "http"
+/// or "https" URI is written down, so this function is that list restricted
+/// to the one component an authority is: the host is lower-cased, a
+/// percent-encoded octet standing for an unreserved character is decoded, and
+/// a port that is empty or the scheme's default goes. The list's fourth item —
+/// an empty path being equivalent to `/` — is about a component no authority
+/// has.
+///
+/// **Two authorities with one normal form name one authority, and a caller
+/// comparing two URIs compares these rather than the octets.** The section
+/// licenses the reading without naming a method: "Two HTTP URIs that are
+/// equivalent after normalization (using any method) can be assumed to
+/// identify the same resource". A reader that reports a *difference* is the
+/// one that needs it — a `Content-Location` naming the target with its default
+/// port written out names the target — and so is one that reports an
+/// *equality*, which misses every spelling the octets keep apart.
+///
+/// What is *not* folded is as cited as what is. The same sentence that makes
+/// the host case-insensitive says every other component is compared with
+/// case, so a userinfo subcomponent is carried through as written.
+///
+/// **The scheme is the caller's to supply, and `None` elides nothing.** A
+/// default port is a property of the scheme, and the target of an origin-form
+/// request states none (RFC 9112 § 3.3 takes it from the connection), so a
+/// caller that cannot name the scheme gets the port compared as written.
+///
+/// The port is compared as the number § 3.2.3 says it is — so `:080` names
+/// the port "http" defaults to — but only where every character in it is a
+/// digit, because a value like `+443` parses as a number and derives from no
+/// `port`. An empty port is elided only where the scheme defines a default
+/// to elide it against, which is the last sentence below.
+///
+// cite(RFC 9110 § 4.2.3): "Two HTTP URIs that are equivalent after normalization (using any method) can be assumed to identify the same resource, and any HTTP component MAY perform normalization."
+// cite(RFC 9110 § 4.2.3): "If the port is equal to the default port for a scheme, the normal form is to omit the port subcomponent."
+// cite(RFC 9110 § 4.2.3): "The scheme and host are case-insensitive and normally provided in lowercase; all other components are compared in a case-sensitive manner."
+// cite(RFC 9110 § 4.2.3): "Characters other than those in the "reserved" set are equivalent to their percent-encoded octets: the normal form is to not encode them (see Sections 2.1 and 2.2 of [URI])."
+// cite(RFC 3986 § 3.2.3): "The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character."
+// cite(RFC 9110 § 4.2.1): "If the port subcomponent is empty or not given, TCP port 80 (the reserved port for WWW services) is the default."
+// cite(RFC 9110 § 4.2.2): "If the port subcomponent is empty or not given, TCP port 443 (the reserved port for HTTP over TLS) is the default."
+// cite(RFC 3986 § 6.2.3): "Normalization should not remove delimiters when their associated component is empty unless licensed to do so by the scheme specification."
+pub fn normal_form(value: &str, scheme: Option<&str>) -> String {
+    // Where the userinfo ends is `authority`'s question and not this rule's;
+    // the shared reader owns it, and this was the copy that hand-wrote it.
+    let (userinfo, host_and_port) = crate::helpers::authority::split_userinfo(value);
+    let (host, port) = crate::helpers::authority::split_host_and_port(host_and_port);
+
+    // Only the two schemes RFC 9110 gives a default port to, matched without
+    // regard to case because the scheme is case-insensitive by the sentence
+    // above. A target in authority-form — a CONNECT — carries no scheme at
+    // all, and § 9.3.6 gives that method no default port either, so nothing
+    // is elided from one.
+    let default_port = match scheme.map(str::to_ascii_lowercase).as_deref() {
+        Some("http") => Some(80u32),
+        Some("https") => Some(443u32),
+        _ => None,
+    };
+
+    let mut out = String::with_capacity(value.len());
+    if let Some(userinfo) = userinfo {
+        out.push_str(userinfo);
+        out.push('@');
+    }
+    // The order is forced and the second pass is not decoration. Decoding
+    // has to run *before* the case fold, because `%50` is `P` and only a
+    // fold after the decode makes `EXAM%50LE.com` and `example.com` one
+    // host. But that fold then reaches the hexadecimal of the triplets the
+    // decode left behind — `%2F` comes back out as `%2f` — which undoes
+    // § 6.2.2.1, the sentence cited on the decoder itself. So the decode is
+    // run once more over the folded value: it re-uppercases those digits and
+    // can decode nothing new, every `unreserved` triplet having gone in the
+    // first pass. This was invisible while the decoder was private here,
+    // because the step it performs was undone one line later and only the
+    // comparison was ever looked at — both sides being folded the same way,
+    // the contradiction cost a verdict nothing and cost the *published
+    // normal form* its cited spelling.
+    //
+    // cite(RFC 3986 § 6.2.2.1): "For all URIs, the hexadecimal digits within a percent-encoding triplet (e.g., "%3a" versus "%3A") are case-insensitive and therefore should be normalized to use uppercase letters for the digits A-F."
+    let host = crate::helpers::percent_encoding::decode_unreserved(host);
+    out.push_str(&crate::helpers::percent_encoding::decode_unreserved(
+        &host.to_ascii_lowercase(),
+    ));
+
+    if let Some(port) = port {
+        let elided = match default_port {
+            None => false,
+            Some(default) => {
+                port.is_empty()
+                    || (port.bytes().all(|b| b.is_ascii_digit())
+                        && port.parse::<u32>().ok() == Some(default))
+            }
+        };
+        if !elided {
+            out.push(':');
+            out.push_str(port);
+        }
+    }
+
+    out
+}
+
 #[cfg(test)]
 mod tests {
 
