@@ -34,9 +34,24 @@ pub(super) use handshake::{handle_websocket_upgrade, WsUpgradeRequest};
 /// the token are matched case-insensitively, which the document establishes
 /// elsewhere for each field rather than here.
 ///
+/// **An HTTP/1.0 request is never one**, whatever it carries. This proxy is
+/// the server such a client talks to, and a server receiving `Upgrade` in an
+/// HTTP/1.0 request is required to ignore the field. Honouring it meant
+/// asking the origin for the upgrade in this proxy's own HTTP/1.1 -- the
+/// version it forwards in -- and relaying the origin's `101` to a client whose
+/// version defines no 1xx status code, while the record paired that `101` with
+/// the HTTP/1.0 request and so blamed the origin for answering a version it
+/// was never sent. The request goes the ordinary way instead, where `Upgrade`
+/// and `Connection` are hop-by-hop and do not reach the origin.
+///
 // cite(RFC 6455 § 4.1): "The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword."
 // cite(RFC 6455 § 4.1): "The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token."
+// cite(RFC 9110 § 7.8): "A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field."
+// cite(RFC 9110 § 15.2): "Since HTTP/1.0 did not define any 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0 client."
 pub(super) fn is_websocket_upgrade<B>(req: &Request<B>) -> bool {
+    if req.version() == hyper::Version::HTTP_10 {
+        return false;
+    }
     let connection_tokens = parse_connection_tokens(req.headers().get(hyper::header::CONNECTION));
     let has_upgrade = connection_tokens.contains("upgrade");
     let is_websocket =
@@ -150,6 +165,23 @@ mod tests {
             .body(Full::new(Bytes::new()).boxed())
             .unwrap();
         assert!(is_websocket_upgrade(&req));
+    }
+
+    /// The same handshake fields on an HTTP/1.0 request are a field its server
+    /// ignores, and on every later version they are the handshake.
+    #[rstest::rstest]
+    #[case(hyper::Version::HTTP_10, false)]
+    #[case(hyper::Version::HTTP_11, true)]
+    fn an_http10_request_is_not_an_upgrade(#[case] version: hyper::Version, #[case] upgrade: bool) {
+        let req = Request::builder()
+            .method("GET")
+            .version(version)
+            .uri("http://example.com/ws")
+            .header("connection", "Upgrade")
+            .header("upgrade", "websocket")
+            .body(Full::new(Bytes::new()).boxed())
+            .unwrap();
+        assert_eq!(is_websocket_upgrade(&req), upgrade);
     }
 
     #[test]

@@ -3770,7 +3770,7 @@ sources:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 318
     - file: lint-http/src/proxy/websocket/mod.rs
-      line: 73
+      line: 88
   - label: lint-http-rules/src/helpers/websocket.rs
     section: § 4.1
     snippet: (as a string, not base64-decoded) with the string
@@ -3790,7 +3790,7 @@ sources:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 149
     - file: lint-http/src/proxy/websocket/mod.rs
-      line: 37
+      line: 47
   - label: Sec-WebSocket-Key nonce
     section: § 4.1
     snippet: The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded
@@ -3934,7 +3934,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 129
     - file: lint-http/src/proxy/websocket/mod.rs
-      line: 38
+      line: 48
   - label: sec_websocket_headers_consistent (4)
     section: § 4.1
     snippet: The request MUST include a header field with the name |Sec-WebSocket-Key|.
@@ -11414,6 +11414,8 @@ sources:
       line: 165
     - file: lint-http-rules/src/violations/status.rs
       line: 1293
+    - file: lint-http/src/proxy/websocket/mod.rs
+      line: 50
   - label: status_101_switching_protocols (2)
     section: § 7.8
     snippet: Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols.
@@ -11432,6 +11434,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/status_1xx_vs_request_version.rs
       line: 39
+    - file: lint-http/src/proxy/websocket/mod.rs
+      line: 49
   - label: status_200_vs_204_body_consistent
     section: § 15.3.1
     snippet: Aside from responses to CONNECT, a 200 response is expected to contain message content unless the message framing explicitly indicates that the content has zero length.
