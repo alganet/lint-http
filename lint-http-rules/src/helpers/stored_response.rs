@@ -159,15 +159,37 @@ pub fn storage_allowed(
     status: u16,
     response: &hyper::HeaderMap,
 ) -> bool {
+    !no_store_forbids(request, response) && status >= 200 && licenses_storage(status, response)
+}
+
+/// § 3's last term alone: whether the response carries anything that licenses
+/// a cache to keep it.
+///
+/// [`storage_allowed`] asks it after the terms before it; a caller that has
+/// already answered those, and reports on this one, asks it here, so the two
+/// cannot read the disjunction differently.
+///
+/// **Each member is a name, not a value that parses.** § 3 lists "an Expires
+/// header field" and "a max-age response directive", and a value nobody can
+/// use is still read: § 5.3 has a cache take an invalid date as "already
+/// expired", and § 4.2.1 encourages the same for invalid freshness
+/// information. That is a stored copy that is stale, which is a copy kept.
+/// Reading only a lifetime that parses turned a malformed `Expires: -1` into
+/// "this response states no freshness", a second finding about the field
+/// beside the one its own entry owes, and untrue of the value.
+// cite(RFC 9111 § 3): "a public response directive"
+// cite(RFC 9111 § 3): "an Expires header field"
+// cite(RFC 9111 § 3): "a max-age response directive"
+// cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
+// cite(RFC 9111 § 4.2.1): "Caches are encouraged to consider responses that have invalid freshness information (e.g., a max-age directive with non-integer content) to be stale."
+pub fn licenses_storage(status: u16, response: &hyper::HeaderMap) -> bool {
     use super::cache_control::has;
-    !no_store_forbids(request, response)
-        && status >= 200
-        && (has(response, "public")
-            || has(response, "private")
-            || response.contains_key("expires")
-            || has(response, "max-age")
-            || has(response, "s-maxage")
-            || super::status::is_heuristically_cacheable(status))
+    has(response, "public")
+        || has(response, "private")
+        || response.contains_key("expires")
+        || has(response, "max-age")
+        || has(response, "s-maxage")
+        || super::status::is_heuristically_cacheable(status)
 }
 
 /// Whether a cache could have stored the response to this exchange at all.

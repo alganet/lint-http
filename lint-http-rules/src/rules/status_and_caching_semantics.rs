@@ -220,70 +220,39 @@ impl Rule for StatusAndCachingSemantics {
                 return None;
             }
 
-            // The heuristically cacheable status codes (RFC 9111 §4.2.2 calls the older name
-            // "cacheable by default"), enumerated in RFC 9110 §15.1. Such a response can be reused
-            // with heuristic expiration, so it needs no explicit freshness.
-            // cite(RFC 9110 § 15.1): "Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls"
-            if crate::helpers::status::is_heuristically_cacheable(status) {
-                return None;
-            }
-
-            // A heuristically cacheable status is one member of § 3's last
-            // term, and that term is a disjunction: `public` is another, and
-            // it licenses storage on its own. § 4.2.2 then supplies what this
-            // entry asks the sender for, because the heuristic it permits
-            // reaches a response marked explicitly cacheable as well as one
-            // whose status is on § 15.1's list. So a `public` response is both
-            // held and given a lifetime nobody wrote, and the sentence saying
-            // nothing stores it is untrue of the value rather than unhelpful
-            // about it -- which is what separates this from the terms above.
+            // What is left is § 3's last term, a disjunction, asked through the
+            // reader `storage_allowed` asks it through so the two cannot read
+            // it differently. Its members are the heuristically cacheable
+            // status (§ 15.1's list), `public`, `private`, `Expires`, `max-age`
+            // and `s-maxage`.
             //
-            // `private` is the member after it, and it is read for the reason
-            // `storage_allowed` states next door: the question is whether
-            // *any* conforming cache could have kept the response, and a
-            // private cache may keep a `private` one and apply the same
-            // heuristic to it. Nothing on the wire says which kind of cache a
-            // reader is standing in for, so speaking would be reporting a
-            // guess.
+            // `public` and `private` withdraw the finding rather than soften
+            // it. A `public` response is stored on that directive alone, and
+            // § 4.2.2 extends the heuristic to it, so the cache calculates the
+            // very lifetime this entry says the response lacks; a private
+            // cache may keep a `private` one on the same terms, and nothing on
+            // the wire says which kind of cache a reader is standing in for.
+            //
+            // **The freshness members are names, not values that parse.** A
+            // malformed `Expires` or `max-age` is read as already expired
+            // (§ 5.3, § 4.2.1), which is a stale copy a cache keeps. This arm
+            // once counted only a lifetime that parsed, so `Expires: -1` on a
+            // 302 drew "lacks explicit freshness information (... or Expires)"
+            // beside `expires_malformed`: a second finding about the field,
+            // and untrue of the value. The malformation is the field's own
+            // entry to report.
             //
             // § 5.2.3's cache extension is the one member still unread, and it
             // needs a registry this rule does not have. That omission leaves a
             // finding standing where the others withdraw one, which is the
             // direction worth naming rather than leaving to be discovered.
+            // cite(RFC 9110 § 15.1): "Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls"
             // cite(RFC 9111 § 3): "a public response directive"
             // cite(RFC 9111 § 3): "a private response directive, if the cache is not shared"
+            // cite(RFC 9111 § 3): "an Expires header field"
             // cite(RFC 9111 § 4.2.2): "on responses without explicit freshness that have been marked as explicitly cacheable (e.g., with a public response directive)"
-            if ["public", "private"]
-                .iter()
-                .any(|directive| crate::helpers::cache_control::has(&resp.headers, directive))
-            {
+            if crate::helpers::stored_response::licenses_storage(status, &resp.headers) {
                 return None;
-            }
-
-            // Helper: check Cache-Control directives for explicit freshness (max-age or s-maxage)
-            // A present max-age or s-maxage is explicit freshness that makes the
-            // response storable (RFC 9111 §3), so there is nothing to report. The
-            // helper answers with the first non-negative delta-seconds given for
-            // the directive, which is exactly this question.
-            // cite(RFC 9111 § 5.2.2.1): "The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds."
-            // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires"
-            let advertises_freshness = ["max-age", "s-maxage"].iter().any(|directive| {
-                crate::helpers::cache_control::delta_seconds(&resp.headers, directive).is_some()
-            });
-            if advertises_freshness {
-                return None;
-            }
-
-            // A present, well-formed Expires is explicit freshness. Note this is stricter than
-            // §3, which counts the mere presence of an Expires field: a malformed date is treated
-            // here as no freshness (it establishes none), a deliberate hygiene choice.
-            // cite(RFC 9111 § 5.3): "The "Expires" response header field gives the date/time after which the response is considered stale."
-            if let Some(hv) = resp.headers.get_all("expires").iter().next() {
-                if let Ok(s) = hv.to_str() {
-                    if crate::http_date::is_valid_http_date(s.trim()) {
-                        return None;
-                    }
-                }
             }
 
             // None of the storability signals §3 requires are present, and the status is not
@@ -339,8 +308,14 @@ mod tests {
     #[case(302, vec![], true)]
     #[case(302, vec![("cache-control", "max-age=60")], false)]
     #[case(302, vec![("cache-control", "s-maxage=10")], false)]
-    #[case(302, vec![("cache-control", "max-age=-1")], true)]
-    #[case(302, vec![("cache-control", "max-age=abc")], true)]
+    // A freshness member § 3 names is present whatever its value: an invalid
+    // one is read as already expired (§ 4.2.1, § 5.3), a stale copy a cache
+    // keeps, and the malformation is the field's own entry to report.
+    #[case(302, vec![("cache-control", "max-age=-1")], false)]
+    #[case(302, vec![("cache-control", "max-age=abc")], false)]
+    #[case(302, vec![("cache-control", "s-maxage=soon")], false)]
+    #[case(302, vec![("expires", "-1")], false)]
+    #[case(302, vec![("expires", "0")], false)]
     #[case(302, vec![("cache-control", "public"), ("cache-control", "max-age=5")], false)]
     // `public` on its own was never pinned, and it is the row that was wrong:
     // the case above passes on the `max-age` and says nothing about the
@@ -373,7 +348,7 @@ mod tests {
     #[case(302, vec![("cache-control", "must-revalidate")], true)]
     #[case(302, vec![("cache-control", "immutable")], true)]
     #[case(503, vec![("expires", "Wed, 21 Oct 2015 07:28:00 GMT")], false)]
-    #[case(503, vec![("expires", "not-a-date")], true)]
+    #[case(503, vec![("expires", "not-a-date")], false)]
     #[case(200, vec![], false)] // 200 is cacheable by default
     #[case(308, vec![], false)]
     // 308 is heuristically cacheable (RFC 9110 §15.1), no freshness needed

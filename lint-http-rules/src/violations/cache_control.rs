@@ -924,6 +924,11 @@ defects! {
     /// Neither is reported now. § 5.2.3's cache extension is the one member
     /// left unread, and that omission leaves a finding standing.
     ///
+    /// **`Expires`, `max-age` and `s-maxage` count by presence**, as § 3
+    /// names them. A value nobody can use is read as already expired, so the
+    /// response is kept and stale rather than never kept, and the value's own
+    /// entry (`expires_malformed`, or the directive's) is the finding it owes.
+    ///
     /// `info`, and for the plainest of reasons: not being cached is a perfectly
     /// good outcome, and the finding says only that it was not chosen.
     ///
