@@ -1938,21 +1938,21 @@ sources:
     snippet: All digest-algorithm values are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 604
+      line: 611
   - label: digest_header_syntax (2)
     section: § 4.1.1
     snippet: digest-algorithm = token
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 471
+      line: 472
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 603
+      line: 610
   - label: digest_header_syntax (3)
     section: § 4.3.1
     snippet: 'Want-Digest = "Want-Digest" ":" #(digest-algorithm [ ";" "q" "=" qvalue])'
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 185
+      line: 186
 - label: RFC 3986
   url: https://www.rfc-editor.org/rfc/rfc3986.html
   fragments:
@@ -9589,7 +9589,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 290
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 545
+      line: 552
     - file: lint-http-rules/src/violations/qvalue.rs
       line: 97
   - label: lint-http-rules/src/helpers/request_target.rs
@@ -14059,7 +14059,7 @@ sources:
     snippet: 'It is a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]), where each:'
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 191
+      line: 192
     - file: lint-http-rules/src/violations/digest.rs
       line: 29
   - label: digest_header_syntax
@@ -14067,13 +14067,13 @@ sources:
     snippet: key conveys the hashing algorithm (see Section 5) used to compute the digest;
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 665
+      line: 673
   - label: digest_header_syntax (2)
     section: § 2
     snippet: value is a Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded version of the byte output produced by the digest calculation.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 681
+      line: 689
     - file: lint-http-rules/src/violations/digest.rs
       line: 236
   - label: digest_header_syntax (3)
@@ -14081,13 +14081,13 @@ sources:
     snippet: 'Want-Content-Digest and Want-Repr-Digest are of type Dictionary where each:'
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 195
+      line: 196
   - label: want-digest preference type
     section: § 4
     snippet: value is an Integer (Section 3.3.1 of [STRUCTURED-FIELDS]) that conveys an ascending, relative, weighted preference. It must be in the range 0 to 10 inclusive.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 760
+      line: 768
     - file: lint-http-rules/src/violations/digest.rs
       line: 281
     - file: lint-http-rules/src/violations/digest.rs

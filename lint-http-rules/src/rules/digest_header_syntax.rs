@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::base64::{BASE64_MALFORMED, RFC_4648_3_3};
@@ -478,11 +479,17 @@ fn legacy_want_digest_defect(value: &str) -> Vec<Defect> {
         }
         // The wording names the algorithm as well as the character, because
         // two algorithms in one list can fail on the same octet and a sentence
-        // saying only which octet would arrive twice, word for word.
+        // saying only which octet would arrive twice, word for word. Both are
+        // rendered, since the character is most often one that prints as
+        // nothing or as a space.
         if let Some(c) = crate::helpers::token::find_invalid_token_char(algorithm) {
             out.push(Defect::named(
                 token_character(c),
-                format!("Want-Digest algorithm '{algorithm}' contains invalid character: '{c}'"),
+                format!(
+                    "Want-Digest algorithm '{}' contains invalid character: {}",
+                    shown_in_finding(algorithm),
+                    describe_char(c)
+                ),
             ));
             continue;
         }
@@ -606,8 +613,9 @@ fn legacy_digest_defect(value: &str) -> Vec<Defect> {
             out.push(Defect::named(
                 token_character(c),
                 format!(
-                    "Digest algorithm '{}' contains invalid character: '{}'",
-                    algorithm, c
+                    "Digest algorithm '{}' contains invalid character: {}",
+                    shown_in_finding(&algorithm),
+                    describe_char(c)
                 ),
             ));
             continue;
@@ -1077,6 +1085,37 @@ mod tests {
             .filter(|d| d.id.starts_with("digest_") || d.id.starts_with("content_md5_"))
             .count();
         assert_eq!((DECLARED.len() - own, own), (10, 8));
+    }
+
+    /// An algorithm refused for a character is named with the character
+    /// rendered, in both generations' `token` readers: a NBSP octet printed as
+    /// itself reads as a space, and the finding exists to point at it.
+    #[rstest]
+    #[case::want_digest("want-digest", b"sha\xa01;q=0.5")]
+    #[case::digest("digest", b"sha\xa01=YWJj")]
+    fn a_refused_algorithm_names_its_octet(#[case] field: &str, #[case] value: &[u8]) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        headers.append(
+            hyper::header::HeaderName::from_bytes(field.as_bytes()).expect("a field name"),
+            hyper::header::HeaderValue::from_bytes(value).expect("obs-text is a legal field octet"),
+        );
+        tx.request.headers = headers;
+        let found = crate::test_helpers::run_rule_all(
+            &DigestHeaderSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]),
+        );
+        assert_eq!(found.len(), 1, "{field}: {found:?}");
+        assert_eq!(found[0].violation, "token_character_forbidden");
+        assert!(
+            found[0]
+                .message
+                .contains("'sha\\u{a0}1' contains invalid character: 0xA0"),
+            "{}",
+            found[0].message
+        );
     }
 
     /// RFC 3230 § 4.3.1's member is `digest-algorithm [ ";" "q" "=" qvalue ]`,
