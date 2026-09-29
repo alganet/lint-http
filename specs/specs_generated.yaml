@@ -14341,7 +14341,7 @@ sources:
     snippet: Fields that erroneously defined as another type (e.g., Integer) are assumed to be Items (i.e., they allow Parameters).
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 682
+      line: 685
     - file: lint-http-rules/src/rules/origin_isolated_header_valid.rs
       line: 188
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
@@ -14367,7 +14367,7 @@ sources:
     snippet: The keys are unique within the scope of the Parameters they occur within, and the values are bare items (i.e., they themselves cannot be parameterized; see Section 3.3).
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 712
+      line: 720
   - label: lint-http-rules/src/helpers/structured_fields.rs (4)
     section: § 3.3.2
     snippet: Decimals are numbers with an integer and a fractional component.
@@ -14549,13 +14549,13 @@ sources:
     snippet: Let bare_item be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 695
+      line: 703
   - label: lint-http-rules/src/helpers/structured_fields.rs (30)
     section: § 4.2.3
     snippet: Let parameters be the result of running Parsing Parameters (Section 4.2.3.2) with input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 702
+      line: 710
   - label: lint-http-rules/src/helpers/structured_fields.rs (31)
     section: § 4.2.3.1
     snippet: Otherwise, the item type is unrecognized; fail parsing.
@@ -14577,19 +14577,19 @@ sources:
     snippet: Let param_key be the result of running Parsing a Key (Section 4.2.3.3) with input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 729
+      line: 737
   - label: lint-http-rules/src/helpers/structured_fields.rs (34)
     section: § 4.2.3.2
     snippet: Let param_value be Boolean true.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 746
+      line: 754
   - label: lint-http-rules/src/helpers/structured_fields.rs (35)
     section: § 4.2.3.2
     snippet: Let param_value be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 736
+      line: 744
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 635
   - label: lint-http-rules/src/helpers/structured_fields.rs (36)

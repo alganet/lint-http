@@ -677,12 +677,20 @@ pub(crate) fn parse_inner_list(head: &str) -> Option<SfDefect> {
 /// inside a parameter's String for a second value. Neither is anything the
 /// sender wrote wrong.
 ///
-/// The bare item comes back unjudged: its type is the caller's question, since
-/// the field's definition is what names it.
+/// The bare item comes back unjudged, since its type is the caller's question
+/// and the field's definition is what names it, and untrimmed: § 4.2.3 reads
+/// the parameters from the octet after the bare item, so nothing stands
+/// between the two, and a trim here would hand back a value the sender did not
+/// write — `str::trim` takes %xA0 read as U+00A0, which no Item prints.
 // cite(RFC 9651 § 2.3): "Fields that erroneously defined as another type (e.g., Integer) are assumed to be Items (i.e., they allow Parameters)."
 pub(crate) fn split_item(s: &str) -> (&str, Option<SfDefect>) {
-    let parts = split_semicolons_outside_quotes(s);
-    (parts[0], parse_parameters(&parts[1..]))
+    match find_char_outside_quotes(s, ';') {
+        None => (s, None),
+        Some(at) => {
+            let parts = split_semicolons_outside_quotes(&s[at..]);
+            (&s[..at], parse_parameters(&parts[1..]))
+        }
+    }
 }
 
 /// § 4.2.3 -- a bare Item and its Parameters.
@@ -761,6 +769,26 @@ pub(crate) fn parse_parameters(parts: &[&str]) -> Option<SfDefect> {
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// An Item's bare item is the text before its first `;` outside a String,
+    /// as written: a trailing %xA0, read as U+00A0, is an octet the sender put
+    /// in the value, and `str::trim` would have handed back the value without
+    /// it -- `empty` and `?1` for a value that is neither.
+    #[rstest]
+    #[case("empty", "empty", false)]
+    #[case("empty\u{a0}", "empty\u{a0}", false)]
+    #[case("?1\u{a0};x=1", "?1\u{a0}", false)]
+    #[case("empty;x=\"a, b;c\"", "empty", false)]
+    #[case("empty;X=1", "empty", true)]
+    #[case(";x=1", "", false)]
+    fn an_item_is_cut_at_its_parameters_and_nowhere_else(
+        #[case] input: &str,
+        #[case] bare: &str,
+        #[case] defective: bool,
+    ) {
+        let (item, parameters) = split_item(input);
+        assert_eq!((item, parameters.is_some()), (bare, defective), "{input:?}");
+    }
 
     /// A DQUOTE that a "\" escaped does not end the String, so no delimiter
     /// after it separates anything until the real closing DQUOTE arrives.

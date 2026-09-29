@@ -229,6 +229,27 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
+    /// %xA0 after the token is an octet the sender wrote, read as U+00A0, and
+    /// no `tchar`. Cutting the Item at its parameters must not trim it away:
+    /// the cut once used `str::trim`, which takes U+00A0, and read the value as
+    /// `empty`.
+    #[test]
+    fn an_obs_text_octet_after_the_token_is_not_trimmed_by_the_cut() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_octet_pairs(&[("sec-fetch-dest", b"empty\xa0")]);
+        let v = crate::test_helpers::run_rule(
+            &SecFetchDestValueValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "sec_fetch_dest_value_valid",
+            ]),
+        )
+        .expect("a finding for a value that is not `empty`");
+        assert_eq!(v.violation, "sec_fetch_value_malformed");
+    }
+
     #[rstest]
     #[case(Some("audio"), false)]
     // An Item carries parameters its field never names (RFC 9651 § 2.3), so the
