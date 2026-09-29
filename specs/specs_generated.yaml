@@ -7219,7 +7219,7 @@ sources:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 135
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 688
+      line: 765
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 275
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
@@ -7447,7 +7447,7 @@ sources:
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 539
+      line: 616
     - file: lint-http-rules/src/violations/status.rs
       line: 833
     - file: lint-http-rules/src/violations/status.rs
@@ -7459,7 +7459,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 285
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 540
+      line: 617
   - label: conditional_request_handling (5)
     section: § 13.1.2
     snippet: If the field value is a list of entity tags, the condition is false if one of the listed tags matches the entity tag of the selected representation.
@@ -7473,19 +7473,19 @@ sources:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 104
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 636
+      line: 713
   - label: conditional_request_handling (7)
     section: § 13.1.3
     snippet: An origin server that evaluates an If-Modified-Since condition SHOULD NOT perform the requested method if the condition evaluates to false; instead, the origin server SHOULD generate a 304 (Not Modified) response
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 597
+      line: 674
   - label: conditional_request_handling (8)
     section: § 13.1.3
     snippet: recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 689
+      line: 766
   - label: conditional_request_handling (9)
     section: § 13.1.4
     snippet: A recipient MUST ignore the If-Unmodified-Since header field if the resource does not have a modification date available.
@@ -7515,19 +7515,19 @@ sources:
     snippet: Any extension to HTTP that defines additional conditional request header fields ought to define the order for evaluating such fields in relation to those defined in this document and other conditionals that might be found in practice.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 635
+      line: 712
   - label: conditional_request_handling (14)
     section: § 13.2.2
     snippet: When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 598
+      line: 675
   - label: conditional_request_handling (15)
     section: § 15.5.13
     snippet: The 412 (Precondition Failed) status code indicates that one or more conditions given in the request header fields evaluated to false when tested on the server
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 634
+      line: 711
   - label: conditional_request_handling (16)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as
@@ -9995,7 +9995,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 109
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 718
+      line: 795
     - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
       line: 122
     - file: lint-http-rules/src/rules/cors_request_header_syntax.rs
@@ -10203,7 +10203,7 @@ sources:
     - file: lint-http-rules/src/helpers/validator.rs
       line: 40
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 541
+      line: 618
   - label: lint-http-rules/src/helpers/validator.rs
     section: § 13.1.2
     snippet: 'If-None-Match = "*" / #entity-tag'

@@ -492,26 +492,103 @@ impl ConditionalRequestHandling {
             return None;
         }
 
+        // Each sentence names the precondition as the request wrote it, and the
+        // two about a value say what the history did carry beside it: a
+        // different tag and no tag at all are different things to look at,
+        // and one sentence for every value that triggers it answered neither.
+        const TAGS: &[(&str, &str)] =
+            &[("If-None-Match", "if-none-match"), ("If-Match", "if-match")];
+        const DATES: &[(&str, &str)] = &[
+            ("If-Modified-Since", "if-modified-since"),
+            ("If-Unmodified-Since", "if-unmodified-since"),
+        ];
+
         // The one statement here about the observer rather than the sender:
         // nothing was recorded for this resource, so there was nothing for a
         // validator to have come from.
         if history.responses().next().is_none() {
+            let fields: Vec<(&str, &str)> = [(names_tag, TAGS), (sent.date(), DATES)]
+                .into_iter()
+                .filter(|(asked, _)| *asked)
+                .flat_map(|(_, fields)| fields.iter().copied())
+                .collect();
             return Some(ctx.by_client().report_with(
                 &CONDITIONAL_VALIDATOR_MISSING,
-                "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into(),
+                format!(
+                    "{} conditions on a validator, and no previous response for this resource was recorded, so there is no ETag or Last-Modified it could have come from",
+                    Self::written(&tx.request.headers, &fields)
+                ),
             ));
         }
 
+        // The newest response's `ETag` (`true`) or `Last-Modified` (`false`).
+        let latest = |etag: bool| {
+            history.responses().find_map(|(_, resp)| {
+                let (tag, date) =
+                    crate::helpers::validator::extract_validators_from_response(&resp.headers);
+                if etag {
+                    tag
+                } else {
+                    date
+                }
+            })
+        };
         if names_tag {
+            let seen = latest(true).map_or_else(
+                || "none of its responses carried an ETag".to_string(),
+                |etag| {
+                    format!(
+                        "the most recent ETag for it was {}",
+                        crate::helpers::shown::shown_in_finding(&etag)
+                    )
+                },
+            );
             return Some(ctx.by_client().report_with(
                 &CONDITIONAL_VALIDATOR_MISSING,
-                "Request conditions on an entity-tag (If-Match/If-None-Match) that no response for this resource carried".into(),
+                format!(
+                    "{} names an entity-tag that no response for this resource carried; {seen}",
+                    Self::written(&tx.request.headers, TAGS)
+                ),
             ));
         }
+        let seen = latest(false).map_or_else(
+            || "none of its responses carried a Last-Modified".to_string(),
+            |date| {
+                format!(
+                    "the most recent Last-Modified for it was {}",
+                    crate::helpers::shown::shown_in_finding(&date)
+                )
+            },
+        );
         Some(ctx.by_client().report_with(
             &CONDITIONAL_VALIDATOR_MISSING,
-            "Request conditions on a modification date (If-Modified-Since/If-Unmodified-Since) that no response for this resource carried".into(),
+            format!(
+                "{} names a modification date that no response for this resource carried; {seen}",
+                Self::written(&tx.request.headers, DATES)
+            ),
         ))
+    }
+
+    /// The precondition fields among `fields` as the request wrote them, one
+    /// `Name: value` per field line, leaving out a line that is only `*`: an
+    /// existence condition names no validator, so it is not what the finding
+    /// is about.
+    fn written(headers: &hyper::HeaderMap, fields: &[(&str, &str)]) -> String {
+        fields
+            .iter()
+            .flat_map(|(shown, name)| {
+                crate::helpers::headers::field_lines_as_written(headers, name)
+                    .into_iter()
+                    .filter(|line| crate::helpers::headers::trim_ows(line) != "*")
+                    .map(move |line| {
+                        format!(
+                            "{shown}: {}",
+                            crate::helpers::shown::shown_in_finding(&line)
+                        )
+                    })
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
     }
 
     /// A GET or HEAD whose `If-None-Match` condition is false is answered with
@@ -1255,6 +1332,61 @@ mod tests {
         assert_eq!(found.violation, "conditional_validator_missing");
     }
 
+    /// Each sentence names the precondition as written and what the history
+    /// carried beside it. The three used to be fixed strings, so a tag the
+    /// client invented and a tag from a representation the proxy never saw
+    /// read the same, and neither said which field or which tag.
+    #[rstest]
+    #[case::other_tag(
+        vec![make_prev_with_headers(&[("etag", "\"v2\"")])],
+        &[("if-match", "\"v1\"")],
+        &["If-Match: \"v1\"", "the most recent ETag for it was \"v2\""],
+    )]
+    #[case::no_tag(
+        vec![make_prev_with_headers(&[("content-type", "text/plain")])],
+        &[("if-none-match", "\"v1\""), ("if-match", "*")],
+        &["If-None-Match: \"v1\" names", "none of its responses carried an ETag"],
+    )]
+    #[case::other_date(
+        vec![make_prev_with_headers(&[("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")])],
+        &[("if-modified-since", "Tue, 20 Oct 2015 07:28:00 GMT")],
+        &[
+            "If-Modified-Since: Tue, 20 Oct 2015 07:28:00 GMT",
+            "the most recent Last-Modified for it was Wed, 21 Oct 2015 07:28:00 GMT",
+        ],
+    )]
+    #[case::no_history(
+        vec![],
+        &[("if-match", "\"field-probe\""), ("if-unmodified-since", "Tue, 20 Oct 2015 07:28:00 GMT")],
+        &["If-Match: \"field-probe\"; If-Unmodified-Since: Tue, 20 Oct 2015 07:28:00 GMT conditions"],
+    )]
+    fn the_finding_names_the_precondition_and_what_was_carried(
+        #[case] prev: Vec<crate::http_transaction::HttpTransaction>,
+        #[case] sent: &[(&str, &str)],
+        #[case] names: &[&str],
+    ) {
+        let history = crate::transaction_history::TransactionHistory::from_transactions(prev);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(sent);
+        let found = crate::test_helpers::run_rule(
+            &ConditionalRequestHandling,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "conditional_request_handling",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "conditional_validator_missing");
+        for name in names {
+            assert!(
+                found.message.contains(name),
+                "{name:?} not in {:?}",
+                found.message
+            );
+        }
+    }
+
     /// The message is a claim about the resource's history, so it has to be one
     /// the history bears out.
     ///
@@ -1339,7 +1471,10 @@ mod tests {
             ]),
         );
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("no previous response recorded"));
+        assert!(v
+            .unwrap()
+            .message
+            .contains("no previous response for this resource was recorded"));
     }
 
     #[test]
@@ -1715,7 +1850,7 @@ mod tests {
         assert!(v
             .expect("a finding")
             .message
-            .contains("no previous response recorded for this resource"));
+            .contains("no previous response for this resource was recorded"));
     }
 
     /// The client's finding does not stand in for the origin's. A tag no
