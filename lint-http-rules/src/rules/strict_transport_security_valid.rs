@@ -375,7 +375,20 @@ impl Rule for StrictTransportSecurityValid {
                     // value derives from nothing is a defect in what the sender
                     // wrote and is worth correcting alongside the missing
                     // `max-age` rather than behind it.
-                    out.push(ctx.report(&STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING));
+                    //
+                    // The value, because the deployed shape of this is a
+                    // `max-age` misspelled into a directive of another name,
+                    // and a sentence that only says the directive is absent
+                    // hides the one character the repair is.
+                    out.push(ctx.report_with(
+                        &STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING,
+                        format!(
+                            "Strict-Transport-Security '{}' has no 'max-age' directive, the one \
+                             RFC 6797 \u{a7}6.1.1 requires, so it states no duration for a user \
+                             agent to note the host for",
+                            crate::helpers::shown::shown_in_finding(v)
+                        ),
+                    ));
                 } else if empty_directives > 0 {
                     // The value and the count, because the one-line sentence
                     // this was named neither: an operator reading it could not
@@ -915,7 +928,7 @@ mod tests {
     )]
     #[case::missing_max_age(
         "includeSubDomains",
-        "missing required 'max-age'",
+        "'includeSubDomains' has no 'max-age'",
         "strict_transport_security_max_age_missing"
     )]
     fn each_finding_reports_the_production_it_belongs_to(
@@ -997,6 +1010,29 @@ mod tests {
 
     /// The other direction: the policy nearly every origin in the wild sends
     /// draws nothing at all.
+    /// The finding quotes the policy it read. A `max-age` misspelled into
+    /// another directive's name is the shape this takes on the web, and the
+    /// sentence is the only place an operator can see the character that
+    /// has to change.
+    #[rstest]
+    #[case("max-age-16000000; includeSubDomains; preload;")]
+    #[case("includeSubDomains")]
+    #[case("maxage=600")]
+    fn the_missing_duration_is_named_with_the_policy_it_is_missing_from(#[case] value: &str) {
+        let found = all_sts(value);
+        let missing = found
+            .iter()
+            .find(|v| v.violation == "strict_transport_security_max_age_missing")
+            .expect("a max-age finding");
+        assert!(
+            missing.message.starts_with(&format!(
+                "Strict-Transport-Security '{value}' has no 'max-age'"
+            )),
+            "{}",
+            missing.message
+        );
+    }
+
     #[test]
     fn a_conforming_policy_is_silent() {
         assert!(all_sts("max-age=31536000; includeSubDomains; preload").is_empty());

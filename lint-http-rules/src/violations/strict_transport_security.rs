@@ -119,11 +119,15 @@ defects! {
     /// host for — the rest of the field is qualification of a duration that was
     /// never given.
     ///
+    /// The sentence is formatted at the site and quotes the policy: the
+    /// deployed shape of this is a `max-age` misspelled into a directive of
+    /// another name, and only the value shows which character that was.
+    ///
     // cite(RFC 6797 § 6.1.1, label: max-age is required): "The REQUIRED "max-age" directive specifies the number of seconds, after the reception of the STS header field, during which the UA regards the host (from whom the message was received) as a Known HSTS Host."
     STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING = {
         id: "strict_transport_security_max_age_missing",
         title: "The policy states no max-age",
-        message: "Strict-Transport-Security header missing required 'max-age' directive",
+        message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6797_6_1_1],
         strength: Strength::Must,

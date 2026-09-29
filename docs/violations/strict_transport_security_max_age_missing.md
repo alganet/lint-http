@@ -10,7 +10,7 @@ The policy states no max-age
 
 ## Message
 
-Strict-Transport-Security header missing required 'max-age' directive
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 
