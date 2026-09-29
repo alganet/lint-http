@@ -410,6 +410,7 @@ mod tests {
     #[case("set-cookie")]
     #[case("strict-transport-security")]
     #[case("content-security-policy")]
+    #[case("content-security-policy-report-only")]
     #[case("access-control-allow-origin")]
     #[case("content-md5")]
     #[case("p3p")]

@@ -9405,7 +9405,7 @@ sources:
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 125
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
-      line: 880
+      line: 881
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 5
     snippet: Fields are sent and received within the header and trailer sections of messages
