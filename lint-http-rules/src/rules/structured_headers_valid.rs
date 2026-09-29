@@ -83,7 +83,10 @@ impl StructuredHeadersValid {
                     hdr,
                     section,
                     party,
-                    "contains an octet outside US-ASCII",
+                    &format!(
+                        "it holds {}, outside US-ASCII",
+                        crate::helpers::shown::first_octet_outside_ascii(hv.as_bytes())
+                    ),
                 )];
             };
             lines.push(v);
@@ -1575,6 +1578,7 @@ mod tests {
         .expect("should report");
         assert_eq!(v.violation, "structured_field_character_forbidden");
         assert!(v.message.contains("outside US-ASCII"), "{}", v.message);
+        assert!(v.message.contains("0xC3 after 'caf'"), "{}", v.message);
         assert!(!v.message.contains("UTF-8"), "{}", v.message);
     }
 

@@ -180,10 +180,11 @@ impl Rule for PermissionsPolicyDirectivesValid {
             let Ok(v) = hv.to_str() else {
                 return vec![ctx.report_with(
                     &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
-                    "Permissions-Policy contains a byte outside ASCII, so the field \
-                                  fails Structured Fields parsing and every directive in it is \
-                                  discarded"
-                        .into(),
+                    format!(
+                        "Permissions-Policy holds {}, a byte outside ASCII, so the field fails \
+                         Structured Fields parsing and every directive in it is discarded",
+                        crate::helpers::shown::first_octet_outside_ascii(hv.as_bytes())
+                    ),
                 )];
             };
             lines.push(v);
@@ -813,8 +814,18 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn non_utf8_is_violation() -> anyhow::Result<()> {
+    /// The octet is named, and where it sits: every value holding one draws
+    /// this entry, and "a byte outside ASCII" alone told an operator neither.
+    #[rstest]
+    #[case(b"\xff", "0xFF, its first octet")]
+    #[case(
+        b"camera=(self \"https://b\xc3\xbccher.example\")",
+        "0xC3 after 'camera=(self \"https://b'"
+    )]
+    fn a_non_ascii_byte_is_named_where_it_sits(
+        #[case] raw: &[u8],
+        #[case] named: &str,
+    ) -> anyhow::Result<()> {
         let rule = PermissionsPolicyDirectivesValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "permissions_policy_directives_valid",
@@ -824,7 +835,7 @@ mod tests {
         let mut hm = hyper::HeaderMap::new();
         hm.insert(
             "permissions-policy",
-            hyper::header::HeaderValue::from_bytes(&[0xff])?,
+            hyper::header::HeaderValue::from_bytes(raw)?,
         );
         tx.response.as_mut().unwrap().headers = hm;
 
@@ -833,8 +844,10 @@ mod tests {
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-        );
-        assert!(v.is_some());
+        )
+        .expect("a non-ASCII byte fails the field");
+        assert_eq!(v.violation, "structured_field_character_forbidden");
+        assert!(v.message.contains(named), "{}", v.message);
         Ok(())
     }
 

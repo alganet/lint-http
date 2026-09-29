@@ -143,10 +143,57 @@ pub fn describe_char(c: char) -> String {
     }
 }
 
+/// Where a field line first leaves US-ASCII: the octet, rendered by
+/// [`describe_octet`], and the text the line carried before it.
+///
+/// For a field whose parse fails at the first octet above %x7F, where the
+/// finding is about that octet and not the line: a Structured Field fails at
+/// its conversion to ASCII, before anything else in it is read. The line is not
+/// shown whole, because the octet would be shown as the character it is not,
+/// and nothing after it was read; what comes before it is ASCII by
+/// construction and is how an operator finds the place.
+///
+/// Every caller asks after `HeaderValue::to_str` refused the line, and a line a
+/// `HeaderValue` holds is refused for an octet above %x7F and nothing else, so
+/// one is always there. A line without one is answered in the words the
+/// sentence used before it named the octet, rather than with a panic.
+pub fn first_octet_outside_ascii(line: &[u8]) -> String {
+    let Some(at) = line.iter().position(|b| !b.is_ascii()) else {
+        return "an octet outside US-ASCII".to_string();
+    };
+    let before: String = line[..at].iter().copied().map(char::from).collect();
+    if before.is_empty() {
+        format!("{}, its first octet", describe_octet(line[at]))
+    } else {
+        format!(
+            "{} after '{}'",
+            describe_octet(line[at]),
+            shown_in_finding(&before)
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// The octet is named in hex and never printed as the character it would
+    /// decode to, and the ASCII before it is what locates it.
+    #[rstest]
+    #[case(b"u=1\xa0", "0xA0 after 'u=1'")]
+    #[case(b"\xc3\xa9", "0xC3, its first octet")]
+    #[case(
+        b"camera=(self \"https://ex\xe4mple\")",
+        "0xE4 after 'camera=(self \"https://ex'"
+    )]
+    #[case(b"geolocation=()", "an octet outside US-ASCII")]
+    fn the_first_octet_outside_ascii_is_named_with_what_precedes_it(
+        #[case] line: &[u8],
+        #[case] shown: &str,
+    ) {
+        assert_eq!(first_octet_outside_ascii(line), shown);
+    }
 
     /// A quote is the thing this rendering exists to get right, and each row is
     /// a production that requires one: an `entity-tag`, an `alt-authority`, an

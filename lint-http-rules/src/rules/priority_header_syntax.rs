@@ -116,7 +116,13 @@ impl PriorityHeaderSyntax {
             let Ok(v) = hv.to_str() else {
                 return vec![ctx.by(section.party()).report_with(
                     &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
-                    whole_field(section, "contains a byte outside ASCII"),
+                    whole_field(
+                        section,
+                        &format!(
+                            "it holds {}, a byte outside ASCII",
+                            crate::helpers::shown::first_octet_outside_ascii(hv.as_bytes())
+                        ),
+                    ),
                 )];
             };
             lines.push(v);
@@ -818,6 +824,7 @@ mod tests {
         )
         .expect("a non-ASCII byte fails § 4.2 step 1");
         assert!(v.message.contains("outside ASCII"), "{}", v.message);
+        assert!(v.message.contains("0xFF, its first octet"), "{}", v.message);
         Ok(())
     }
 
