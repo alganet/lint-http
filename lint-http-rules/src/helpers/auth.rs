@@ -248,7 +248,21 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, AuthDefect<'_>
             return Err(AuthDefect::EmptyMember);
         }
 
-        let is_new = {
+        // A member that is a `token`, optional whitespace and then `=` is an
+        // `auth-param` with `BWS` before its delimiter, and nothing else:
+        // `challenge` puts `1*SP` after its scheme and then `token68` or an
+        // `auth-param`, and neither begins with `=`. Reading the token before
+        // the whitespace as a scheme made `, algorithm = SHA-256` a second
+        // challenge named `algorithm` with an empty-named parameter. A first
+        // member has no challenge to continue, so `Basic =x` is still read as a
+        // scheme followed by what it fails to be.
+        // cite(RFC 9110 § 11.2): "auth-param     = token BWS "=" BWS ( token / quoted-string )"
+        let name_end = mm
+            .find(|c: char| !crate::helpers::token::is_tchar(c))
+            .unwrap_or(mm.len());
+        let param_with_bws =
+            name_end > 0 && name_end < mm.len() && trim_ows(&mm[name_end..]).starts_with('=');
+        let is_new = !(param_with_bws && !challenges.is_empty()) && {
             let s = mm;
             if let Some(idx) = s.find(is_sp_or_htab) {
                 let scheme = trim_ows(&s[..idx]);
@@ -1482,6 +1496,23 @@ mod tests {
     fn quoted_commas_are_respected() {
         let got = split_and_group_challenges("Basic realm=\"a,b\", more=1").unwrap();
         assert_eq!(got, vec!["Basic realm=\"a,b\", more=1".to_string()]);
+    }
+
+    /// `BWS` before an `auth-param`'s `=` is whitespace inside a parameter, not
+    /// the `1*SP` after a scheme: no challenge continues with `=`.
+    #[test]
+    fn a_parameter_with_whitespace_before_its_equals_continues_the_challenge() {
+        for value in [
+            "Digest realm=\"x\", algorithm = SHA-256",
+            "Digest realm=\"x\", algorithm =SHA-256",
+            "Digest realm=\"x\", algorithm\t=\tSHA-256",
+        ] {
+            let got = split_and_group_challenges(value).unwrap();
+            assert_eq!(got, vec![value.to_string()], "{value}");
+        }
+        // A scheme and then a parameter is still two challenges.
+        let got = split_and_group_challenges("Basic realm=\"a\", Newauth realm = \"b\"").unwrap();
+        assert_eq!(got.len(), 2);
     }
 
     #[test]

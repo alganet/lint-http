@@ -473,6 +473,9 @@ mod tests {
     #[case(Some("Basic realm=\"x\""), false)]
     #[case(Some("Bearer realm=\"x\""), false)]
     #[case(Some("NewScheme abc="), true)]
+    // `algorithm = SHA-256` is a parameter with whitespace before its `=`,
+    // not a challenge whose scheme is `algorithm`.
+    #[case(Some("Digest realm=\"x\", algorithm = SHA-256"), false)]
     // The scheme is not a `token`, so the registry could not hold the name
     // whatever it says — and the character is `www_authenticate_challenge_syntax`'s
     // finding. This rule is silent.
