@@ -183,6 +183,13 @@ impl RuleMeta for StrictTransportSecurityValid {
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some(
+                    "— every directive appears once, a flag as much as `max-age`, and names fold",
+                ),
+                snippet: "Strict-Transport-Security: max-age=31536000; includeSubDomains; includesubdomains",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
                 label: Some("— a policy with nothing in it"),
                 snippet: "Strict-Transport-Security:",
             },
@@ -314,7 +321,9 @@ impl Rule for StrictTransportSecurityValid {
                 }
 
                 let mut saw_max_age = false;
-                let mut max_age_count = 0usize;
+                // Every directive name the walk read, as written, so a name
+                // given twice is seen whatever case each is spelled in.
+                let mut names: Vec<&str> = Vec::new();
                 let mut empty_directives = 0usize;
                 // One finding per directive. `[ directive ] *( ";" [ directive ] )`
                 // writes them beside each other rather than inside each other,
@@ -345,18 +354,31 @@ impl Rule for StrictTransportSecurityValid {
                         continue;
                     }
                     if let Some((def, message)) =
-                        directive_defect(member, &mut saw_max_age, &mut max_age_count)
+                        directive_defect(member, &mut saw_max_age, &mut names)
                     {
                         out.push(ctx.report_with(def, message));
                     }
                 }
 
-                if max_age_count > 1 {
-                    out.push(ctx.report_with(
-                        &STRICT_TRANSPORT_SECURITY_DIRECTIVE_DUPLICATED,
-                        "Strict-Transport-Security MUST NOT contain multiple 'max-age' directives"
-                            .into(),
-                    ));
+                // Every directive, and not only the one whose two values
+                // disagree: the sentence counts appearances. One finding per
+                // name, whichever spellings it came in.
+                // cite(RFC 6797 § 6.1): "All directives MUST appear only once in an STS header field."
+                // cite(RFC 6797 § 6.1): "Directive names are case-insensitive."
+                for (i, name) in names.iter().enumerate() {
+                    let first = names[..i].iter().all(|n| !n.eq_ignore_ascii_case(name));
+                    let times = names
+                        .iter()
+                        .filter(|n| n.eq_ignore_ascii_case(name))
+                        .count();
+                    if first && times > 1 {
+                        out.push(ctx.report_with(
+                            &STRICT_TRANSPORT_SECURITY_DIRECTIVE_DUPLICATED,
+                            format!(
+                                "Strict-Transport-Security writes the '{name}' directive {times} times, and every directive MUST appear only once"
+                            ),
+                        ));
+                    }
                 }
 
                 // Ahead of the separator finding below, and the ranks are
@@ -500,10 +522,10 @@ fn policy_on_unsecured_transport(
 /// finding as a `continue` where it used to spell them `return` — the same
 /// reading in a control-flow shape nobody can follow, and past the closure's
 /// complexity ceiling on that alone.
-fn directive_defect(
-    member: &str,
+fn directive_defect<'a>(
+    member: &'a str,
     saw_max_age: &mut bool,
-    max_age_count: &mut usize,
+    names: &mut Vec<&'a str>,
 ) -> Option<(&'static crate::violations::ViolationDef, String)> {
     // **Not `list_member_empty`.** That def carries § 5.6.1.1's
     // MUST NOT against an empty element of a `#` list, and this
@@ -543,12 +565,12 @@ fn directive_defect(
         return Some((token_character(c), format!("Strict-Transport-Security directive '{}' has a name containing an invalid character: {}", crate::helpers::shown::shown_in_finding(member), crate::helpers::shown::describe_char(c))));
     }
 
+    names.push(name);
     let lname = name.to_ascii_lowercase();
     match lname.as_str() {
         // max-age is REQUIRED (enforced by the `saw_max_age` check after the loop)
         // and its value is a count of seconds, i.e. all-digits (checked below).
         "max-age" => {
-            *max_age_count += 1;
             *saw_max_age = true;
             // must have a value
             let Some(vpart) = kv.next() else {
@@ -923,7 +945,17 @@ mod tests {
     )]
     #[case::repeated_max_age(
         "max-age=1; max-age=2",
-        "multiple 'max-age'",
+        "'max-age' directive 2 times",
+        "strict_transport_security_directive_duplicated"
+    )]
+    #[case::repeated_flag(
+        "max-age=1; includeSubDomains; includeSubDomains",
+        "'includeSubDomains' directive 2 times",
+        "strict_transport_security_directive_duplicated"
+    )]
+    #[case::repeated_in_two_cases(
+        "max-age=1; preload; PRELOAD",
+        "'preload' directive 2 times",
         "strict_transport_security_directive_duplicated"
     )]
     #[case::missing_max_age(

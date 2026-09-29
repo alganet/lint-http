@@ -92,6 +92,12 @@ Strict-Transport-Security: max-age; includeSubDomains
 Strict-Transport-Security: max-age=100; max-age=200
 ```
 
+### ❌ Bad — every directive appears once, a flag as much as `max-age`, and names fold
+
+```http
+Strict-Transport-Security: max-age=31536000; includeSubDomains; includesubdomains
+```
+
 ### ❌ Bad — a policy with nothing in it
 
 ```http
