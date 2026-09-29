@@ -6178,7 +6178,7 @@ sources:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 357
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 138
+      line: 137
     - file: lint-http-rules/src/violations/deprecation.rs
       line: 98
 - label: RFC 8615
@@ -14397,9 +14397,7 @@ sources:
     snippet: their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@".
     cited_by:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
-      line: 153
-    - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 191
+      line: 154
   - label: digest_header_syntax
     section: § 2.3
     snippet: To preserve forward compatibility, field specifications are discouraged from defining the presence of an unrecognized parameter as an error condition.
@@ -14433,7 +14431,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
       line: 159
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 180
+      line: 179
   - label: lint-http-rules/src/helpers/structured_fields.rs (2)
     section: § 3.1.2
     snippet: Note that parameters are ordered, and parameter keys cannot contain uppercase letters.
@@ -14466,6 +14464,10 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 320
+    - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
+      line: 155
+    - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
+      line: 198
   - label: lint-http-rules/src/helpers/structured_fields.rs (7)
     section: § 3.3.8
     snippet: In textual HTTP fields, Display Strings are represented in a manner similar to Strings, except that non-ASCII characters are percent-encoded; there is a leading "%" to distinguish them from Strings.
@@ -14941,9 +14943,9 @@ sources:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 116
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
-      line: 152
+      line: 153
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 190
+      line: 197
     - file: lint-http-rules/src/violations/deprecation.rs
       line: 71
   - label: sunset_and_deprecation_consistent
@@ -14951,6 +14953,6 @@ sources:
     snippet: The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field.
     cited_by:
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 223
+      line: 214
     - file: lint-http-rules/src/violations/deprecation.rs
       line: 125

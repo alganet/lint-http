@@ -41,6 +41,7 @@ enabled = true
 ```http
 Deprecation: @1688169599
 Deprecation:   @0
+Deprecation: @-1
 ```
 
 ### ❌ Bad
@@ -49,6 +50,6 @@ Deprecation:   @0
 Deprecation: true
 Deprecation: Wed, 11 Nov 2015 07:28:00 GMT
 Deprecation: @
-Deprecation: @-1
+Deprecation: @1688169599000000
 Deprecation: @abc
 ```

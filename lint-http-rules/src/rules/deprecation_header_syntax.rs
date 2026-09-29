@@ -75,12 +75,12 @@ impl RuleMeta for DeprecationHeaderSyntax {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Deprecation: @1688169599\nDeprecation:   @0",
+                snippet: "Deprecation: @1688169599\nDeprecation:   @0\nDeprecation: @-1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Deprecation: true\nDeprecation: Wed, 11 Nov 2015 07:28:00 GMT\nDeprecation: @\nDeprecation: @-1\nDeprecation: @abc",
+                snippet: "Deprecation: true\nDeprecation: Wed, 11 Nov 2015 07:28:00 GMT\nDeprecation: @\nDeprecation: @1688169599000000\nDeprecation: @abc",
             },
         ]
     }
@@ -145,13 +145,15 @@ impl Rule for DeprecationHeaderSyntax {
                 item => item,
             };
 
-            // The valid form is a Structured Field Date: `@` followed by an integer epoch.
-            // (Digits-only, so a *negative* SF Date `@-N` — a legal pre-1970 delta per §3.3.7 —
-            // is treated as non-structured and falls through to the invalid branch; a negative
-            // Deprecation date is pathological. A deliberate narrowing, recorded in the tracker.)
+            // The valid form is a Structured Field Date: "@" and an Integer,
+            // which is signed and at most fifteen digits. A private "@ and
+            // digits" test stood here and was wrong at both ends: `@-86400`,
+            // the day before the epoch and a Date § 3.3.7 admits, was reported
+            // malformed, and sixteen digits, which no Integer has, passed.
             // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
             // cite(RFC 9651 § 3.3.7): "their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@"."
-            if s.starts_with('@') && s.len() > 1 && s[1..].chars().all(|c| c.is_ascii_digit()) {
+            // cite(RFC 9651 § 3.3.7): "Dates have a data model that is similar to Integers, representing a (possibly negative) delta in seconds from 1970-01-01T00:00:00Z, excluding leap seconds."
+            if crate::helpers::structured_fields::is_date(s) {
                 // A valid Structured Field Date, and only a parameter that does
                 // not derive is left to say anything about.
                 return parameters.map(|defect| {
@@ -226,6 +228,14 @@ mod tests {
     #[rstest]
     #[case(200, &[("deprecation", "@1688169599")], false)]
     #[case(200, &[("deprecation", "@0")], false)]
+    // A Date is an Integer: signed (RFC 9651 § 3.3.7's "possibly negative"
+    // delta) and fifteen digits at most (§ 4.2.4).
+    #[case(200, &[("deprecation", "@-86400")], false)]
+    #[case(200, &[("deprecation", "@-1")], false)]
+    #[case(200, &[("deprecation", "@000001688169599")], false)]
+    #[case(200, &[("deprecation", "@0000001688169599")], true)]
+    #[case(200, &[("deprecation", "@-")], true)]
+    #[case(200, &[("deprecation", "@+1")], true)]
     // An Item carries parameters RFC 9745 never names (RFC 9651 § 2.3): the Date
     // is read from in front of them, and only one that does not derive is
     // reported; a value that opens on its `;` has no Date at all.
@@ -373,23 +383,6 @@ mod tests {
         let rule = DeprecationHeaderSyntax;
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("deprecation", "@")]);
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn negative_number_after_at_is_invalid() -> anyhow::Result<()> {
-        let rule = DeprecationHeaderSyntax;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("deprecation", "@-1")],
-        );
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,

@@ -7,7 +7,6 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::deprecation::{RFC_9745_2_1, RFC_9745_4, SUNSET_CONFLICTING};
 use crate::violations::http_date::RFC_9110_5_6_7;
 use crate::violations::ViolationDef;
-use chrono::TimeZone;
 
 pub struct SunsetAndDeprecationConsistent;
 
@@ -182,31 +181,23 @@ impl Rule for SunsetAndDeprecationConsistent {
                             (date, None) => date,
                             (_, Some(_)) => "",
                         };
-                        // Deprecation is a Structured Field Date (`@` + integer epoch
-                        // seconds); this recognises exactly that form and defers the
-                        // legacy/invalid forms to `deprecation_header_syntax`.
-                        // (The previous cites here were mis-anchored — a Sunset
-                        // *definition* and an Abstract blurb, neither governing this parse.)
+                        // Deprecation is a Structured Field Date, and the
+                        // shared reader recognises exactly that form: "@" and
+                        // an Integer, signed and at most fifteen digits. The
+                        // legacy and invalid forms are `deprecation_header_syntax`'s.
+                        // A private "@ and digits" test stood here, which
+                        // refused a date before the epoch -- so a Deprecation
+                        // after a Sunset in 1969 was never compared -- and
+                        // admitted sixteen digits, which no Integer has.
+                        //
+                        // The instant is kept as the seconds § 3.3.7 counts, and
+                        // compared as seconds: fifteen digits reach well past
+                        // the range a calendar type holds, and the order of two
+                        // instants needs no calendar.
                         // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
-                        // cite(RFC 9651 § 3.3.7): "their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@"."
-                        // (Digits-only, so a *negative* SF Date `@-N` — a legal pre-1970
-                        // instant — is treated as non-structured and deferred; recorded
-                        // in the audit ledger. Such a Deprecation date is pathological.)
-                        if s.starts_with('@')
-                            && s.len() > 1
-                            && s[1..].chars().all(|c| c.is_ascii_digit())
-                        {
-                            // parse seconds since epoch
-                            match s[1..].parse::<i64>() {
-                                Ok(secs) => {
-                                    // Build a UTC DateTime safely from epoch seconds.
-                                    chrono::Utc
-                                        .timestamp_opt(secs, 0)
-                                        .single()
-                                        .map(|dt| (s.to_string(), dt)) // treat out-of-range as non-parseable
-                                }
-                                Err(_) => None,
-                            }
+                        // cite(RFC 9651 § 3.3.7): "Dates have a data model that is similar to Integers, representing a (possibly negative) delta in seconds from 1970-01-01T00:00:00Z, excluding leap seconds."
+                        if crate::helpers::structured_fields::is_date(s) {
+                            s[1..].parse::<i64>().ok().map(|secs| (s.to_string(), secs))
                         } else {
                             // Not structured '@' form -> ignore here (other rule flags legacy forms)
                             None
@@ -221,10 +212,10 @@ impl Rule for SunsetAndDeprecationConsistent {
             // tolerance — no spec licenses it; against a strict MUST NOT it only makes
             // the rule more lenient (recorded in the audit ledger, not cited).
             // cite(RFC 9745 § 4): "The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field."
-            if let Some((dep_raw, dep_dt)) = deprecation_opt {
-                let allowed_skew = chrono::Duration::seconds(60);
+            if let Some((dep_raw, dep_secs)) = deprecation_opt {
+                let allowed_skew = 60;
                 for (sun_raw, sun_dt) in sunsets {
-                    if dep_dt > sun_dt + allowed_skew {
+                    if dep_secs > sun_dt.timestamp() + allowed_skew {
                         out.push(ctx.report_with(&SUNSET_CONFLICTING, format!(
                             "Deprecation '{}' indicates a time after Sunset '{}'; the Sunset timestamp must not be earlier than Deprecation",
                             dep_raw, sun_raw
@@ -306,6 +297,38 @@ mod tests {
     #[case::a_date_behind_a_parameter_that_does_not_parse(
         &[
             ("deprecation", "@1767225600;X=1"),
+            ("sunset", "Thu, 01 Jan 2015 00:00:00 GMT"),
+        ],
+        0
+    )]
+    // A Date before the epoch is a Date (RFC 9651 § 3.3.7), and a Sunset
+    // before it is the same conflict as any other.
+    #[case::a_deprecation_before_the_epoch_after_its_sunset(
+        &[
+            ("deprecation", "@-1"),
+            ("sunset", "Wed, 31 Dec 1969 00:00:00 GMT"),
+        ],
+        1
+    )]
+    #[case::a_deprecation_before_the_epoch_before_its_sunset(
+        &[
+            ("deprecation", "@-86400"),
+            ("sunset", "Thu, 01 Jan 1970 00:00:00 GMT"),
+        ],
+        0
+    )]
+    // Fifteen digits is an Integer and a Date far past any calendar type's
+    // range, and still after a Sunset in 2015; sixteen is no Date at all.
+    #[case::fifteen_digits_after_its_sunset(
+        &[
+            ("deprecation", "@999999999999999"),
+            ("sunset", "Thu, 01 Jan 2015 00:00:00 GMT"),
+        ],
+        1
+    )]
+    #[case::sixteen_digits_is_no_date(
+        &[
+            ("deprecation", "@1767225600000000"),
             ("sunset", "Thu, 01 Jan 2015 00:00:00 GMT"),
         ],
         0
