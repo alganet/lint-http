@@ -336,6 +336,70 @@ fn if_none_match_failed(headers: &hyper::HeaderMap, seen: &LastSeen) -> Option<F
     )))
 }
 
+/// The finding for a `304` whose own validator says the request's condition
+/// was true, or `None` where it says false or cannot say.
+///
+/// § 13.2.2's order: `If-None-Match` where it was sent, compared with the
+/// weak function against the `ETag` the `304` carries, and `If-Modified-Since`
+/// only where it was not, against the `304`'s `Last-Modified`. The declines
+/// are the ones the `2xx` twin makes: `*` is false wherever a representation
+/// is current, and a `304` stands for one; a member or tag that is no
+/// entity-tag has no comparison defined over it ([`comparable`]); and a `304`
+/// carrying no validator of the kind asked, or a date that is no HTTP-date,
+/// leaves nothing to compare. The message says what the reuse costs, since a
+/// client told "not modified" serves the copy the condition named.
+// cite(RFC 9110 § 13.1.2): "If the field value is a list of entity tags, the condition is false if one of the listed tags matches the entity tag of the selected representation."
+// cite(RFC 9110 § 13.1.3): "If the selected representation's last modification date is earlier or equal to the date provided in the field value, the condition is false."
+// cite(RFC 9110 § 13.2.2): "When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition"
+fn condition_the_304_says_was_true(
+    tx: &crate::http_transaction::HttpTransaction,
+    resp: &lint_http_core::http_transaction::ResponseInfo,
+    sent: &Preconditions,
+) -> Option<String> {
+    let method = tx.request.method.as_str();
+    let written = |headers: &hyper::HeaderMap, name: &str| {
+        crate::helpers::headers::field_lines_as_written(headers, name)
+            .into_iter()
+            .map(|line| crate::helpers::shown::shown_in_finding(&line))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    if sent.if_none_match {
+        let listed = listed_tags(&tx.request.headers, "if-none-match");
+        if listed.iter().any(|tag| tag == "*") {
+            return None;
+        }
+        let etag = crate::helpers::validator::extract_validators_from_response(&resp.headers).0?;
+        if !comparable(&listed, &etag)
+            || listed
+                .iter()
+                .any(|tag| crate::helpers::validator::inm_matches_known(tag, &etag))
+        {
+            return None;
+        }
+        return Some(format!(
+            "{method} carried If-None-Match: {}, and no member weakly matches the ETag {} this \
+             304 (Not Modified) carries, so the condition was true; RFC 9110 \u{a7}15.4.5 \
+             defines 304 as the answer to a condition that evaluated false, and the client \
+             reuses a stored response the server's own tag says is not current",
+            written(&tx.request.headers, "if-none-match"),
+            crate::helpers::shown::shown_in_finding(&etag)
+        ));
+    }
+    let since = crate::http_date::header_timestamp(&tx.request.headers, "if-modified-since")?;
+    let last_modified = crate::http_date::header_timestamp(&resp.headers, "last-modified")?;
+    (last_modified > since).then(|| {
+        format!(
+            "{method} carried If-Modified-Since: {}, and this 304 (Not Modified) carries \
+             Last-Modified: {}, which is later, so the condition was true; RFC 9110 \
+             \u{a7}15.4.5 defines 304 as the answer to a condition that evaluated false, and \
+             the client reuses a stored response modified since the copy it holds",
+            written(&tx.request.headers, "if-modified-since"),
+            written(&resp.headers, "last-modified")
+        )
+    })
+}
+
 /// The precondition the request failed, in the order § 13.2.2 evaluates them:
 /// `If-Match` before `If-Unmodified-Since` (which it displaces), and
 /// `If-None-Match` after either held.
@@ -812,6 +876,12 @@ impl ConditionalRequestHandling {
     /// neither makes a `304` solicited. On every other method § 13.1.2 answers
     /// a false `If-None-Match` with `412` and § 13.1.3 has `If-Modified-Since`
     /// ignored, so no precondition does.
+    ///
+    /// **A precondition solicits a `304` only by being false**, and the `304`
+    /// says whether it was: it carries the selected representation's current
+    /// `ETag` and may carry its `Last-Modified`. So a `GET` or `HEAD` that
+    /// carried one is asked [`condition_the_304_says_was_true`], which is
+    /// [`Self::if_none_match_was_evaluated`]'s evaluation read the other way.
     // cite(RFC 9110 § 15.4.5): "The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false."
     // cite(RFC 9110 § 13.1.3): "recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD."
     fn not_modified_was_solicited(
@@ -827,7 +897,10 @@ impl ConditionalRequestHandling {
         let method = tx.request.method.as_str();
         if is_get_or_head(method) {
             if sent.if_none_match || sent.if_modified_since {
-                return None;
+                return condition_the_304_says_was_true(tx, resp, sent).map(|message| {
+                    ctx.by_server()
+                        .report_with(&STATUS_304_UNSOLICITED, message)
+                });
             }
             return Some(ctx.by_server().report_with(
                 &STATUS_304_UNSOLICITED,
@@ -1019,6 +1092,11 @@ impl RuleMeta for ConditionalRequestHandling {
                 compliance: Compliance::NonCompliant,
                 label: Some("— the condition was not met, so the response owed is 304 and not a second copy"),
                 snippet: "> GET /resource HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n\n> GET /resource HTTP/1.1\n> If-None-Match: \"abc\"\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— the tag the client holds is not the one this 304 carries, so the condition was true and the client reuses a stale copy"),
+                snippet: "> GET /resource HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n\n> GET /resource HTTP/1.1\n> If-None-Match: \"abc\"\n\n< 304 Not Modified  HTTP/1.1\n< ETag: \"def\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -1233,6 +1311,61 @@ mod tests {
         if let Some(v) = found.first() {
             assert_eq!(v.party, Some(crate::lint::Party::Server));
             assert!(v.message.starts_with(method), "{v:?}");
+        }
+    }
+
+    /// A precondition solicits a `304` only by being false, and the `304`'s own
+    /// validator says whether it was: a stale tag, a list of them, and a date
+    /// before the last modification were true. The declines are the `2xx`
+    /// twin's -- a weak match across `W/`, `*`, a tag that is no entity-tag,
+    /// no validator of the kind asked, an equal date -- and § 13.2.2's order,
+    /// which reads `If-Modified-Since` only where `If-None-Match` is absent.
+    #[rstest]
+    #[case::stale_tag(&[("if-none-match", "\"v0\"")], &[("etag", "\"v1\"")], true)]
+    #[case::stale_list(&[("if-none-match", "\"v0\", \"v2\"")], &[("etag", "\"v1\"")], true)]
+    #[case::weak_stale_tag(&[("if-none-match", "W/\"v0\"")], &[("etag", "W/\"v1\"")], true)]
+    #[case::modified_since(&[("if-modified-since", "Sat, 26 Sep 2026 10:00:00 GMT")], &[("last-modified", "Sun, 27 Sep 2026 10:00:00 GMT")], true)]
+    #[case::weak_match(&[("if-none-match", "W/\"v1\"")], &[("etag", "\"v1\"")], false)]
+    #[case::one_member_matches(&[("if-none-match", "\"v0\", \"v1\"")], &[("etag", "\"v1\"")], false)]
+    #[case::star(&[("if-none-match", "*")], &[("etag", "\"v1\"")], false)]
+    #[case::unquoted_member(&[("if-none-match", "v0")], &[("etag", "\"v1\"")], false)]
+    #[case::unquoted_tag(&[("if-none-match", "\"v0\"")], &[("etag", "v1")], false)]
+    #[case::no_tag(&[("if-none-match", "\"v0\"")], &[("last-modified", "Sun, 27 Sep 2026 10:00:00 GMT")], false)]
+    #[case::equal_date(&[("if-modified-since", "Sun, 27 Sep 2026 10:00:00 GMT")], &[("last-modified", "Sun, 27 Sep 2026 10:00:00 GMT")], false)]
+    #[case::no_date(&[("if-modified-since", "Sat, 26 Sep 2026 10:00:00 GMT")], &[("etag", "\"v1\"")], false)]
+    #[case::unreadable_date(&[("if-modified-since", "yesterday")], &[("last-modified", "Sun, 27 Sep 2026 10:00:00 GMT")], false)]
+    #[case::none_match_governs(&[("if-none-match", "\"v1\""), ("if-modified-since", "Sat, 26 Sep 2026 10:00:00 GMT")], &[("etag", "\"v1\""), ("last-modified", "Sun, 27 Sep 2026 10:00:00 GMT")], false)]
+    fn a_304_answers_only_a_condition_that_was_false(
+        #[case] request: &[(&str, &str)],
+        #[case] response: &[(&str, &str)],
+        #[case] reported: bool,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(304, response);
+        tx.request.method = "GET".to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(request);
+        let all = crate::test_helpers::run_rule_all(
+            &ConditionalRequestHandling,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "conditional_request_handling",
+            ]),
+        );
+        let found: Vec<_> = all
+            .iter()
+            .filter(|v| v.violation == "status_304_unsolicited")
+            .collect();
+        assert_eq!(
+            found.len(),
+            usize::from(reported),
+            "{request:?} -> 304 {response:?}: {all:?}"
+        );
+        // The sentence names the condition and the validator, as written.
+        if let Some(v) = found.first() {
+            assert_eq!(v.party, Some(crate::lint::Party::Server));
+            for (_, value) in request.iter().chain(response) {
+                assert!(v.message.contains(value), "{value} not in {:?}", v.message);
+            }
         }
     }
 

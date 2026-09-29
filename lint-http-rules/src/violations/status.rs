@@ -763,9 +763,10 @@ defects! {
         spec: &[RFC_9110_13_1_2, crate::violations::conditional::RFC_9110_13_1_3],
     }
 
-    /// A `304` answering a request that was not a conditional `GET` or `HEAD`:
-    /// another method, or a `GET` or `HEAD` that carried neither
-    /// `If-None-Match` nor `If-Modified-Since`.
+    /// A `304` answering a request that was not a conditional `GET` or `HEAD`
+    /// whose condition was false: another method, a `GET` or `HEAD` that
+    /// carried neither `If-None-Match` nor `If-Modified-Since`, or one whose
+    /// condition the `304`'s own validator says was true.
     ///
     /// **[`STATUS_206_UNSOLICITED`]'s reading of the other status code defined
     /// by the request it answers.** § 15.4.5 says what a `304` indicates, and
@@ -775,6 +776,16 @@ defects! {
     /// on every method, and `If-Modified-Since` is ignored. On a `GET` or
     /// `HEAD` with neither field, the status tells the client to reuse a stored
     /// response its request never said it holds.
+    ///
+    /// **A true condition solicits no `304` either**, and the definition says
+    /// so in its last clause: the `200` is withheld only "for the fact that the
+    /// condition evaluated to false". The `304` carries the selected
+    /// representation's current `ETag`, so an `If-None-Match` none of whose
+    /// tags weakly matches it was true, as is an `If-Modified-Since` (sent
+    /// alone) earlier than the `304`'s `Last-Modified`. This face costs more
+    /// than the other: the client reuses a copy the server's own validator
+    /// says is not current. It is one entry because the sentence and the
+    /// repair are one -- answer the request the client made.
     ///
     /// **Only the methods the cited documents define.** A method this
     /// catalogue has no definition for may define its own conditional
@@ -787,7 +798,7 @@ defects! {
     // cite(RFC 9110 § 15.4.5): "The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false."
     STATUS_304_UNSOLICITED = {
         id: "status_304_unsolicited",
-        title: "304 Not Modified answers a request that was not a conditional GET or HEAD",
+        title: "304 Not Modified answers a request that was not a conditional GET or HEAD whose condition was false",
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_4_5],

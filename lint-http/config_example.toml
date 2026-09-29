@@ -3146,7 +3146,7 @@ severity = "warn"
 severity = "warn"
 
 [violations.status_304_unsolicited]
-# 304 Not Modified answers a request that was not a conditional GET or HEAD
+# 304 Not Modified answers a request that was not a conditional GET or HEAD whose condition was false
 severity = "warn"
 
 [violations.status_401_challenge_missing]

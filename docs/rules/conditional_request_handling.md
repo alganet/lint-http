@@ -20,7 +20,7 @@ Warn when a conditional request names a validator (ETag / Last-Modified) that no
 
 - [conditional_validator_missing](../violations/conditional_validator_missing.md) — A precondition names a validator this exchange never provided
 - [status_304_missing](../violations/status_304_missing.md) — A false precondition is answered with a 2xx rather than 304
-- [status_304_unsolicited](../violations/status_304_unsolicited.md) — 304 Not Modified answers a request that was not a conditional GET or HEAD
+- [status_304_unsolicited](../violations/status_304_unsolicited.md) — 304 Not Modified answers a request that was not a conditional GET or HEAD whose condition was false
 - [status_412_ambiguous](../violations/status_412_ambiguous.md) — A false precondition is answered with success, and nothing shows whether the change was already in place
 - [status_412_forbidden](../violations/status_412_forbidden.md) — A GET or HEAD whose If-None-Match was false is answered 412 rather than 304
 - [status_412_missing](../violations/status_412_missing.md) — A false precondition on a state-changing request is answered with success rather than 412
@@ -97,6 +97,21 @@ enabled = true
 
 < 200 OK  HTTP/1.1
 < ETag: "abc"
+```
+
+### ❌ Bad — the tag the client holds is not the one this 304 carries, so the condition was true and the client reuses a stale copy
+
+```http
+> GET /resource HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: "abc"
+
+> GET /resource HTTP/1.1
+> If-None-Match: "abc"
+
+< 304 Not Modified  HTTP/1.1
+< ETag: "def"
 ```
 
 ### ❌ Bad — If-None-Match is evaluated before Range, so a matching tag is owed 304 and not part of a copy

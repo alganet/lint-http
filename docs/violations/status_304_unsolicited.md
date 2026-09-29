@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # status_304_unsolicited
 
-304 Not Modified answers a request that was not a conditional GET or HEAD
+304 Not Modified answers a request that was not a conditional GET or HEAD whose condition was false
 
 ## Message
 
@@ -24,7 +24,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.status_304_unsolicited]
-# 304 Not Modified answers a request that was not a conditional GET or HEAD
+# 304 Not Modified answers a request that was not a conditional GET or HEAD whose condition was false
 severity = "warn"
 ```
 

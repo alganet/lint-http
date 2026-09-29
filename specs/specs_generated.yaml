@@ -7198,7 +7198,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 220
     - file: lint-http-rules/src/violations/status.rs
-      line: 942
+      line: 953
   - label: authorization_credentials_valid
     section: § 11.6.2
     snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested
@@ -7292,7 +7292,7 @@ sources:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 135
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 815
+      line: 885
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 275
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
@@ -7304,7 +7304,7 @@ sources:
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 772
     - file: lint-http-rules/src/violations/status.rs
-      line: 787
+      line: 798
   - label: challenge
     section: § 11.5
     snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
@@ -7420,7 +7420,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 193
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 473
+      line: 537
   - label: conditional_headers_consistent
     section: § 13.1.3
     snippet: A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field
@@ -7522,11 +7522,11 @@ sources:
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 643
+      line: 707
     - file: lint-http-rules/src/violations/status.rs
-      line: 840
+      line: 851
     - file: lint-http-rules/src/violations/status.rs
-      line: 877
+      line: 888
   - label: conditional_request_handling (4)
     section: § 13.1.2
     snippet: If the field value is "*", the condition is false if the origin server has a current representation for the target resource.
@@ -7534,13 +7534,15 @@ sources:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 312
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 644
+      line: 708
   - label: conditional_request_handling (5)
     section: § 13.1.2
     snippet: If the field value is a list of entity tags, the condition is false if one of the listed tags matches the entity tag of the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 313
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 351
   - label: conditional_request_handling (6)
     section: § 13.1.2
     snippet: the 304 (Not Modified) status code if the request method is GET or HEAD
@@ -7548,62 +7550,70 @@ sources:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 104
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 763
+      line: 827
   - label: conditional_request_handling (7)
     section: § 13.1.3
     snippet: An origin server that evaluates an If-Modified-Since condition SHOULD NOT perform the requested method if the condition evaluates to false; instead, the origin server SHOULD generate a 304 (Not Modified) response
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 701
+      line: 765
   - label: conditional_request_handling (8)
+    section: § 13.1.3
+    snippet: If the selected representation's last modification date is earlier or equal to the date provided in the field value, the condition is false.
+    cited_by:
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 352
+  - label: conditional_request_handling (9)
     section: § 13.1.3
     snippet: recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 816
-  - label: conditional_request_handling (9)
+      line: 886
+  - label: conditional_request_handling (10)
     section: § 13.1.4
     snippet: A recipient MUST ignore the If-Unmodified-Since header field if the resource does not have a modification date available.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 292
-  - label: conditional_request_handling (10)
+  - label: conditional_request_handling (11)
     section: § 13.1.4
     snippet: If the selected representation's last modification date is earlier than or equal to the date provided in the field value, the condition is true.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 293
-  - label: conditional_request_handling (11)
+  - label: conditional_request_handling (12)
     section: § 13.2.1
     snippet: Likewise, a server MUST ignore the conditional request header fields defined by this specification when received with a request method that does not involve the selection or modification of a selected representation, such as CONNECT, OPTIONS, or TRACE.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 145
-  - label: conditional_request_handling (12)
+  - label: conditional_request_handling (13)
     section: § 13.2.2
     snippet: 'A recipient cache or origin server MUST evaluate the request preconditions defined by this specification in the following order:'
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 342
-  - label: conditional_request_handling (13)
+      line: 406
+  - label: conditional_request_handling (14)
     section: § 13.2.2
     snippet: Any extension to HTTP that defines additional conditional request header fields ought to define the order for evaluating such fields in relation to those defined in this document and other conditionals that might be found in practice.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 762
-  - label: conditional_request_handling (14)
+      line: 826
+  - label: conditional_request_handling (15)
     section: § 13.2.2
     snippet: When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 702
-  - label: conditional_request_handling (15)
+      line: 353
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 766
+  - label: conditional_request_handling (16)
     section: § 13.2.2
     snippet: if false for GET/HEAD, respond 304 (Not Modified)
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 125
-  - label: conditional_request_handling (16)
+  - label: conditional_request_handling (17)
     section: § 15
     snippet: However, a client MUST understand the class of any status code, as indicated by the first digit, and treat an unrecognized status code as being equivalent to the x00 status code of that class.
     cited_by:
@@ -7617,15 +7627,15 @@ sources:
       line: 155
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 152
-  - label: conditional_request_handling (17)
+  - label: conditional_request_handling (18)
     section: § 15.5.13
     snippet: The 412 (Precondition Failed) status code indicates that one or more conditions given in the request header fields evaluated to false when tested on the server
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 761
+      line: 825
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 234
-  - label: conditional_request_handling (18)
+  - label: conditional_request_handling (19)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as
     cited_by:
@@ -8562,7 +8572,7 @@ sources:
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 24
     - file: lint-http-rules/src/violations/status.rs
-      line: 1326
+      line: 1337
   - label: lint-http-core/src/http_version.rs
     section: § 2.5
     snippet: HTTP's version number consists of two decimal digits separated by a "." (period or decimal point).
@@ -10118,7 +10128,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 109
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 845
+      line: 918
     - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
       line: 122
     - file: lint-http-rules/src/rules/cors_request_header_syntax.rs
@@ -10342,7 +10352,7 @@ sources:
     - file: lint-http-rules/src/helpers/validator.rs
       line: 40
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 645
+      line: 709
   - label: lint-http-rules/src/helpers/validator.rs
     section: § 13.1.2
     snippet: 'If-None-Match = "*" / #entity-tag'
@@ -10354,7 +10364,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 241
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 474
+      line: 538
   - label: lint-http-rules/src/helpers/validator.rs (2)
     section: § 8.8.3
     snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
@@ -10756,7 +10766,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 170
     - file: lint-http-rules/src/violations/status.rs
-      line: 1221
+      line: 1232
     - file: lint-http/src/proxy/websocket/handshake.rs
       line: 173
   - label: no_body_for_1xx_204_304 (2)
@@ -10790,7 +10800,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 165
     - file: lint-http-rules/src/violations/status.rs
-      line: 1197
+      line: 1208
   - label: no_body_for_1xx_204_304 (6)
     section: § 8.6
     snippet: A server MAY send a Content-Length header field in a 304 (Not Modified) response to a conditional GET request (Section 15.4.5); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a 200 (OK) response to the same request.
@@ -10808,7 +10818,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 250
     - file: lint-http-rules/src/violations/status.rs
-      line: 1244
+      line: 1255
   - label: no_connection_specific_fields
     section: § 7.6.1
     snippet: 'This includes but is not limited to:'
@@ -11314,7 +11324,7 @@ sources:
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 59
     - file: lint-http-rules/src/violations/status.rs
-      line: 1093
+      line: 1104
   - label: referer_uri_valid
     section: § 10.1.3
     snippet: A user agent MUST NOT include the fragment and userinfo components of the URI reference [URI], if any, when generating the Referer field value.
@@ -11620,23 +11630,23 @@ sources:
     snippet: Alternatively, if the request is a state-changing operation that appears to have already been applied to the selected representation, the origin server MAY respond with a 2xx (Successful) status code
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 843
+      line: 854
     - file: lint-http-rules/src/violations/status.rs
-      line: 911
+      line: 922
   - label: status (2)
     section: § 13.1.1
     snippet: An origin server that evaluates an If-Match condition MUST NOT perform the requested method if the condition evaluates to false.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 841
+      line: 852
     - file: lint-http-rules/src/violations/status.rs
-      line: 910
+      line: 921
   - label: status (3)
     section: § 13.1.4
     snippet: An origin server that evaluates an If-Unmodified-Since condition MUST NOT perform the requested method if the condition evaluates to false.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 842
+      line: 853
   - label: status (4)
     section: § 15.2.2
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection.
@@ -11660,19 +11670,19 @@ sources:
     snippet: For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 308 (Permanent Redirect) status code can be used instead.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 1045
+      line: 1056
   - label: status (8)
     section: § 15.4.3
     snippet: For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 307 (Temporary Redirect) status code can be used instead.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 1063
+      line: 1074
   - label: status (9)
     section: § 15.5.2
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 988
+      line: 999
   - label: status (10)
     section: § 7.8
     snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
@@ -11692,7 +11702,7 @@ sources:
     - file: lint-http-rules/src/rules/status_1xx_vs_request_version.rs
       line: 165
     - file: lint-http-rules/src/violations/status.rs
-      line: 1300
+      line: 1311
     - file: lint-http/src/proxy/websocket/mod.rs
       line: 50
   - label: status_101_switching_protocols (2)
@@ -11734,7 +11744,7 @@ sources:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 28
     - file: lint-http-rules/src/violations/status.rs
-      line: 1173
+      line: 1184
   - label: status_200_vs_204_body_consistent (4)
     section: § 15.3.1
     snippet: The 200 (OK) status code indicates that the request has succeeded.
@@ -11810,7 +11820,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 282
     - file: lint-http-rules/src/violations/status.rs
-      line: 1143
+      line: 1154
   - label: status_405_allow_valid (3)
     section: § 15.5.6
     snippet: The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods.
@@ -11820,7 +11830,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 281
     - file: lint-http-rules/src/violations/status.rs
-      line: 1118
+      line: 1129
   - label: status_405_allow_valid (4)
     section: § 9.1
     snippet: However, the set of allowed methods can change dynamically.
@@ -11924,7 +11934,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 258
     - file: lint-http-rules/src/violations/status.rs
-      line: 1015
+      line: 1026
   - label: status_code_semantics (9)
     section: § A
     snippet: Proxy-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
@@ -11944,7 +11954,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 142
     - file: lint-http-rules/src/violations/status.rs
-      line: 1092
+      line: 1103
   - label: status_code_valid_range (2)
     section: § 15
     snippet: Implementations often use three-digit integer values outside of that range (i.e., 600..999) for internal communication of non-HTTP status (e.g., library errors).
@@ -13620,7 +13630,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 291
     - file: lint-http-rules/src/violations/status.rs
-      line: 1265
+      line: 1276
   - label: post_creates_resource
     section: § 3.3
     snippet: Otherwise, the target URI's combined path and query component is the request-target.
