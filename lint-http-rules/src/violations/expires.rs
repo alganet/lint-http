@@ -127,14 +127,24 @@ defects! {
     ///
     /// **Two populations, one finding, because one sentence is true of both.**
     /// A server writing `0` or `-1` asked for stale-on-arrival and got it. A
-    /// server writing `Sun, 30 Aug 2026 00:27:20 UTC` asked for the ten minutes
-    /// its `max-age` also asks for and got the same zero, because nothing sends
+    /// server writing `Sun, 30 Aug 2026 00:27:20 UTC` asked for ten minutes and
+    /// got the same zero from every reader of this field, because nothing sends
     /// a reader of `Expires` anywhere but the production — there is no § 5.1.1
     /// here, no lenient algorithm of the kind RFC 6265 defines for a cookie
     /// attribute spelled the same way, and so no
     /// [`COOKIE_EXPIRES_MALFORMED`](crate::violations::cookie::COOKIE_EXPIRES_MALFORMED)
     /// tier where the value works anyway. The message carries the value, which
     /// is what tells a reader which of the two is in front of them.
+    ///
+    /// **Who reads the field is the response's to say, and the message says
+    /// it.** Beside `max-age` every cache that implements `Cache-Control` MUST
+    /// ignore `Expires`, and beside `s-maxage` every shared one must, so there
+    /// the zero reaches only the caches that are left. The finding stands,
+    /// because they are the recipients § 5.3 writes the field for, the same
+    /// population [`EXPIRES_CONFLICTING`] is argued from. But "every cache reads
+    /// the response as already expired" is said only of a response that states
+    /// no lifetime of its own. A server writing the `UTC` spelling beside
+    /// `max-age=600` gives current caches their ten minutes and older ones none.
     ///
     /// `warn`, and `Unstated` is why that is argued here rather than derived.
     /// § 5.3's keyword binds the **recipient** — a cache MUST read an invalid

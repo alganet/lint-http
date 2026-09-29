@@ -7139,7 +7139,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
       line: 192
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
-      line: 125
+      line: 130
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
       line: 127
   - label: conditional_etag_syntax
@@ -8179,7 +8179,7 @@ sources:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 247
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
-      line: 126
+      line: 131
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
       line: 129
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
@@ -12068,9 +12068,9 @@ sources:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 255
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
-      line: 133
+      line: 138
     - file: lint-http-rules/src/violations/expires.rs
-      line: 149
+      line: 159
   - label: expires_and_cache_control_consistent (4)
     section: § 5.3
     snippet: If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field.
@@ -12079,6 +12079,8 @@ sources:
       line: 287
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 309
+    - file: lint-http-rules/src/rules/expires_date_syntax.rs
+      line: 173
     - file: lint-http-rules/src/violations/expires.rs
       line: 105
   - label: expires_and_cache_control_consistent (5)
@@ -12094,9 +12096,15 @@ sources:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 150
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
-      line: 124
+      line: 129
     - file: lint-http-rules/src/violations/expires.rs
-      line: 148
+      line: 158
+  - label: expires_date_syntax
+    section: § 5.3
+    snippet: Likewise, if a response includes the s-maxage directive (Section 5.2.2.10), a shared cache recipient MUST ignore the Expires header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/expires_date_syntax.rs
+      line: 174
   - label: immutable_cache_never_stale
     section: § 5.2.2.4
     snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response

@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Verifies that the `Expires` response header field (when present) derives from `HTTP-date`, and that a sender generated it in the IMF-fixdate format the specification confines senders to. A value no format parses is not silently ignored by a cache: RFC 9111 §5.3 requires every cache to read it as a time already past, so the response the field was meant to keep fresh is stale on arrival.
+Verifies that the `Expires` response header field (when present) derives from `HTTP-date`, and that a sender generated it in the IMF-fixdate format the specification confines senders to. A value no format parses is not silently ignored by a cache: RFC 9111 §5.3 requires a cache to read it as a time already past, so the response the field was meant to keep fresh is stale on arrival. Which caches read it depends on the rest of the response, and the message says which: beside `max-age` only a cache that does not implement `Cache-Control` reads `Expires` at all, and beside `s-maxage` a shared cache that does implement it ignores the field too.
 
 ## Violations
 
@@ -46,6 +46,17 @@ Hello
 ```http
 HTTP/1.1 200 OK
 Date: Wed, 21 Oct 2015 07:28:00 GMT
+Expires: Wed, 21 Oct 2015 07:38:00 UTC
+
+Hello
+```
+
+### ❌ Bad — beside max-age only a cache that does not implement Cache-Control reads this, and it reads it as already expired
+
+```http
+HTTP/1.1 200 OK
+Date: Wed, 21 Oct 2015 07:28:00 GMT
+Cache-Control: max-age=600
 Expires: Wed, 21 Oct 2015 07:38:00 UTC
 
 Hello

@@ -61,7 +61,7 @@ impl RuleMeta for ExpiresDateSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "Verifies that the `Expires` response header field (when present) derives from `HTTP-date`, and that a sender generated it in the IMF-fixdate format the specification confines senders to. A value no format parses is not silently ignored by a cache: RFC 9111 §5.3 requires every cache to read it as a time already past, so the response the field was meant to keep fresh is stale on arrival."
+        "Verifies that the `Expires` response header field (when present) derives from `HTTP-date`, and that a sender generated it in the IMF-fixdate format the specification confines senders to. A value no format parses is not silently ignored by a cache: RFC 9111 §5.3 requires a cache to read it as a time already past, so the response the field was meant to keep fresh is stale on arrival. Which caches read it depends on the rest of the response, and the message says which: beside `max-age` only a cache that does not implement `Cache-Control` reads `Expires` at all, and beside `s-maxage` a shared cache that does implement it ignores the field too."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -88,6 +88,11 @@ impl RuleMeta for ExpiresDateSyntax {
                 compliance: Compliance::NonCompliant,
                 label: Some("— a cache reads this as already expired, not as ten minutes"),
                 snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nExpires: Wed, 21 Oct 2015 07:38:00 UTC\n\nHello",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— beside max-age only a cache that does not implement Cache-Control reads this, and it reads it as already expired"),
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nCache-Control: max-age=600\nExpires: Wed, 21 Oct 2015 07:38:00 UTC\n\nHello",
             },
         ]
     }
@@ -157,15 +162,41 @@ impl Rule for ExpiresDateSyntax {
                 // though the field were not there; § 5.3 has it act as though
                 // the response were stale, which is a different answer and the
                 // one this field gets whatever the value was.
+                //
+                // "Every cache" is true only of a response that states no
+                // lifetime of its own. Beside `max-age` a cache that implements
+                // `Cache-Control` never reads this field, and beside `s-maxage`
+                // a shared one does not, so the population § 5.3 reads as
+                // already expired is only what is left. Presence decides it,
+                // not the argument, because presence is what § 5.3 names.
+                //
+                // cite(RFC 9111 § 5.3): "If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field."
+                // cite(RFC 9111 § 5.3): "Likewise, if a response includes the s-maxage directive (Section 5.2.2.10), a shared cache recipient MUST ignore the Expires header field."
                 HttpDateDefect::Unparsable
                 | HttpDateDefect::SurroundingWhitespace
-                | HttpDateDefect::Empty => (
-                    &EXPIRES_MALFORMED,
-                    format!(
-                        "Expires '{value}' derives from no HTTP-date, so every cache reads the \
-                         response as already expired (RFC 9111 §5.3)"
-                    ),
-                ),
+                | HttpDateDefect::Empty => {
+                    let message = if crate::helpers::cache_control::has(&resp.headers, "max-age") {
+                        format!(
+                            "Expires '{value}' derives from no HTTP-date; the response carries \
+                             max-age, so a cache that implements Cache-Control ignores the field \
+                             and one that does not reads the response as already expired \
+                             (RFC 9111 §5.3)"
+                        )
+                    } else if crate::helpers::cache_control::has(&resp.headers, "s-maxage") {
+                        format!(
+                            "Expires '{value}' derives from no HTTP-date; the response carries \
+                             s-maxage, so a shared cache that implements Cache-Control ignores \
+                             the field, and a private cache or one that does not implement \
+                             Cache-Control reads the response as already expired (RFC 9111 §5.3)"
+                        )
+                    } else {
+                        format!(
+                            "Expires '{value}' derives from no HTTP-date, so every cache reads \
+                             the response as already expired (RFC 9111 §5.3)"
+                        )
+                    };
+                    (&EXPIRES_MALFORMED, message)
+                }
             };
             Some(ctx.report_with(def, message))
         };
@@ -197,7 +228,8 @@ mod tests {
     /// The values the web actually sends, and which of the three ids each one
     /// draws. Both rows in the first pair were read off real responses: `-1` is
     /// the anti-caching idiom § 5.3 names, and the `UTC` spelling is a server
-    /// that meant an instant ten minutes out and will get none of them.
+    /// that meant an instant ten minutes out and gets none of them from any
+    /// cache that reads this field.
     #[rstest]
     #[case("-1", "expires_malformed")]
     #[case("0", "expires_malformed")]
@@ -240,6 +272,60 @@ mod tests {
             .expect("a finding")
             .message
             .contains("'Sun, 30 Aug 2026 00:27:20 UTC'"));
+    }
+
+    fn expires_beside(value: &str, cache_control: &str) -> Violation {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[
+                ("cache-control", cache_control),
+                ("expires", value),
+            ]);
+        crate::test_helpers::run_rule(
+            &ExpiresDateSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["expires_date_syntax"]),
+        )
+        .expect("a finding")
+    }
+
+    /// Who reads the field is the response's to say. Beside `max-age` a cache
+    /// that implements `Cache-Control` MUST ignore `Expires`, so "every cache
+    /// reads the response as already expired" would be false of the very
+    /// caches most recipients run; beside `s-maxage` it would be false of the
+    /// shared ones. The finding stands, because the caches left over still read
+    /// the zero, and only the sentence about who they are changes.
+    #[rstest]
+    #[case("max-age=600", "carries max-age")]
+    #[case("MAX-AGE=600", "carries max-age")]
+    // Presence is what § 5.3 names, not a readable argument.
+    #[case("max-age=soon", "carries max-age")]
+    #[case("private, max-age=0", "carries max-age")]
+    #[case("public, s-maxage=600, max-age=60", "carries max-age")]
+    #[case("public, s-maxage=600", "carries s-maxage")]
+    #[case("no-cache", "every cache reads")]
+    #[case("public", "every cache reads")]
+    fn the_message_names_the_caches_that_read_the_field(
+        #[case] cache_control: &str,
+        #[case] expected: &str,
+    ) {
+        for value in ["-1", "Sun, 30 Aug 2026 00:27:20 UTC"] {
+            let finding = expires_beside(value, cache_control);
+            assert_eq!(finding.violation, "expires_malformed");
+            assert!(
+                finding.message.contains(expected),
+                "{cache_control:?} beside {value:?}: {}",
+                finding.message
+            );
+            let says_every = finding.message.contains("every cache");
+            assert_eq!(
+                says_every,
+                expected == "every cache reads",
+                "{cache_control:?}: {}",
+                finding.message
+            );
+        }
     }
 
     /// An `Expires` a sender may generate is silent, and so is a response
