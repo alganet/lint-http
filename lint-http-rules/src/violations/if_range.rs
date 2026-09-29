@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! `If-Range` defects — the four things only this field says.
+//! `If-Range` defects — the five things only this field says.
 //!
 //! `If-Range = entity-tag / HTTP-date`, so what a value *is* belongs to
 //! [`etag`](crate::violations::etag) and
@@ -11,7 +11,7 @@
 //! first three characters picks the entity-tag half, and each half is then
 //! measured against the production it chose. What is left over is this subject.
 //!
-//! **Three of the four entries are § 13.1.5's three client-side MUST NOTs, and
+//! **Three of the five entries are § 13.1.5's three client-side MUST NOTs, and
 //! none of them is about a value being unreadable.** All three are about a
 //! perfectly well-formed value the field refuses anyway — a weak entity-tag, a
 //! date where the client holds a tag, and a field written where nothing
@@ -21,6 +21,11 @@
 //! entries: in every case the recipient is told to ignore something, so what
 //! the sender loses is the short-circuit the field exists to provide, and never
 //! the correctness of what comes back.
+//!
+//! **The fifth is that recipient behaviour, not performed**, and it is the one
+//! entry here whose cost is the correctness of what comes back: a server that
+//! sends the range when the condition was false hands the client a part of a
+//! representation it does not hold, to be joined to the part it does.
 
 use crate::lint::Severity;
 use crate::lint::Strength;
@@ -34,7 +39,7 @@ pub const RFC_9110_13_1_5: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("13.1.5"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5",
-    note: "`If-Range`: `entity-tag / HTTP-date`, the first-three-characters DQUOTE test that tells them apart, the MUST NOT on a request with no `Range`, the MUST NOT on a weak entity-tag, the MUST NOT on a date where the client holds an entity tag, and the strong comparison a recipient evaluates the condition with",
+    note: "`If-Range`: `entity-tag / HTTP-date`, the first-three-characters DQUOTE test that tells them apart, the MUST NOT on a request with no `Range`, the MUST NOT on a weak entity-tag, the MUST NOT on a date where the client holds an entity tag, the strong comparison and the exact date match a recipient evaluates the condition with, and the recipient's MUST to ignore the `Range` when it is false",
 };
 
 defects! {
@@ -164,6 +169,44 @@ defects! {
         spec: &[RFC_9110_13_1_5],
         strength: Strength::Grammar,
     }
+
+    /// A `206` answering a range request whose `If-Range` the response's own
+    /// validator says was false.
+    ///
+    /// **The server's half of the field, and the half the field exists for.**
+    /// § 13.1.5 says what the condition asks — "if the representation is
+    /// unchanged, send me the part(s) that I am requesting in Range;
+    /// otherwise, send me the entire representation" — and has the recipient
+    /// evaluate it: an entity tag by the strong comparison against the
+    /// selected representation's `ETag`, a date by exact match against its
+    /// `Last-Modified`. The validator compared is the one the `206` carries,
+    /// because § 8.8.3 makes a response's `ETag` the current tag "as
+    /// determined at the conclusion of handling the request". A `206` whose
+    /// tag is not the one the client sent, or is weak on either side, or whose
+    /// `Last-Modified` is not the date the client sent, answered a condition
+    /// that was false with the range anyway.
+    ///
+    /// **Only the `206`.** § 13.2.1 has a server ignore every precondition
+    /// where the same request without them would have been answered with
+    /// neither a `2xx` nor a `412`, and a range no representation satisfies is
+    /// a `416` whatever the `If-Range` said, so a `416` answering a false
+    /// condition is the status the section prescribes.
+    ///
+    /// `error`, off the keyword: the sentence is a MUST binding the recipient.
+    /// Unlike its four siblings, what it costs is the octets: a download
+    /// resumed this way joins the tail of one representation onto the head of
+    /// another, and nothing in the response tells the client so except the
+    /// validator it was sent to check.
+    ///
+    // cite(RFC 9110 § 13.1.5): "A recipient of an If-Range header field MUST ignore the Range header field if the If-Range condition evaluates to false."
+    IF_RANGE_IGNORED = {
+        id: "if_range_ignored",
+        title: "A range is sent though the If-Range condition was false",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_13_1_5],
+        strength: Strength::Must,
+    }
 }
 
 #[cfg(test)]
@@ -174,7 +217,9 @@ mod tests {
     /// one of § 13.1.5's client-side MUST NOTs is paired with a recipient told
     /// to ignore something, so each costs the short-circuit and none costs
     /// correctness. A split here would have to name a consequence the section
-    /// does not describe.
+    /// does not describe. The fifth entry, the recipient's own MUST, costs
+    /// correctness and sits at the same level off its own keyword, so the
+    /// subject is one level for two reasons and not for one.
     ///
     /// **Over every entry of the subject rather than a list of them**, because
     /// the list is how one escaped: written when there were three entries, it
@@ -182,10 +227,10 @@ mod tests {
     /// § 13.1.5's third client-side MUST NOT — sat at `warn` for as long as the
     /// list did not name it, under a doc claiming it ranked *with its siblings*.
     /// A claim about "every one" of something cannot be held by naming some of
-    /// them. The count is asserted too, so a fifth entry fails here and is
+    /// them. The count is asserted too, so a sixth entry fails here and is
     /// ranked on purpose.
     #[test]
-    fn every_way_of_losing_the_short_circuit_sits_at_one_level() {
+    fn every_entry_of_the_subject_sits_at_one_level() {
         let subject: Vec<&&crate::violations::ViolationDef> = crate::violations::VIOLATIONS
             .iter()
             .filter(|def| def.id.starts_with("if_range"))
@@ -195,6 +240,7 @@ mod tests {
             [
                 "if_range_empty",
                 "if_range_forbidden",
+                "if_range_ignored",
                 "if_range_validator_date_forbidden",
                 "if_range_validator_weak_forbidden",
             ],

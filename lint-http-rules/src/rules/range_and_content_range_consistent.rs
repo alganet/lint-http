@@ -14,6 +14,7 @@ use crate::violations::content_range::{
     CONTENT_RANGE_UNSATISFIED_RANGE_MALFORMED, RFC_9110_14_1, RFC_9110_14_1_2, RFC_9110_14_4,
     RFC_9110_15_3_7_1, RFC_9110_15_3_7_2,
 };
+use crate::violations::if_range::{IF_RANGE_IGNORED, RFC_9110_13_1_5};
 use crate::violations::status::{
     RFC_9110_15_3_7, RFC_9110_15_5_17, STATUS_206_MULTIPART_FORBIDDEN, STATUS_206_UNSOLICITED,
     STATUS_416_UNSOLICITED,
@@ -34,13 +35,16 @@ pub struct RangeAndContentRangeConsistent;
 /// per status code that describes a semantic for it, so the status is the
 /// condition and the field stays the subject.
 ///
-/// The last three are not a field's at all, and the rule declares nothing
+/// The last four are not a field's at all, and the rule declares nothing
 /// outside these three groups. A 206 and a 416 are each defined in terms of the
 /// request's `Range`, so one sent where that field was never written describes
 /// an exchange that did not happen; a multipart 206 answering a request for one
-/// range is a response the client asked for and may be unable to read. All
-/// three are the status code's — every one of them is read out of the request
-/// and the response at once, and neither range field is at fault in any.
+/// range is a response the client asked for and may be unable to read; and a
+/// 206 answering an `If-Range` its own validator says was false sent a range
+/// the condition had turned back into a request for the whole. Three are the
+/// status code's and the fourth is `If-Range`'s own, the recipient's half of
+/// that field — every one of them is read out of the request and the response
+/// at once, and neither range field is at fault in any.
 ///
 /// **The two groups are reported beside each other, never instead.** They are
 /// claims about different subjects, and for as long as the status group was
@@ -53,6 +57,7 @@ static DECLARED: &[&ViolationDef] = &[
     &STATUS_206_UNSOLICITED,
     &STATUS_416_UNSOLICITED,
     &STATUS_206_MULTIPART_FORBIDDEN,
+    &IF_RANGE_IGNORED,
     &CONTENT_RANGE_MISSING,
     &CONTENT_RANGE_FORBIDDEN,
     &CONTENT_RANGE_FORM_INVALID,
@@ -171,7 +176,7 @@ units = ["bytes"]
     }
 
     fn description(&self) -> &'static str {
-        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and so does one whose request carried a `Range` on a method other than `GET`: RFC 9110 §14.2 defines range handling for `GET` alone and says a server MUST ignore the field on any other method, `HEAD` included, so there was no range request to answer. That is a finding about the status code, and it is reported *beside* whatever the response's `Content-Range` says rather than in place of it: the two are claims about different subjects, and a client handed `Content-Range: bytes 42-1233/1000` still has to read it to know what it was given.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `content_length_valid`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing."
+        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and so does one whose request carried a `Range` on a method other than `GET`: RFC 9110 §14.2 defines range handling for `GET` alone and says a server MUST ignore the field on any other method, `HEAD` included, so there was no range request to answer. That is a finding about the status code, and it is reported *beside* whatever the response's `Content-Range` says rather than in place of it: the two are claims about different subjects, and a client handed `Content-Range: bytes 42-1233/1000` still has to read it to know what it was given.\n\n**A 206 answering an `If-Range` that was false** sent the range the condition had withdrawn. RFC 9110 §13.1.5 has the recipient evaluate the field against the selected representation's own validator — an entity tag by the strong comparison against `ETag`, a date by exact match against `Last-Modified` — and MUST ignore the `Range` when the condition is false, sending the whole representation; the validator compared is the one the 206 itself carries. A client resuming a download from such a response joins a part of one representation to a copy of another. Only a false the two messages prove is reported: nothing is said where the 206 carries no validator of the kind the `If-Range` holds, where either field is written twice or unreadably, or where a date matches, since a matching date is true only if it is also a strong validator. A 416 is not asked: §13.2.1 has a server ignore every precondition where the same request without them would not have been answered 2xx or 412, and an unsatisfiable range is a 416 either way.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `content_length_valid`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -184,6 +189,7 @@ units = ["bytes"]
             RFC_9110_14_1_2,
             RFC_9110_15_5_17,
             crate::violations::accept_ranges::RFC_9110_14_2,
+            RFC_9110_13_1_5,
         ]
     }
 
@@ -217,6 +223,16 @@ units = ["bytes"]
                 compliance: Compliance::NonCompliant,
                 label: Some("— range handling is defined for GET alone, so a HEAD's Range is one the server ignores"),
                 snippet: "HEAD /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-1\n\nHTTP/1.1 206 Partial Content\nContent-Range: bytes 0-1/10\nContent-Length: 2",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— the If-Range names a tag this representation no longer has, so the whole was owed"),
+                snippet: "GET /file HTTP/1.1\nHost: example.com\nRange: bytes=500-999\nIf-Range: \"v1\"\n\nHTTP/1.1 206 Partial Content\nETag: \"v2\"\nContent-Range: bytes 500-999/8000\nContent-Length: 500\n\n...500 bytes of \"v2\", to be joined to the client's copy of \"v1\"...",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(the same request, answered with the whole representation)"),
+                snippet: "GET /file HTTP/1.1\nHost: example.com\nRange: bytes=500-999\nIf-Range: \"v1\"\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Length: 8000\n\n...all 8000 bytes of \"v2\"...",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -501,6 +517,17 @@ fn status_defects(
         ));
     }
 
+    // A range the request's `If-Range` had turned back into a request for the
+    // whole. The condition is evaluated against the validator this `206`
+    // carries, and only where that says "false"; a `416` is left alone, since
+    // § 13.2.1 has a server ignore the precondition ahead of one.
+    // cite(RFC 9110 § 13.2.1): "A server MUST ignore all received preconditions if its response to the same request without those conditions, prior to processing the request content, would have been a status code other than a 2xx (Successful) or 412 (Precondition Failed)."
+    if resp.status == 206 && has_range_request && !ignored_range {
+        if let Some(message) = if_range_found_false(&tx.request.headers, resp) {
+            out.push(ctx.report_with(&IF_RANGE_IGNORED, message));
+        }
+    }
+
     // One requested range may not be answered with a multipart response at all.
     // The count is exact rather than a guess: a range-set is a `#`-list, whose
     // separator is the comma, and no range-spec may contain one. Empty elements
@@ -545,6 +572,88 @@ fn status_defects(
     }
 
     out
+}
+
+/// The request's `If-Range`, evaluated as § 13.1.5 has the recipient evaluate
+/// it, against the validator of the response that answered it — `Some` with
+/// the sentence to report when the condition is false, `None` when it is true
+/// or when nothing here can say.
+///
+/// **Only a false that the two messages prove.** The field is a singleton,
+/// and a request writing it twice, or a response writing its validator twice,
+/// leaves no one value to compare; a tag either message wrote that is no
+/// `entity-tag`, or a date that is no `HTTP-date`, is that field's own finding
+/// and not a condition anyone evaluated. A date that matches is not read as
+/// true either: step 1 also asks that the date be a strong validator, which
+/// is the origin's knowledge of its own clock, so a match is silence and only
+/// a mismatch is a finding. The match is of the instants the two dates name,
+/// so two spellings of one instant are not reported as differing.
+///
+/// **The tag is read in either field section.** § 8.8.3 lets a sender write
+/// `ETag` after the content, and the tag is the one the server evaluated the
+/// condition against wherever it wrote it; this reading stands in for that
+/// server and not for a cache, which may discard a trailer section. A tag in
+/// both sections is two field lines of a singleton, and leaves no one value.
+// cite(RFC 9110 § 13.1.5): "A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE."
+// cite(RFC 9110 § 13.1.5): "If the entity-tag validator provided exactly matches the ETag field value for the selected representation using the strong comparison function (Section 8.8.3.2), the condition is true."
+// cite(RFC 9110 § 8.8.3.2): "two entity tags are equivalent if both are not weak and their opaque-tags match character-by-character."
+// cite(RFC 9110 § 13.1.5): "If the HTTP-date validator provided exactly matches the Last-Modified field value for the selected representation, the condition is true."
+// cite(RFC 9110 § 8.8.3): "A sender MAY send the ETag field in a trailer section"
+fn if_range_found_false(
+    request: &hyper::HeaderMap,
+    resp: &lint_http_core::http_transaction::ResponseInfo,
+) -> Option<String> {
+    use crate::helpers::headers::{field_lines_as_written, trim_ows};
+    use crate::helpers::shown::shown_in_finding;
+    use crate::helpers::validator::check_entity_tag;
+
+    let only = |lines: Vec<String>| -> Option<String> {
+        match lines.as_slice() {
+            [line] => Some(trim_ows(line).to_string()),
+            _ => None,
+        }
+    };
+    let asked = only(field_lines_as_written(request, "if-range"))?;
+    if asked.chars().take(3).any(|c| c == '"') {
+        check_entity_tag(&asked).ok()?;
+        let current = only(
+            crate::helpers::headers::response_field_sections(resp)
+                .flat_map(|(_, section)| field_lines_as_written(section, "etag"))
+                .collect(),
+        )?;
+        check_entity_tag(&current).ok()?;
+        let weak = asked.starts_with("W/") || current.starts_with("W/");
+        if !weak && asked == current {
+            return None;
+        }
+        let why = if weak {
+            "the two are compared by the strong function, which a weak tag never satisfies"
+        } else {
+            "the two tags differ"
+        };
+        return Some(format!(
+            "206 Partial Content sends a range although the request's If-Range {} does not \
+             match this response's ETag {} ({why}); RFC 9110 \u{a7}13.1.5 has the recipient \
+             ignore the Range when the condition is false and send the whole representation, \
+             so the client joins this part to a copy of another",
+            shown_in_finding(&asked),
+            shown_in_finding(&current)
+        ));
+    }
+    let asked_at = crate::http_date::parse_http_date_to_datetime(&asked).ok()?;
+    let current = only(field_lines_as_written(&resp.headers, "last-modified"))?;
+    let current_at = crate::http_date::parse_http_date_to_datetime(&current).ok()?;
+    if asked_at == current_at {
+        return None;
+    }
+    Some(format!(
+        "206 Partial Content sends a range although the request's If-Range date '{}' is not \
+         this response's Last-Modified '{}'; RFC 9110 \u{a7}13.1.5 matches a date only \
+         exactly, has the recipient ignore the Range when the condition is false and send the \
+         whole representation, so the client joins this part to a copy of another",
+        shown_in_finding(&asked),
+        shown_in_finding(&current)
+    ))
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -846,6 +955,107 @@ mod tests {
                 "{v:?}"
             );
         }
+    }
+
+    /// § 13.1.5's recipient half, evaluated against the validator the answer
+    /// itself carries: a stale tag, a weak tag on either side, and a date that
+    /// is not the `Last-Modified` are false conditions answered with a range.
+    /// Everything else is silence -- a true condition, the same instant in
+    /// another spelling, nothing of the kind asked for to compare with, a value
+    /// that is no validator, a field written twice, a `416` (§ 13.2.1 ignores
+    /// the precondition ahead of it), the whole representation, and a `Range`
+    /// on a method that has no range handling, which is another entry's.
+    #[rstest]
+    #[case::tag_differs("GET", 206, &[("if-range", "\"v0\"")], &[("etag", "\"v1\"")], true)]
+    #[case::weak_asked("GET", 206, &[("if-range", "W/\"v1\"")], &[("etag", "W/\"v1\"")], true)]
+    #[case::weak_current("GET", 206, &[("if-range", "\"v1\"")], &[("etag", "W/\"v1\"")], true)]
+    #[case::date_differs("GET", 206, &[("if-range", "Sat, 26 Sep 2026 10:00:00 GMT")], &[("last-modified", "Sun, 27 Sep 2026 10:00:00 GMT")], true)]
+    #[case::tag_matches("GET", 206, &[("if-range", "\"v1\"")], &[("etag", "\"v1\"")], false)]
+    #[case::date_matches("GET", 206, &[("if-range", "Sun, 27 Sep 2026 10:00:00 GMT")], &[("last-modified", "Sun, 27 Sep 2026 10:00:00 GMT")], false)]
+    #[case::date_matches_as_rfc850("GET", 206, &[("if-range", "Sunday, 27-Sep-26 10:00:00 GMT")], &[("last-modified", "Sun, 27 Sep 2026 10:00:00 GMT")], false)]
+    #[case::no_validator("GET", 206, &[("if-range", "\"v0\"")], &[], false)]
+    #[case::tag_against_a_date("GET", 206, &[("if-range", "\"v0\"")], &[("last-modified", "Sun, 27 Sep 2026 10:00:00 GMT")], false)]
+    #[case::date_against_a_tag("GET", 206, &[("if-range", "Sat, 26 Sep 2026 10:00:00 GMT")], &[("etag", "\"v1\"")], false)]
+    #[case::unquoted_current("GET", 206, &[("if-range", "\"v0\"")], &[("etag", "v1")], false)]
+    #[case::unclosed_asked("GET", 206, &[("if-range", "\"v0")], &[("etag", "\"v1\"")], false)]
+    #[case::asked_twice("GET", 206, &[("if-range", "\"v0\""), ("if-range", "\"v0\"")], &[("etag", "\"v1\"")], false)]
+    #[case::answered_416("GET", 416, &[("if-range", "\"v0\"")], &[("etag", "\"v1\"")], false)]
+    #[case::answered_200("GET", 200, &[("if-range", "\"v0\"")], &[("etag", "\"v1\"")], false)]
+    #[case::tag_twice("GET", 206, &[("if-range", "\"v0\"")], &[("etag", "\"v1\""), ("etag", "\"v1\"")], false)]
+    #[case::head("HEAD", 206, &[("if-range", "\"v0\"")], &[("etag", "\"v1\"")], false)]
+    fn a_range_sent_where_if_range_was_false_is_reported(
+        #[case] method: &str,
+        #[case] status: u16,
+        #[case] request: &[(&str, &str)],
+        #[case] response: &[(&str, &str)],
+        #[case] reported: bool,
+    ) {
+        let content_range = if status == 416 {
+            "bytes */2"
+        } else {
+            "bytes 0-1/2"
+        };
+        let mut pairs = vec![("content-range", content_range)];
+        pairs.extend_from_slice(response);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &pairs);
+        tx.request.method = method.into();
+        let mut asked = vec![("range", "bytes=0-1")];
+        asked.extend_from_slice(request);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&asked);
+        let all = crate::test_helpers::run_rule_all(
+            &RangeAndContentRangeConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        let found: Vec<_> = all
+            .iter()
+            .filter(|v| v.violation == "if_range_ignored")
+            .collect();
+        assert_eq!(
+            found.len(),
+            usize::from(reported),
+            "{request:?} -> {status} {response:?}: {all:?}"
+        );
+        // The sentence names both validators, as written.
+        if let Some(v) = found.first() {
+            for (_, value) in request.iter().chain(response) {
+                assert!(v.message.contains(value), "{value} not in {:?}", v.message);
+            }
+        }
+    }
+
+    /// § 8.8.3 lets the tag follow the content, and it is still the tag the
+    /// server evaluated the condition against. Written in both sections it is
+    /// a singleton written twice, and no one value is compared.
+    #[rstest]
+    #[case::trailer_only(&[], true)]
+    #[case::both_sections(&[("etag", "\"v1\"")], false)]
+    fn a_tag_sent_after_the_content_is_the_one_compared(
+        #[case] header: &[(&str, &str)],
+        #[case] reported: bool,
+    ) {
+        let mut pairs = vec![("content-range", "bytes 0-1/2")];
+        pairs.extend_from_slice(header);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(206, &pairs);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("range", "bytes=0-1"),
+            ("if-range", "\"v0\""),
+        ]);
+        tx.response.as_mut().unwrap().trailers = Some(
+            crate::test_helpers::make_headers_from_pairs(&[("etag", "\"v1\"")]),
+        );
+        let all = crate::test_helpers::run_rule_all(
+            &RangeAndContentRangeConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        let found = all
+            .iter()
+            .filter(|v| v.violation == "if_range_ignored")
+            .count();
+        assert_eq!(found, usize::from(reported), "{all:?}");
     }
 
     /// A 416 answers a Range request. Without one there is no rejected range set

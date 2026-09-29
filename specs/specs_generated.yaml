@@ -7010,7 +7010,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 172
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 475
+      line: 491
   - label: accept_ranges_on_partial_content (2)
     section: § 14.2
     snippet: An origin server MUST ignore a Range header field that contains a range unit it does not understand.
@@ -7283,6 +7283,8 @@ sources:
       line: 134
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 126
+    - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
+      line: 524
   - label: cached_validators_reused (4)
     section: § 15.4.5
     snippet: The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false.
@@ -7460,7 +7462,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 264
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 84
+      line: 89
   - label: conditional_headers_consistent (6)
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field.
@@ -7470,13 +7472,15 @@ sources:
     - file: lint-http-rules/src/rules/status_206_required_fields.rs
       line: 65
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 56
+      line: 61
   - label: conditional_headers_consistent (7)
     section: § 13.1.5
     snippet: A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 279
+    - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
+      line: 597
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 309
   - label: If-Range grammar
@@ -7500,7 +7504,7 @@ sources:
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 781
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 158
+      line: 163
   - label: conditional_request_handling
     section: § 13.1.1
     snippet: An origin server MUST use the strong comparison function when comparing entity tags for If-Match (Section 8.8.3.2), since the client intends this precondition to prevent the method from being applied if there have been any changes to the representation data.
@@ -8343,6 +8347,12 @@ sources:
       line: 395
     - file: lint-http-rules/src/violations/authority.rs
       line: 285
+  - label: if_range
+    section: § 13.1.5
+    snippet: A recipient of an If-Range header field MUST ignore the Range header field if the If-Range condition evaluates to false.
+    cited_by:
+    - file: lint-http-rules/src/violations/if_range.rs
+      line: 201
   - label: keep_alive_header_valid
     section: § 7.6.1
     snippet: Keep-Alive (Section 19.7.1 of [RFC2068])
@@ -8666,7 +8676,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 409
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 114
+      line: 119
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 333
     - file: lint-http-rules/src/violations/content_range.rs
@@ -8718,7 +8728,7 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 431
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 510
+      line: 537
     - file: lint-http-rules/src/rules/referrer_policy_valid.rs
       line: 270
     - file: lint-http-rules/src/rules/status_code_semantics.rs
@@ -9497,6 +9507,8 @@ sources:
       line: 124
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 125
+    - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
+      line: 601
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 881
   - label: lint-http-rules/src/helpers/headers.rs
@@ -9872,7 +9884,7 @@ sources:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
       line: 199
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 130
+      line: 135
   - label: lint-http-rules/src/helpers/media_type.rs (7)
     section: § 8.3.1
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
@@ -10084,7 +10096,7 @@ sources:
     - file: lint-http-rules/src/helpers/response_content.rs
       line: 83
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 294
+      line: 310
   - label: lint-http-rules/src/helpers/response_content.rs (4)
     section: § 9.1
     snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
@@ -10383,6 +10395,8 @@ sources:
       line: 257
     - file: lint-http-rules/src/rules/etag_and_content_encoding_consistent.rs
       line: 125
+    - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
+      line: 599
   - label: lint-http-rules/src/helpers/validator.rs (5)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
@@ -10734,7 +10748,7 @@ sources:
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 782
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 133
+      line: 138
   - label: no_body_for_1xx_204_304
     section: § 15.2
     snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -10968,65 +10982,77 @@ sources:
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 75
   - label: range_and_content_range_consistent
+    section: § 13.1.5
+    snippet: If the HTTP-date validator provided exactly matches the Last-Modified field value for the selected representation, the condition is true.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
+      line: 600
+  - label: range_and_content_range_consistent (2)
+    section: § 13.1.5
+    snippet: If the entity-tag validator provided exactly matches the ETag field value for the selected representation using the strong comparison function (Section 8.8.3.2), the condition is true.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
+      line: 598
+  - label: range_and_content_range_consistent (3)
     section: § 14.1.2
     snippet: If the representation data has a content coding applied, each byte range is calculated with respect to the encoded sequence of bytes, not the sequence of underlying bytes that would be obtained after decoding.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 356
-  - label: range_and_content_range_consistent (2)
+      line: 372
+  - label: range_and_content_range_consistent (4)
     section: § 14.1.2
     snippet: The first-pos value in a bytes int-range gives the offset of the first byte in a range.  The last-pos value gives the offset of the last byte in the range; that is, the byte positions specified are inclusive.  Byte offsets start at zero.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 343
-  - label: range_and_content_range_consistent (3)
+      line: 359
+  - label: range_and_content_range_consistent (5)
     section: § 14.2
     snippet: For this specification, GET is the only method for which range handling is defined.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 476
-  - label: range_and_content_range_consistent (4)
+      line: 492
+  - label: range_and_content_range_consistent (6)
     section: § 14.4
     snippet: 'A server generating a 416 (Range Not Satisfiable) response to a byte-range request SHOULD send a Content-Range header field with an unsatisfied-range value, as in the following example:'
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 408
-  - label: range_and_content_range_consistent (5)
+      line: 424
+  - label: range_and_content_range_consistent (7)
     section: § 14.4
     snippet: If a 206 (Partial Content) response contains a Content-Range header field with a range unit (Section 14.1) that the recipient does not understand, the recipient MUST NOT attempt to recombine it with a stored representation.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 344
-  - label: range_and_content_range_consistent (6)
+      line: 360
+  - label: range_and_content_range_consistent (8)
     section: § 14.4
     snippet: The Content-Range header field has no meaning for status codes that do not explicitly describe its semantic.  For this specification, only the 206 (Partial Content) and 416 (Range Not Satisfiable) status codes describe a meaning for Content-Range.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 248
-  - label: range_and_content_range_consistent (7)
+      line: 264
+  - label: range_and_content_range_consistent (9)
     section: § 14.4
     snippet: The complete-length in a 416 response indicates the current length of the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 427
-  - label: range_and_content_range_consistent (8)
+      line: 443
+  - label: range_and_content_range_consistent (10)
     section: § 14.5
     snippet: Some origin servers support PUT of a partial representation when the user agent sends a Content-Range header field (Section 14.4) in the request, though such support is inconsistent and depends on private agreements with user agents.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 531
-  - label: range_and_content_range_consistent (9)
+      line: 558
+  - label: range_and_content_range_consistent (11)
     section: § 15.3.7.2
     snippet: Within the header area of each body part in the multipart content, the server MUST generate a Content-Range header field corresponding to the range being enclosed in that body part.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 305
-  - label: range_and_content_range_consistent (10)
+      line: 321
+  - label: range_and_content_range_consistent (12)
     section: § 15.5.17
     snippet: A server that generates a 416 response to a byte-range request SHOULD generate a Content-Range header field specifying the current length of the selected representation (Section 14.4).
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 407
+      line: 423
   - label: range_header_syntax
     section: § 14.1.1
     snippet: A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit.

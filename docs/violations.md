@@ -267,6 +267,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [http_version_malformed](violations/http_version_malformed.md) — A protocol version derives from no reading of HTTP-version
 - [if_range_empty](violations/if_range_empty.md) — If-Range is written with no validator in it
 - [if_range_forbidden](violations/if_range_forbidden.md) — If-Range is sent in a request with no Range
+- [if_range_ignored](violations/if_range_ignored.md) — A range is sent though the If-Range condition was false
 - [if_range_validator_date_forbidden](violations/if_range_validator_date_forbidden.md) — If-Range carries a date for a representation with an entity tag
 - [if_range_validator_weak_forbidden](violations/if_range_validator_weak_forbidden.md) — If-Range carries a weak entity-tag
 - [keep_alive_connection_option_missing](violations/keep_alive_connection_option_missing.md) — Keep-Alive is sent with no keep-alive connection-option in Connection

@@ -4,9 +4,9 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# if_range_forbidden
+# if_range_ignored
 
-If-Range is sent in a request with no Range
+A range is sent though the If-Range condition was false
 
 ## Message
 
@@ -23,12 +23,12 @@ A **`MUST`** binding the sender of the message, so a finding here reports at `er
 ## Configuration
 
 ```toml
-[violations.if_range_forbidden]
-# If-Range is sent in a request with no Range
+[violations.if_range_ignored]
+# A range is sent though the If-Range condition was false
 # MUST obliges the sender, so this defaults to error.
 severity = "error"
 ```
 
 ## Reported By
 
-- [conditional_headers_consistent](../rules/conditional_headers_consistent.md)
+- [range_and_content_range_consistent](../rules/range_and_content_range_consistent.md)

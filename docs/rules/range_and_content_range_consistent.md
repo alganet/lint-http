@@ -18,6 +18,8 @@ Validate the semantics and syntax of `Range` (request) and `Content-Range` (resp
 
 A 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and so does one whose request carried a `Range` on a method other than `GET`: RFC 9110 §14.2 defines range handling for `GET` alone and says a server MUST ignore the field on any other method, `HEAD` included, so there was no range request to answer. That is a finding about the status code, and it is reported *beside* whatever the response's `Content-Range` says rather than in place of it: the two are claims about different subjects, and a client handed `Content-Range: bytes 42-1233/1000` still has to read it to know what it was given.
 
+**A 206 answering an `If-Range` that was false** sent the range the condition had withdrawn. RFC 9110 §13.1.5 has the recipient evaluate the field against the selected representation's own validator — an entity tag by the strong comparison against `ETag`, a date by exact match against `Last-Modified` — and MUST ignore the `Range` when the condition is false, sending the whole representation; the validator compared is the one the 206 itself carries. A client resuming a download from such a response joins a part of one representation to a copy of another. Only a false the two messages prove is reported: nothing is said where the 206 carries no validator of the kind the `If-Range` holds, where either field is written twice or unreadably, or where a date matches, since a matching date is true only if it is also a strong validator. A 416 is not asked: §13.2.1 has a server ignore every precondition where the same request without them would not have been answered 2xx or 412, and an unsatisfiable range is a 416 either way.
+
 A 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.
 
 **Not this rule's findings:** a malformed `Content-Length` belongs to `content_length_valid`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing.
@@ -39,6 +41,7 @@ A 416 answering a *partial PUT* is the exception: such a request names its range
 - [content_range_spec_whitespace_forbidden](../violations/content_range_spec_whitespace_forbidden.md) — Content-Range holds whitespace after its single space
 - [content_range_unit_malformed](../violations/content_range_unit_malformed.md) — Content-Range unit is not a token
 - [content_range_unsatisfied_range_malformed](../violations/content_range_unsatisfied_range_malformed.md) — Content-Range writes something other than '*' before its '/'
+- [if_range_ignored](../violations/if_range_ignored.md) — A range is sent though the If-Range condition was false
 - [status_206_multipart_forbidden](../violations/status_206_multipart_forbidden.md) — A multipart 206 answers a request that asked for a single range
 - [status_206_unsolicited](../violations/status_206_unsolicited.md) — 206 Partial Content answers a request that asked for no range
 - [status_416_unsolicited](../violations/status_416_unsolicited.md) — 416 Range Not Satisfiable answers a request that named no range
@@ -53,6 +56,7 @@ A 416 answering a *partial PUT* is the exception: such a request names its range
 - [RFC 9110 §14.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.2): Byte Ranges — positions are decimal numbers of octets, and recipients must anticipate large ones rather than overflow on them
 - [RFC 9110 §15.5.17](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.17): 416 Range Not Satisfiable: the status code is the rejection of the ranges in the request's `Range` field; a server answering a *byte*-range request SHOULD include `Content-Range: bytes */<complete-length>`
 - [RFC 9110 §14.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2): `Range`: an origin server MUST ignore a `Range` field in a unit it does not understand, which is what a request outside the advertised set is likely to cost — the whole representation instead of the part asked for
+- [RFC 9110 §13.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5): `If-Range`: `entity-tag / HTTP-date`, the first-three-characters DQUOTE test that tells them apart, the MUST NOT on a request with no `Range`, the MUST NOT on a weak entity-tag, the MUST NOT on a date where the client holds an entity tag, the strong comparison and the exact date match a recipient evaluates the condition with, and the recipient's MUST to ignore the `Range` when it is false
 
 ## Configuration
 
@@ -120,6 +124,37 @@ Range: bytes=0-1
 HTTP/1.1 206 Partial Content
 Content-Range: bytes 0-1/10
 Content-Length: 2
+```
+
+### ❌ Bad — the If-Range names a tag this representation no longer has, so the whole was owed
+
+```http
+GET /file HTTP/1.1
+Host: example.com
+Range: bytes=500-999
+If-Range: "v1"
+
+HTTP/1.1 206 Partial Content
+ETag: "v2"
+Content-Range: bytes 500-999/8000
+Content-Length: 500
+
+...500 bytes of "v2", to be joined to the client's copy of "v1"...
+```
+
+### ✅ Good (the same request, answered with the whole representation)
+
+```http
+GET /file HTTP/1.1
+Host: example.com
+Range: bytes=500-999
+If-Range: "v1"
+
+HTTP/1.1 200 OK
+ETag: "v2"
+Content-Length: 8000
+
+...all 8000 bytes of "v2"...
 ```
 
 ### ✅ Good (multiple parts: each body part carries its own Content-Range)

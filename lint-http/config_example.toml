@@ -2171,6 +2171,11 @@ severity = "error"
 # MUST obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.if_range_ignored]
+# A range is sent though the If-Range condition was false
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.if_range_validator_date_forbidden]
 # If-Range carries a date for a representation with an entity tag
 # MUST obliges the sender, so this defaults to error.
