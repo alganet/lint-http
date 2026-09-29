@@ -4727,7 +4727,7 @@ sources:
     snippet: The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses.
     cited_by:
     - file: lint-http-rules/src/rules/content_md5_vs_digest_preference.rs
-      line: 125
+      line: 137
     - file: lint-http-rules/src/violations/digest.rs
       line: 119
 - label: RFC 7234
@@ -14703,6 +14703,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/field_placement.rs
       line: 224
+    - file: lint-http-rules/src/rules/content_md5_vs_digest_preference.rs
+      line: 111
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
       line: 996
   - label: lint-http-rules/src/helpers/field_placement.rs (2)

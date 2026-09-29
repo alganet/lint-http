@@ -50,7 +50,7 @@ impl RuleMeta for ContentMd5VsDigestPreference {
     }
 
     fn description(&self) -> &'static str {
-        "This rule flags messages (requests or responses) that carry both `Content-Digest` (the RFC 9530 structured field) and the legacy `Content-MD5` header.\n\nCarrying both is a hazard in its own right: they are independent integrity values over the same content, computed by different algorithms, and no specification says which one a recipient validates — so a mismatch between them has no defined resolution.\n\n`Content-MD5` should simply be dropped. It is not merely discouraged but absent from HTTP: RFC 7231 removed it, for being inconsistently implemented with respect to partial responses. (RFC 9530, which defines `Content-Digest`, does not mention `Content-MD5` at all and so is not the document that retired it.)"
+        "This rule flags messages (requests or responses) that carry both `Content-Digest` (the RFC 9530 structured field) and the legacy `Content-MD5` header.\n\nCarrying both is a hazard in its own right: they are independent integrity values over the same content, computed by different algorithms, and no specification says which one a recipient validates — so a mismatch between them has no defined resolution.\n\n`Content-MD5` should simply be dropped. It is not merely discouraged but absent from HTTP: RFC 7231 removed it, for being inconsistently implemented with respect to partial responses. (RFC 9530, which defines `Content-Digest`, does not mention `Content-MD5` at all and so is not the document that retired it.)\n\nA message's two field sections are read together. RFC 9530 §2 lets `Content-Digest` be sent in a trailer section, where a digest computed while the content streams arrives, and a pair split across the two sections is the same two integrity values."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -103,12 +103,24 @@ impl Rule for ContentMd5VsDigestPreference {
             // what this sentence licenses — Content-Digest is defined for both
             // directions, so neither side is out of scope.
             // cite(RFC 9530 § 2): "The Content-Digest HTTP field can be used in requests and responses"
+            //
+            // Both field sections of the message. RFC 9530 lets `Content-Digest`
+            // follow the content, and a digest there is a second integrity value
+            // as much as one before it; a `Content-MD5` written there is still one
+            // too, whatever `trailer_fields_valid` says about where it went.
+            // cite(RFC 9530 § 2): "Content-Digest can be sent in a trailer section."
             let check_map = |which: &str,
                              headers: &hyper::HeaderMap,
+                             trailers: Option<&hyper::HeaderMap>,
                              party: crate::lint::Party|
              -> Option<Violation> {
-                let has_new = headers.get_all("content-digest").iter().next().is_some();
-                let has_md5 = headers.get_all("content-md5").iter().next().is_some();
+                let carries = |name: &str| {
+                    std::iter::once(headers)
+                        .chain(trailers)
+                        .any(|section| section.contains_key(name))
+                };
+                let has_new = carries("content-digest");
+                let has_md5 = carries("content-md5");
 
                 // No sentence anywhere says "prefer Content-Digest over Content-MD5":
                 // RFC 9530 never mentions Content-MD5, so it cannot rank them. What is
@@ -136,6 +148,7 @@ impl Rule for ContentMd5VsDigestPreference {
             out.extend(check_map(
                 "request",
                 &tx.request.headers,
+                tx.request.trailers.as_ref(),
                 crate::lint::Party::Client,
             ));
 
@@ -144,6 +157,7 @@ impl Rule for ContentMd5VsDigestPreference {
                 out.extend(check_map(
                     "response",
                     &resp.headers,
+                    resp.trailers.as_ref(),
                     crate::lint::Party::Server,
                 ));
             }
@@ -253,6 +267,31 @@ mod tests {
             &cfg,
         );
         assert!(v.is_some());
+    }
+
+    /// RFC 9530 § 2 lets `Content-Digest` follow the content, so a pair split
+    /// across the two field sections is the same two integrity values.
+    #[rstest::rstest]
+    #[case(&[("content-md5", "Q2hlY2sgSW50ZWdyaXR5IQ==")], &[("content-digest", "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:")], true)]
+    #[case(&[("content-digest", "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:")], &[("content-md5", "Q2hlY2sgSW50ZWdyaXR5IQ==")], true)]
+    #[case(&[], &[("content-digest", "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:")], false)]
+    fn a_pair_split_across_the_field_sections_is_a_pair(
+        #[case] header: &[(&str, &str)],
+        #[case] trailer: &[(&str, &str)],
+        #[case] expect_finding: bool,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, header);
+        tx.response.as_mut().expect("a response").trailers =
+            Some(crate::test_helpers::make_headers_from_pairs(trailer));
+        let v = crate::test_helpers::run_rule(
+            &ContentMd5VsDigestPreference,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                ContentMd5VsDigestPreference.id(),
+            ]),
+        );
+        assert_eq!(v.is_some(), expect_finding, "{v:?}");
     }
 
     #[test]

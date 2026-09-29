@@ -14,6 +14,8 @@ Carrying both is a hazard in its own right: they are independent integrity value
 
 `Content-MD5` should simply be dropped. It is not merely discouraged but absent from HTTP: RFC 7231 removed it, for being inconsistently implemented with respect to partial responses. (RFC 9530, which defines `Content-Digest`, does not mention `Content-MD5` at all and so is not the document that retired it.)
 
+A message's two field sections are read together. RFC 9530 §2 lets `Content-Digest` be sent in a trailer section, where a digest computed while the content streams arrives, and a pair split across the two sections is the same two integrity values.
+
 ## Violations
 
 - [content_md5_redundant](../violations/content_md5_redundant.md) — A message carries two integrity values over one content
