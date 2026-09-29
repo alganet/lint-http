@@ -93,12 +93,39 @@ impl<'a> Directive<'a> {
     pub fn delta_seconds(&self) -> Option<i64> {
         let argument = self.argument?;
         if argument.starts_with('"') {
-            return crate::helpers::quoted_string::unescape_quoted_string(argument)
-                .ok()?
-                .parse::<i64>()
-                .ok();
+            return seconds_read(
+                &crate::helpers::quoted_string::unescape_quoted_string(argument).ok()?,
+            );
         }
-        argument.parse::<i64>().ok()
+        seconds_read(argument)
+    }
+}
+
+/// The value past which § 1.2.2 has a recipient read every `delta-seconds`.
+pub const DELTA_SECONDS_CAP: i64 = 2_147_483_648;
+
+/// A `delta-seconds` numeral as § 1.2.2 has a recipient read it: a value
+/// past 2^31 is 2^31, and so is one too wide for any integer type.
+///
+/// **This is the reading every caller's arithmetic relies on.** The value used
+/// to be the numeral as written, up to an `i64`. Thirteen digits of seconds
+/// reach past the last instant a `DateTime` holds, so `Date + max-age` panicked
+/// on `max-age=9999999999999` beside an `Expires`. That took the whole run down
+/// on one response the grammar admits. Twenty digits failed `str::parse`, so
+/// the lifetime read as absent, where every cache reads it as 68 years. The
+/// clamp is the number the section names, and it holds any sum a caller makes
+/// of a few of them.
+///
+/// Negative values are returned as written, for the callers that report them.
+/// Anything else that is not DIGITs is `None`.
+// cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648"
+pub fn seconds_read(numeral: &str) -> Option<i64> {
+    match numeral.parse::<i64>() {
+        Ok(seconds) => Some(seconds.min(DELTA_SECONDS_CAP)),
+        Err(_) if !numeral.is_empty() && numeral.bytes().all(|b| b.is_ascii_digit()) => {
+            Some(DELTA_SECONDS_CAP)
+        }
+        Err(_) => None,
     }
 }
 
@@ -396,7 +423,7 @@ pub fn estimated_age(
 // cite(RFC 9111 § 4.2.3): "corrected_initial_age = max(apparent_age, corrected_age_value)"
 pub fn stated_age(headers: &HeaderMap) -> i64 {
     crate::helpers::headers::get_header_str(headers, "age")
-        .and_then(|s| s.trim().parse::<i64>().ok())
+        .and_then(|s| seconds_read(s.trim()))
         .filter(|seconds| *seconds >= 0)
         .unwrap_or(0)
 }
@@ -497,6 +524,7 @@ pub fn fresh_when_observed(
 mod tests {
     use super::*;
     use hyper::header::HeaderValue;
+    use rstest::rstest;
 
     fn headers(values: &[&str]) -> HeaderMap {
         let mut hm = HeaderMap::new();
@@ -612,6 +640,27 @@ mod tests {
 
     /// A recipient reads both forms of the argument, so the lifetime a quoted
     /// `max-age` states is the lifetime every cache downstream will use.
+    /// § 1.2.2: past 2^31 is 2^31, however many digits say so, and a
+    /// negative is left for the callers that report it.
+    #[rstest]
+    #[case("60", Some(60))]
+    #[case("2147483648", Some(DELTA_SECONDS_CAP))]
+    #[case("2147483649", Some(DELTA_SECONDS_CAP))]
+    #[case("9999999999999", Some(DELTA_SECONDS_CAP))]
+    #[case("99999999999999999999", Some(DELTA_SECONDS_CAP))]
+    #[case("-60", Some(-60))]
+    #[case("", None)]
+    #[case("6o", None)]
+    fn delta_seconds_is_read_with_the_clamp(#[case] numeral: &str, #[case] want: Option<i64>) {
+        assert_eq!(seconds_read(numeral), want);
+    }
+
+    #[test]
+    fn an_age_too_wide_to_parse_is_the_clamp_and_not_absent() {
+        let hm = crate::test_helpers::make_headers_from_pairs(&[("age", "99999999999999999999")]);
+        assert_eq!(stated_age(&hm), DELTA_SECONDS_CAP);
+    }
+
     #[test]
     fn a_quoted_delta_seconds_argument_is_read_as_a_recipient_reads_it() {
         let hm = headers(&["max-age=\"60\", s-maxage=\"120\""]);

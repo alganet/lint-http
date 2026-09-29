@@ -2288,7 +2288,7 @@ enabled = "true"
         // this document's names for them. What it exports besides those two
         // splitters is a predicate, a lookup, a sentence, or one whole cookie
         // assembled out of a walk that has already happened.
-        const NOT_A_MEMBER_WALK: [&str; 31] = [
+        const NOT_A_MEMBER_WALK: [&str; 32] = [
             "quoting_is_balanced",
             "channel_allows",
             "validate_cookie_path",
@@ -2317,6 +2317,8 @@ enabled = "true"
             "is_unqualified",
             "message",
             "delta_seconds",
+            // One `delta-seconds` numeral, read with § 1.2.2's clamp.
+            "seconds_read",
             "forbids_storage_or_reuse",
             "get_cache_control_max_age",
             "get_cache_control_s_maxage",

@@ -178,7 +178,10 @@ impl Rule for ExpiresAndCacheControlConsistent {
             let mut cc_no_cache = false;
             let mut cc_no_store = false;
             let mut cc_private = false;
-            let mut cc_max_age: Option<i64> = None;
+            // The value read, and the argument as written for the sentence:
+            // § 1.2.2 reads a value past 2^31 as 2^31, and the operator has to
+            // find the one they wrote.
+            let mut cc_max_age_read: Option<(i64, &str)> = None;
             // The joined value is held here because a directive borrows the
             // member it was parsed from, and it is read as octets so a bad
             // one no longer hides the directives written beside it.
@@ -192,11 +195,17 @@ impl Rule for ExpiresAndCacheControlConsistent {
                 } else if directive.is("private") {
                     cc_private = true;
                 } else if directive.is("max-age") {
-                    cc_max_age = directive.delta_seconds().or(cc_max_age);
+                    cc_max_age_read = directive
+                        .delta_seconds()
+                        .zip(directive.argument)
+                        .or(cc_max_age_read);
                 }
             }
             let cc_s_maxage =
                 crate::helpers::cache_control::get_cache_control_s_maxage(&resp.headers);
+            let cc_max_age = cc_max_age_read.map(|(seconds, _)| seconds);
+            let max_age_as_written = cc_max_age_read.map_or("0", |(_, written)| written);
+            let read_as = clamp_clause(cc_max_age_read);
 
             if !cc_present {
                 return None;
@@ -292,7 +301,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
                 } else if cc_no_store {
                     "no-store".to_string()
                 } else if age > 0 {
-                    format!("max-age={} beside Age: {age}", cc_max_age.unwrap_or(0))
+                    format!("max-age={max_age_as_written} beside Age: {age}")
                 } else {
                     "max-age=0".to_string()
                 };
@@ -379,8 +388,8 @@ impl Rule for ExpiresAndCacheControlConsistent {
                                 "prefer consistent values or omit Expires"
                             };
                             return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
-                                    "Cache-Control max-age={} suggests Expires should be {} (Date + max-age){}, but Expires is {} — {} (RFC 9111 §5.3){}",
-                                    max_age, expected, spent, expires, repair, as_written
+                                    "Cache-Control max-age={}{} suggests Expires should be {} (Date + max-age){}, but Expires is {} — {} (RFC 9111 §5.3){}",
+                                    max_age_as_written, read_as, expected, spent, expires, repair, as_written
                                 )));
                         }
                     }
@@ -390,6 +399,20 @@ impl Rule for ExpiresAndCacheControlConsistent {
             None
         };
         Vec::from_iter(finding())
+    }
+}
+
+/// The clause a sentence quoting `max-age` as written adds when § 1.2.2 read
+/// it as something else.
+// cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648"
+fn clamp_clause(max_age: Option<(i64, &str)>) -> &'static str {
+    match max_age {
+        Some((crate::helpers::cache_control::DELTA_SECONDS_CAP, written))
+            if written.trim_matches('"') != "2147483648" =>
+        {
+            ", which RFC 9111 §1.2.2 reads as 2147483648 seconds,"
+        }
+        _ => "",
     }
 }
 
@@ -545,6 +568,40 @@ mod tests {
             "headers={headers:?} gave {v:?}"
         );
         Ok(())
+    }
+
+    /// A lifetime past 2^31 is 2^31 (RFC 9111 § 1.2.2), so `Date + max-age`
+    /// is 68 years out and an `Expires` a day later disagrees with it. This
+    /// panicked: thirteen digits reach past the last instant a `DateTime`
+    /// holds. The sentence quotes the value as written, since the operator
+    /// cannot find the clamp in their configuration.
+    #[rstest]
+    #[case("9999999999999")]
+    #[case("9223372036854775807")]
+    #[case("99999999999999999999")]
+    #[case("\"9999999999999\"")]
+    fn a_lifetime_past_the_clamp_is_read_as_the_clamp(#[case] max_age: &str) {
+        let cc = format!("max-age={max_age}");
+        let tx = make_test_transaction_with_response(
+            200,
+            &[
+                ("cache-control", cc.as_str()),
+                ("date", "Sat, 26 Sep 2026 10:00:00 GMT"),
+                ("expires", "Sun, 27 Sep 2026 10:00:00 GMT"),
+            ],
+        );
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "expires_and_cache_control_consistent",
+        ]);
+        let v = crate::test_helpers::run_rule(
+            &ExpiresAndCacheControlConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("the two fields disagree by decades");
+        assert!(v.message.contains(&cc), "{}", v.message);
+        assert!(v.message.contains("reads as 2147483648"), "{}", v.message);
     }
 
     /// `private` beside an `Expires` its own audience reads as already
