@@ -2201,7 +2201,7 @@ sources:
     snippet: Some protocol elements allow only the absolute form of a URI without a fragment identifier.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 413
+      line: 429
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 389
   - label: lint-http-rules/src/helpers/authority.rs
@@ -2391,7 +2391,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 48
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 317
+      line: 333
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 220
     - file: lint-http-rules/src/violations/uri.rs
@@ -2523,7 +2523,7 @@ sources:
     - file: lint-http-rules/src/helpers/reference.rs
       line: 152
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 485
+      line: 511
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
       line: 308
   - label: lint-http-rules/src/helpers/reference.rs (11)
@@ -2541,7 +2541,7 @@ sources:
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 315
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 484
+      line: 510
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 326
   - label: lint-http-rules/src/helpers/scheme.rs
@@ -2619,7 +2619,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 79
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 259
+      line: 277
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 313
     - file: lint-http-rules/src/rules/link_header_valid.rs
@@ -7639,7 +7639,7 @@ sources:
     snippet: A "partial-URI" rule is defined for protocol elements that can contain a relative URI but not a fragment component.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 411
+      line: 427
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 387
     - file: lint-http-rules/src/violations/content_location.rs
@@ -7649,7 +7649,7 @@ sources:
     snippet: Each protocol element in HTTP that allows a URI reference will indicate in its ABNF production whether the element allows any form of reference (URI-reference), only a URI in absolute form (absolute-URI), only the path and optional query components (partial-URI), or some combination of the above.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 412
+      line: 428
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 388
   - label: content_location_and_uri_consistent (3)
@@ -7657,73 +7657,79 @@ sources:
     snippet: Field values are usually constrained to the range of US-ASCII characters [USASCII].
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 285
+      line: 301
+  - label: content_location_and_uri_consistent (4)
+    section: § 8.7
+    snippet: A user agent that sends Content-Location in a request message is stating that its value refers to where the user agent originally obtained the content of the enclosed representation (prior to any modifications made by that user agent).
+    cited_by:
+    - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
+      line: 235
   - label: Content-Location grammar
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 258
+      line: 276
     - file: lint-http-rules/src/violations/content_location.rs
       line: 75
-  - label: content_location_and_uri_consistent (4)
+  - label: content_location_and_uri_consistent (5)
     section: § 8.7
     snippet: For a 201 (Created) response to a state-changing method, a Content-Location field value that is identical to the Location field value indicates that this content is a current representation of the newly created resource.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 545
-  - label: content_location_and_uri_consistent (5)
+      line: 570
+  - label: content_location_and_uri_consistent (6)
     section: § 8.7
     snippet: For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 544
-  - label: content_location_and_uri_consistent (6)
+      line: 569
+  - label: content_location_and_uri_consistent (7)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its field value refers to a URI that differs from the target URI, then the origin server claims that the URI is an identifier for a different resource corresponding to the enclosed representation.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 533
-  - label: content_location_and_uri_consistent (7)
+      line: 558
+  - label: content_location_and_uri_consistent (8)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its value refers (after conversion to absolute form) to a URI that is the same as the target URI, then the recipient MAY consider the content to be a current representation of that resource at the time indicated by the message origination date.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 426
-  - label: content_location_and_uri_consistent (8)
+      line: 457
+  - label: content_location_and_uri_consistent (9)
     section: § 8.7
     snippet: In the latter case (Section 4), the referenced URI is relative to the target URI ([URI], Section 5).
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 454
-  - label: content_location_and_uri_consistent (9)
+      line: 483
+  - label: content_location_and_uri_consistent (10)
     section: § 8.7
     snippet: Otherwise, such a Content-Location indicates that this content is a representation reporting on the requested action's status and that the same report is available (for future access with GET) at the given URI.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 546
-  - label: content_location_and_uri_consistent (10)
+      line: 571
+  - label: content_location_and_uri_consistent (11)
     section: § 8.7
     snippet: Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 534
+      line: 559
     - file: lint-http-rules/src/violations/content_location.rs
       line: 126
-  - label: content_location_and_uri_consistent (11)
+  - label: content_location_and_uri_consistent (12)
     section: § 8.7
     snippet: The "Content-Location" header field references a URI that can be used as an identifier for a specific resource corresponding to the representation in this message's content.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 245
-  - label: content_location_and_uri_consistent (12)
+      line: 263
+  - label: content_location_and_uri_consistent (13)
     section: § 8.7
     snippet: The field value is either an absolute-URI or a partial-URI.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 316
+      line: 332
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 410
+      line: 426
   - label: content_range
     section: § 15.3.7
     snippet: A Content-Length header field present in a 206 response indicates the number of octets in the content of this message, which is usually not the complete length of the selected representation.
@@ -8503,7 +8509,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 254
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 414
+      line: 430
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 437
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
@@ -9001,7 +9007,7 @@ sources:
     - file: lint-http-rules/src/helpers/authority.rs
       line: 594
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 508
+      line: 534
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 349
   - label: Host grammar
@@ -9507,7 +9513,7 @@ sources:
     - file: lint-http-rules/src/rules/charset_registered.rs
       line: 353
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 286
+      line: 302
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 270
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs

@@ -1741,6 +1741,11 @@ enabled = "true"
                 &[("content-length", "abc")],
             ),
             both(
+                "content_location_and_uri_consistent",
+                &[("content-location", "/foo#frag")],
+                &[("content-location", "/foo#frag")],
+            ),
+            both(
                 "content_md5_vs_digest_preference",
                 &[
                     ("content-digest", "sha-256=:dGVzdA==:"),

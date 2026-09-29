@@ -10,6 +10,8 @@ SPDX-License-Identifier: ISC
 
 Validate `Content-Location` header values. The value must derive from `Content-Location = absolute-URI / partial-URI`: written only with characters a URI is composed from (RFC 3986 §2, which excludes whitespace and the nine visible characters that are not URI characters either — less-than, greater-than, double quote, the two braces, pipe, backslash, caret and backtick — along with every octet at or above %x80), sound percent-encoding and a valid scheme where one is present, and — since neither alternative of the grammar is a comma-separated list — a message carries at most one `Content-Location` field line (RFC 9110 §5.3).
 
+**Both messages are read.** RFC 9110 §8.7 defines the field in a request as well, where a user agent states where it originally obtained the content it encloses, and the grammar is the same production in either direction; each finding names the peer that wrote the value. What an origin server does with a request's value is its own business and is not checked.
+
 **The value is not a `URI-reference`, and the fragment is the whole difference.** `URI` and `relative-ref` each end in an optional `[ "#" fragment ]` group; `absolute-URI` and `partial-URI` are those two rules with the group dropped, which RFC 9110 §4.1 states in as many words. So `Content-Location: /foo#frag` derives from no reading of the grammar and is reported. Unlike `Referer` — the other field carrying this production — no MUST NOT names the component here: the finding rests on the grammar and §2.2's sender requirement alone, and the message cites those. A percent-encoded `%23` is data, not a fragment.
 
 For 2xx responses the rule additionally compares the value against the request target, resolving a `partial-URI` against it first as RFC 9110 §8.7 requires ("after conversion to absolute form"), so a relative reference that names the target resource is not reported. Both sides are compared in the normal form RFC 9110 §4.2.3 and RFC 3986 §6.2.2 give them — the scheme and host without regard to case, a percent-encoded `unreserved` octet decoded, dot segments removed, and a port that is empty or the scheme's default omitted — because "Two HTTP URIs that are equivalent after normalization (using any method) can be assumed to identify the same resource": `https://example.com:443/foo` names the target `https://example.com/foo`. Where neither the target nor the value states a scheme (an origin-form target and a network-path reference), the difference is reported only if it holds under both `http` and `https`.
@@ -117,6 +119,17 @@ Content-Location: /bad%2G
 ```http
 HTTP/1.1 200 OK
 Content-Location: /bad path
+```
+
+### ❌ Bad (in a request: the grammar does not change with the direction)
+
+```http
+PUT /drafts/7 HTTP/1.1
+Host: example.com
+Content-Location: /docs/7#section-2
+Content-Type: text/plain
+
+Hello
 ```
 
 ### ❌ Bad (two field lines — Content-Location is a singleton)
