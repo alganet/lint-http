@@ -14,6 +14,8 @@ These headers act as validators, allowing clients to perform conditional request
 
 Only a `GET` or a `HEAD` is asked, because both sentences the rule rests on are about the *selected representation* — what RFC 9110 §3.2 defines as the representation a `GET` would select, and the thing a conditional request is evaluated against. §15.3.1 tabulates what a `200`'s content is for every other method: the status of an action for `POST`, `PUT` and `DELETE`, the communication options for `OPTIONS`, the request echoed back for `TRACE`. None of those is a representation a later request could validate, and a `200` to `OPTIONS` or `TRACE` is not cacheable at all (§9.3.7, §9.3.8), so no validator was owed on them. A `POST` response that names its own target in `Content-Location` is the one cacheable exception (§9.3.3) and is not read; it stays silent here.
 
+An `ETag` in the **trailer section** counts: §8.8.3 lets a sender put the field there, for a tag computed while the content streams, so a response that did has sent one. `Last-Modified` is read in the header section only, because no sentence grants it the other one; written after the content, it is `trailer_fields_valid`'s finding.
+
 ## Violations
 
 - [validator_missing](../violations/validator_missing.md) — A response gives a later request nothing to validate against

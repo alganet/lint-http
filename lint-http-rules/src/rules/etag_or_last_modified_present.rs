@@ -33,7 +33,7 @@ impl RuleMeta for EtagOrLastModifiedPresent {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if `200 OK` responses to `GET` and `HEAD` include either an `ETag` or a `Last-Modified` header.\n\nThese headers act as validators, allowing clients to perform conditional requests (`If-None-Match` or `If-Modified-Since`). This enables efficient caching and revalidation, significantly reducing bandwidth when resources haven't changed.\n\nOnly a `GET` or a `HEAD` is asked, because both sentences the rule rests on are about the *selected representation* — what RFC 9110 §3.2 defines as the representation a `GET` would select, and the thing a conditional request is evaluated against. §15.3.1 tabulates what a `200`'s content is for every other method: the status of an action for `POST`, `PUT` and `DELETE`, the communication options for `OPTIONS`, the request echoed back for `TRACE`. None of those is a representation a later request could validate, and a `200` to `OPTIONS` or `TRACE` is not cacheable at all (§9.3.7, §9.3.8), so no validator was owed on them. A `POST` response that names its own target in `Content-Location` is the one cacheable exception (§9.3.3) and is not read; it stays silent here."
+        "This rule checks if `200 OK` responses to `GET` and `HEAD` include either an `ETag` or a `Last-Modified` header.\n\nThese headers act as validators, allowing clients to perform conditional requests (`If-None-Match` or `If-Modified-Since`). This enables efficient caching and revalidation, significantly reducing bandwidth when resources haven't changed.\n\nOnly a `GET` or a `HEAD` is asked, because both sentences the rule rests on are about the *selected representation* — what RFC 9110 §3.2 defines as the representation a `GET` would select, and the thing a conditional request is evaluated against. §15.3.1 tabulates what a `200`'s content is for every other method: the status of an action for `POST`, `PUT` and `DELETE`, the communication options for `OPTIONS`, the request echoed back for `TRACE`. None of those is a representation a later request could validate, and a `200` to `OPTIONS` or `TRACE` is not cacheable at all (§9.3.7, §9.3.8), so no validator was owed on them. A `POST` response that names its own target in `Content-Location` is the one cacheable exception (§9.3.3) and is not read; it stays silent here.\n\nAn `ETag` in the **trailer section** counts: §8.8.3 lets a sender put the field there, for a tag computed while the content streams, so a response that did has sent one. `Last-Modified` is read in the header section only, because no sentence grants it the other one; written after the content, it is `trailer_fields_valid`'s finding."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -116,10 +116,15 @@ impl Rule for EtagOrLastModifiedPresent {
             // default than the conditioned SHOULDs, argued on the entry itself.)
             // cite(RFC 9110 § 8.8.2.1): "An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined"
             // cite(RFC 9110 § 8.8.3.1): "An origin server SHOULD send an ETag for any selected representation for which detection of changes can be reasonably and consistently determined"
-            if status == 200
-                && !resp.headers.contains_key("etag")
-                && !resp.headers.contains_key("last-modified")
-            {
+            //
+            // An entity tag sent after the content was sent: § 8.8.3 grants `ETag`
+            // the trailer section by name, for a tag computed while the content
+            // streams. `Last-Modified` has no such sentence, so one written there is
+            // `trailer_fields_valid`'s finding and not a validator.
+            // cite(RFC 9110 § 8.8.3): "A sender MAY send the ETag field in a trailer section"
+            let sent_etag = crate::helpers::headers::response_field_sections(resp)
+                .any(|(_section, fields)| fields.contains_key("etag"));
+            if status == 200 && !sent_etag && !resp.headers.contains_key("last-modified") {
                 Some(ctx.report(&VALIDATOR_MISSING))
             } else {
                 None
@@ -197,6 +202,35 @@ mod tests {
             assert!(violation.is_none());
         }
         Ok(())
+    }
+
+    /// § 8.8.3 grants `ETag` the trailer section, so a response whose tag
+    /// arrives after the content sent one. No sentence grants `Last-Modified`
+    /// the same, and a field no definition names validates nothing.
+    #[rstest]
+    #[case(&[("etag", "\"v1\"")], false)]
+    #[case(&[("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")], true)]
+    #[case(&[("x-checksum", "abc")], true)]
+    fn a_validator_in_the_trailer_section(
+        #[case] trailers: &[(&str, &str)],
+        #[case] expect_violation: bool,
+    ) {
+        let rule = EtagOrLastModifiedPresent;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").trailers =
+            Some(crate::test_helpers::make_headers_from_pairs(trailers));
+
+        let violation = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(
+            violation.is_some(),
+            expect_violation,
+            "{trailers:?}: {violation:?}"
+        );
     }
 
     #[test]
