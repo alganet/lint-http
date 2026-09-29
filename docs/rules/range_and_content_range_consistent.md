@@ -16,7 +16,7 @@ Validate the semantics and syntax of `Range` (request) and `Content-Range` (resp
 
 **A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.
 
-A 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition. That is a finding about the status code, and it is reported *beside* whatever the response's `Content-Range` says rather than in place of it: the two are claims about different subjects, and a client handed `Content-Range: bytes 42-1233/1000` still has to read it to know what it was given.
+A 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and so does one whose request carried a `Range` on a method other than `GET`: RFC 9110 §14.2 defines range handling for `GET` alone and says a server MUST ignore the field on any other method, `HEAD` included, so there was no range request to answer. That is a finding about the status code, and it is reported *beside* whatever the response's `Content-Range` says rather than in place of it: the two are claims about different subjects, and a client handed `Content-Range: bytes 42-1233/1000` still has to read it to know what it was given.
 
 A 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.
 
@@ -52,6 +52,7 @@ A 416 answering a *partial PUT* is the exception: such a request names its range
 - [RFC 9110 §14.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1): Range Units — the `range-unit` token, case-insensitive and registered
 - [RFC 9110 §14.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.2): Byte Ranges — positions are decimal numbers of octets, and recipients must anticipate large ones rather than overflow on them
 - [RFC 9110 §15.5.17](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.17): 416 Range Not Satisfiable: the status code is the rejection of the ranges in the request's `Range` field; a server answering a *byte*-range request SHOULD include `Content-Range: bytes */<complete-length>`
+- [RFC 9110 §14.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2): `Range`: an origin server MUST ignore a `Range` field in a unit it does not understand, which is what a request outside the advertised set is likely to cost — the whole representation instead of the part asked for
 
 ## Configuration
 
@@ -107,6 +108,18 @@ HTTP/1.1 206 Partial Content
 Content-Range: bytes 0-1/10
 
 # 206 must not be sent if the request did not include a Range header
+```
+
+### ❌ Bad — range handling is defined for GET alone, so a HEAD's Range is one the server ignores
+
+```http
+HEAD /resource HTTP/1.1
+Host: example.com
+Range: bytes=0-1
+
+HTTP/1.1 206 Partial Content
+Content-Range: bytes 0-1/10
+Content-Length: 2
 ```
 
 ### ✅ Good (multiple parts: each body part carries its own Content-Range)

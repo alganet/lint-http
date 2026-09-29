@@ -10,7 +10,7 @@ SPDX-License-Identifier: ISC
 
 ## Message
 
-206 Partial Content response received but request did not include a Range header
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 
@@ -19,6 +19,7 @@ SPDX-License-Identifier: ISC
 ## Specifications
 
 - [RFC 9110 §15.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7): 206 Partial Content: the status code is a range request being fulfilled, and a single-part 206 MUST carry a `Content-Range` describing the enclosed range
+- [RFC 9110 §14.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2): `Range`: an origin server MUST ignore a `Range` field in a unit it does not understand, which is what a request outside the advertised set is likely to cost — the whole representation instead of the part asked for
 
 ## Configuration
 

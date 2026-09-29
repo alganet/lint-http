@@ -171,7 +171,7 @@ units = ["bytes"]
     }
 
     fn description(&self) -> &'static str {
-        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition. That is a finding about the status code, and it is reported *beside* whatever the response's `Content-Range` says rather than in place of it: the two are claims about different subjects, and a client handed `Content-Range: bytes 42-1233/1000` still has to read it to know what it was given.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `content_length_valid`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing."
+        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and so does one whose request carried a `Range` on a method other than `GET`: RFC 9110 §14.2 defines range handling for `GET` alone and says a server MUST ignore the field on any other method, `HEAD` included, so there was no range request to answer. That is a finding about the status code, and it is reported *beside* whatever the response's `Content-Range` says rather than in place of it: the two are claims about different subjects, and a client handed `Content-Range: bytes 42-1233/1000` still has to read it to know what it was given.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `content_length_valid`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -183,6 +183,7 @@ units = ["bytes"]
             RFC_9110_14_1,
             RFC_9110_14_1_2,
             RFC_9110_15_5_17,
+            crate::violations::accept_ranges::RFC_9110_14_2,
         ]
     }
 
@@ -211,6 +212,11 @@ units = ["bytes"]
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 206 Partial Content\nContent-Range: bytes 0-1/10\n\n# 206 must not be sent if the request did not include a Range header",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— range handling is defined for GET alone, so a HEAD's Range is one the server ignores"),
+                snippet: "HEAD /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-1\n\nHTTP/1.1 206 Partial Content\nContent-Range: bytes 0-1/10\nContent-Length: 2",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -457,13 +463,42 @@ fn status_defects(
 ) -> Vec<Violation> {
     let mut out = Vec::new();
     let has_range_request = tx.request.headers.get("range").is_some();
+    let method = tx.request.method.as_str();
+
+    // A `Range` is a range request only where range handling is defined, and
+    // RFC 9110 defines it for GET alone: on any other method the server is to
+    // ignore the field, so a 206 or 416 answering one answered a request that,
+    // for that method, is not there. Compared exactly, because the method token
+    // is case-sensitive and `get` defines no range handling either. A method
+    // another document gives range handling would be declined here, and none
+    // the tree cites does.
+    // cite(RFC 9110 § 14.2): "A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined."
+    // cite(RFC 9110 § 14.2): "For this specification, GET is the only method for which range handling is defined."
+    let ignored_range = has_range_request && method != "GET";
+    let why = |status: &str, no_range: &str| {
+        if ignored_range {
+            format!(
+                "{status} answers a {method} request's Range, which RFC 9110 \u{a7}14.2 has a \
+                 server ignore: GET is the only method range handling is defined for"
+            )
+        } else {
+            no_range.to_string()
+        }
+    };
 
     // A 206 is *defined* as the answer to a range request, so one returned to a
     // request that asked for no range contradicts its own status code -- the
     // status is the defect and neither range field is, which is why the id is
     // the status code's.
-    if resp.status == 206 && !has_range_request {
-        out.push(ctx.report(&STATUS_206_UNSOLICITED));
+    if resp.status == 206 && (!has_range_request || ignored_range) {
+        out.push(ctx.report_with(
+            &STATUS_206_UNSOLICITED,
+            why(
+                "206 Partial Content",
+                "206 Partial Content response received but request did not include a Range header; \
+             RFC 9110 \u{a7}15.3.7 defines 206 as the answer to a range request",
+            ),
+        ));
     }
 
     // One requested range may not be answered with a multipart response at all.
@@ -494,9 +529,19 @@ fn status_defects(
     // side above keeps its finding: nothing in § 14.5 gives a response to a PUT
     // an enclosed part to describe, which is the only thing a 206 says.
     // cite(RFC 9110 § 14.5): "Some origin servers support PUT of a partial representation when the user agent sends a Content-Range header field (Section 14.4) in the request, though such support is inconsistent and depends on private agreements with user agents."
-    if resp.status == 416 && !has_range_request && tx.request.headers.get("content-range").is_none()
+    if resp.status == 416
+        && (!has_range_request || ignored_range)
+        && tx.request.headers.get("content-range").is_none()
     {
-        out.push(ctx.report(&STATUS_416_UNSOLICITED));
+        out.push(ctx.report_with(
+            &STATUS_416_UNSOLICITED,
+            why(
+                "416 Range Not Satisfiable",
+                "416 Range Not Satisfiable response sent to a request with no Range header; \
+                 RFC 9110 \u{a7}15.5.17 defines 416 as the rejection of the ranges in the \
+                 request's Range field",
+            ),
+        ));
     }
 
     out
@@ -747,6 +792,62 @@ mod tests {
         assert!(v.unwrap().message.contains("'*/complete-length' form"));
     }
 
+    /// § 14.2 defines range handling for GET alone and has a server ignore a
+    /// `Range` on any other method, so a 206 or 416 answering one answered a
+    /// range request that is not there. The partial-PUT exclusion still holds.
+    #[rstest]
+    #[case("POST", 206, &[], true)]
+    #[case("HEAD", 206, &[], true)]
+    #[case("get", 206, &[], true)]
+    #[case("GET", 206, &[], false)]
+    #[case("POST", 416, &[], true)]
+    #[case("GET", 416, &[], false)]
+    #[case("PUT", 416, &[("content-range", "bytes 100-199/*")], false)]
+    fn a_range_on_a_method_without_range_handling_is_ignored(
+        #[case] method: &str,
+        #[case] status: u16,
+        #[case] extra: &[(&str, &str)],
+        #[case] reported: bool,
+    ) {
+        let content_range = if status == 206 {
+            "bytes 0-1/10"
+        } else {
+            "bytes */10"
+        };
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            status,
+            &[("content-range", content_range)],
+        );
+        tx.request.method = method.into();
+        let mut pairs = vec![("range", "bytes=0-1")];
+        pairs.extend_from_slice(extra);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+        let all = crate::test_helpers::run_rule_all(
+            &RangeAndContentRangeConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        let id = if status == 206 {
+            "status_206_unsolicited"
+        } else {
+            "status_416_unsolicited"
+        };
+        let found: Vec<_> = all.iter().filter(|v| v.violation == id).collect();
+        assert_eq!(
+            found.len(),
+            usize::from(reported),
+            "{method} -> {status}: {all:?}"
+        );
+        if let Some(v) = found.first() {
+            assert!(
+                v.message
+                    .contains(&format!("answers a {method} request's Range")),
+                "{v:?}"
+            );
+        }
+    }
+
     /// A 416 answers a Range request. Without one there is no rejected range set
     /// for the status code to be about.
     #[rstest]
@@ -878,6 +979,12 @@ mod tests {
         );
 
         let mut tx = crate::test_helpers::make_test_transaction();
+        // The method decides whether a `Range` is a range request at all.
+        tx.request.method = request_line
+            .split(' ')
+            .next()
+            .expect("a request line has a method")
+            .to_string();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&field_lines(request_lines));
 

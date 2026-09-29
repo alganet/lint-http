@@ -292,13 +292,22 @@ defects! {
     /// including when it says nothing — a 206 to a request with no `Range` is
     /// already wrong before its fields are read.
     ///
+    /// **A `Range` on another method asks for nothing.** § 14.2 defines range
+    /// handling for `GET` alone and has a server ignore the field anywhere
+    /// else, so a 206 answering a `POST` or `HEAD` that carried one fulfilled a
+    /// range request that, for that method, does not exist. That is a second
+    /// sentence, and a MUST where the first is a definition; one entry holds
+    /// both for [`STATUS_304_MISSING`]'s reason — one sender, one repair (do
+    /// not answer with a part), one loss — so its findings carry no citation
+    /// and each message names the section it was read from.
+    ///
     // cite(RFC 9110 § 15.3.7): "The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation."
     STATUS_206_UNSOLICITED = {
         id: "status_206_unsolicited",
         title: "206 Partial Content answers a request that asked for no range",
-        message: "206 Partial Content response received but request did not include a Range header",
+        message: "",
         default_severity: Severity::Warn,
-        spec: &[RFC_9110_15_3_7],
+        spec: &[RFC_9110_15_3_7, crate::violations::accept_ranges::RFC_9110_14_2],
     }
 
     /// A `206` that leaves out a header field the `200` it is a part of would
@@ -363,13 +372,17 @@ defects! {
     /// reading this entry excludes it at the site — a condition on when the
     /// defect exists, rather than a second defect.
     ///
+    /// A `Range` on a method other than `GET` is no range set either: § 14.2
+    /// has a server ignore it, so there was nothing for the 416 to reject. Two
+    /// sentences, as for the 206 beside it.
+    ///
     // cite(RFC 9110 § 15.5.17): "The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack)."
     STATUS_416_UNSOLICITED = {
         id: "status_416_unsolicited",
         title: "416 Range Not Satisfiable answers a request that named no range",
-        message: "416 Range Not Satisfiable response sent to a request with no Range header",
+        message: "",
         default_severity: Severity::Warn,
-        spec: &[RFC_9110_15_5_17],
+        spec: &[RFC_9110_15_5_17, crate::violations::accept_ranges::RFC_9110_14_2],
     }
 
     /// A 206 in its multipart form, answering a request that asked for one
@@ -1362,29 +1375,31 @@ mod tests {
         }
     }
 
-    /// The range entries carry their whole message, which is the shape of the
-    /// defect rather than a convenience: what is wrong there is the pairing of
-    /// two messages and never a value one of them wrote, so there is nothing for
-    /// a site to interpolate and no wording that varies between findings.
+    /// An entry naming one sentence carries its whole message, which is the
+    /// shape of the defect rather than a convenience: what is wrong there is
+    /// the pairing of two messages and never a value one of them wrote, so
+    /// there is nothing for a site to interpolate.
     ///
-    /// **The 101 entry is the exception and its reason is the slice.** It names
-    /// three sections, so its findings carry no citation and the message has to
-    /// say which version's sentence governs — a value the request line did
-    /// write. An entry naming one sentence has nothing to interpolate; an entry
-    /// naming several always does.
+    /// **An entry naming several leaves it to the site, and the reason is the
+    /// slice.** Its findings carry no citation, so the message has to say which
+    /// sentence governs: for the 101, which version's; for the 206 and 416, the
+    /// status code's definition where the request carried no `Range`, and
+    /// § 14.2 where it carried one on a method that has no range handling —
+    /// the method is a value the request line did write.
     #[test]
     fn only_the_entry_with_several_sentences_leaves_its_message_to_the_site() {
-        for def in [
-            &STATUS_206_UNSOLICITED,
-            &STATUS_416_UNSOLICITED,
-            &STATUS_206_MULTIPART_FORBIDDEN,
-            &STATUS_101_IGNORED,
-        ] {
+        for def in [&STATUS_206_MULTIPART_FORBIDDEN, &STATUS_101_IGNORED] {
             assert_eq!(def.spec.len(), 1, "{}", def.id);
             assert!(!def.message.is_empty(), "{} holds no message", def.id);
         }
-        assert!(STATUS_101_UNSOLICITED.spec.len() > 1);
-        assert!(STATUS_101_UNSOLICITED.message.is_empty());
+        for def in [
+            &STATUS_101_UNSOLICITED,
+            &STATUS_206_UNSOLICITED,
+            &STATUS_416_UNSOLICITED,
+        ] {
+            assert!(def.spec.len() > 1, "{}", def.id);
+            assert!(def.message.is_empty(), "{} holds its own message", def.id);
+        }
     }
 
     /// The level used to be decided by whether the exchange can continue, and

@@ -10,7 +10,7 @@ SPDX-License-Identifier: ISC
 
 ## Message
 
-416 Range Not Satisfiable response sent to a request with no Range header
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 
@@ -19,6 +19,7 @@ SPDX-License-Identifier: ISC
 ## Specifications
 
 - [RFC 9110 §15.5.17](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.17): 416 Range Not Satisfiable: the status code is the rejection of the ranges in the request's `Range` field; a server answering a *byte*-range request SHOULD include `Content-Range: bytes */<complete-length>`
+- [RFC 9110 §14.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2): `Range`: an origin server MUST ignore a `Range` field in a unit it does not understand, which is what a request outside the advertised set is likely to cost — the whole representation instead of the part asked for
 
 ## Configuration
 
