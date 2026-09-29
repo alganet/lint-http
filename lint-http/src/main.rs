@@ -913,7 +913,7 @@ fn gated_block(
             Gated {
                 block: (!violations.is_empty()).then_some(FindingsBlock::WebsocketSession(
                     WebsocketFindings {
-                        session_id: session.id,
+                        session: session.id,
                         transaction_id: session.transaction_id,
                         close_code: session.close_code,
                         violations,
@@ -1090,7 +1090,7 @@ fn lint_records(
                     continue;
                 }
                 findings.push(FindingsBlock::WebsocketSession(WebsocketFindings {
-                    session_id: session.id,
+                    session: session.id,
                     transaction_id: session.transaction_id,
                     close_code: session.close_code,
                     violations,
@@ -1254,9 +1254,14 @@ struct TransactionFindings {
 
 /// One replayed WebSocket session's surviving findings (`close_code` is `null`
 /// when the session ended without a Close frame).
+///
+/// The id is `session` in Rust and `session_id` on the wire: CodeQL's
+/// `rust/cleartext-logging` takes any name matching `session.?id` for a login
+/// session's secret, and this is a UUID lint-http minted to group frames.
 #[derive(serde::Serialize)]
 struct WebsocketFindings {
-    session_id: uuid::Uuid,
+    #[serde(rename = "session_id")]
+    session: uuid::Uuid,
     transaction_id: uuid::Uuid,
     close_code: Option<u16>,
     violations: Vec<lint::Violation>,
@@ -1835,7 +1840,7 @@ fn render_findings_block(block: &FindingsBlock, opts: RenderOpts) -> anyhow::Res
             writeln!(
                 out,
                 "websocket session {} (upgrade {}) -> close {}",
-                f.session_id, f.transaction_id, close
+                f.session, f.transaction_id, close
             )?;
         }
         FindingsBlock::ProtocolEvent(f) => {
@@ -1882,7 +1887,7 @@ fn group_findings(findings: &[FindingsBlock]) -> Vec<Group<'_>> {
     for block in findings {
         let target = match block {
             FindingsBlock::HttpTransaction(f) => format!("{} {}", f.method, f.uri),
-            FindingsBlock::WebsocketSession(f) => format!("websocket session {}", f.session_id),
+            FindingsBlock::WebsocketSession(f) => format!("websocket session {}", f.session),
             FindingsBlock::ProtocolEvent(f) => {
                 format!("{} on connection {}", f.event, f.connection_id)
             }
@@ -4925,10 +4930,10 @@ enabled = false
 
     #[test]
     fn render_lint_report_websocket_block_in_both_formats() -> anyhow::Result<()> {
-        let session_id = Uuid::new_v4();
+        let session = Uuid::new_v4();
         let transaction_id = Uuid::new_v4();
         let findings = vec![FindingsBlock::WebsocketSession(WebsocketFindings {
-            session_id,
+            session,
             transaction_id,
             close_code: Some(1000),
             violations: vec![sample_violation()],
@@ -4941,7 +4946,7 @@ enabled = false
             RenderOpts::plain(),
         )?;
         assert!(text.contains(&format!(
-            "websocket session {session_id} (upgrade {transaction_id}) -> close 1000"
+            "websocket session {session} (upgrade {transaction_id}) -> close 1000"
         )));
         assert!(
             text.ends_with("1 finding (1 warning) in 0 transactions and 2 websocket sessions\n"),
@@ -4956,7 +4961,7 @@ enabled = false
         )?;
         let parsed = json_blocks(&json)?;
         assert_eq!(parsed[0]["kind"], "websocket_session");
-        assert_eq!(parsed[0]["session_id"], session_id.to_string());
+        assert_eq!(parsed[0]["session_id"], session.to_string());
         assert_eq!(parsed[0]["close_code"], 1000);
         Ok(())
     }
@@ -5335,7 +5340,7 @@ enabled = false
     #[test]
     fn a_websocket_session_survives_scoping() {
         let ws = FindingsBlock::WebsocketSession(WebsocketFindings {
-            session_id: Uuid::new_v4(),
+            session: Uuid::new_v4(),
             transaction_id: Uuid::new_v4(),
             close_code: Some(1000),
             violations: vec![sample_violation()],

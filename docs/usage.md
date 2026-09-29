@@ -441,7 +441,11 @@ with its header lists shortened:
 ```
 
 Headers are a list of `[name, value]` pairs in wire order, names lowercased, so
-a repeated field keeps every line. The fields worth knowing:
+a repeated field keeps every line. Nothing is redacted: `Authorization`,
+`Cookie`, `Set-Cookie` and any other credential are written as they were sent,
+and so are bodies when they are kept. Treat a capture file, and the live stream,
+as holding the secrets of whatever went through the proxy. The fields worth
+knowing:
 
 - `response` is `null` when the upstream never answered, and
   `upstream_never_answered` is then `true`.
