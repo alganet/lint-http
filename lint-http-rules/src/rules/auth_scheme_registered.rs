@@ -223,10 +223,7 @@ impl Rule for AuthSchemeRegistered {
                         ) else {
                             return Vec::new();
                         };
-                        let Ok(challenges) = crate::helpers::auth::split_and_group_challenges(&s)
-                        else {
-                            return Vec::new();
-                        };
+                        let (challenges, _) = crate::helpers::auth::split_and_group_challenges(&s);
                         let mut seen = Vec::new();
                         let mut found = Vec::new();
                         for challenge in challenges {

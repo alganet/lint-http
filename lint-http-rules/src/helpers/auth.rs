@@ -224,19 +224,29 @@ pub fn split_scheme_and_tail(value: &str) -> (&str, Option<&str>) {
 /// members without a leading scheme are treated as continuation parameters for
 /// the current challenge.
 ///
-/// Returns `Ok(Vec<String>)` on success or the [`AuthDefect`] naming a
-/// parsing problem: an empty member, or a parameter with no challenge before
-/// it. There was a third — *missing scheme on a member that starts with
-/// whitespace* — and it was the same problem read off a character the list
-/// grammar puts outside the element.
+/// Returns the challenges, and beside them the [`AuthDefect`]s of the list
+/// itself: an empty member, or a parameter with no challenge before it. There
+/// was a third — *missing scheme on a member that starts with whitespace* — and
+/// it was the same problem read off a character the list grammar puts outside
+/// the element.
+///
+/// **Neither ends the reading.** This returned the first as an `Err` and no
+/// challenge was read at all, so `Basic realm="a", , Bearer error=` said only
+/// that a member was empty. § 5.6.1.2 has a recipient parse and ignore an empty
+/// element, so the value splits into members as well as any other, and an
+/// `auth-param` arriving before any scheme belongs to no challenge and is set
+/// aside with the defect saying so. Each is reported once per value, since
+/// neither sentence names a member.
 ///
 /// The two it can answer with are the list's rather than one challenge's, and
 /// they are variants of the same type as the rest because a caller reports them
 /// the same way: this function and [`validate_challenge_syntax`] are two halves
 /// of reading one field value.
-pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, AuthDefect<'_>> {
+// cite(RFC 9110 § 5.6.1.2): "A recipient MUST parse and ignore a reasonable number of empty list elements:"
+pub fn split_and_group_challenges(s: &str) -> (Vec<String>, Vec<AuthDefect<'_>>) {
     let members: Vec<&str> = split_commas_respecting_quotes(s);
     let mut challenges: Vec<String> = Vec::new();
+    let mut defects: Vec<AuthDefect<'_>> = Vec::new();
 
     for m in members {
         // The `OWS` the `#rule` prints around its commas is the splitter's to
@@ -245,7 +255,10 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, AuthDefect<'_>
         // are two of the octets the `auth-scheme` check below exists to name.
         let mm = m;
         if mm.is_empty() {
-            return Err(AuthDefect::EmptyMember);
+            if !defects.contains(&AuthDefect::EmptyMember) {
+                defects.push(AuthDefect::EmptyMember);
+            }
+            continue;
         }
 
         // A member that is a `token`, optional whitespace and then `=` is an
@@ -289,11 +302,13 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, AuthDefect<'_>
             // one thing to say about it.
             // cite(RFC 9110 § 11.6.1): "WWW-Authenticate = #challenge"
             // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
-            return Err(AuthDefect::SchemeMissing);
+            if !defects.contains(&AuthDefect::SchemeMissing) {
+                defects.push(AuthDefect::SchemeMissing);
+            }
         }
     }
 
-    Ok(challenges)
+    (challenges, defects)
 }
 
 /// What a value written as an `auth-scheme` and whatever § 11.2 allows after it
@@ -346,8 +361,9 @@ pub enum AuthDefect<'a> {
     /// and a value-less `auth-param` by eye. Carries the word.
     SuspiciousSingleToken(&'a str),
     /// A member whose name is empty — `=x`, which has a value and nothing it
-    /// belongs to.
-    EmptyParameterName,
+    /// belongs to. Carries the member as written, because a challenge can hold
+    /// two and the finding has to say which.
+    EmptyParameterName(&'a str),
     /// An `auth-param` written without its `=` at all, carrying the word that
     /// was there. `auth-param` is `token BWS "=" BWS ( token / quoted-string )`
     /// and nothing brackets the delimiter, so a bare word among the parameters
@@ -374,11 +390,23 @@ pub enum AuthDefect<'a> {
     /// the guarantee the walk was leaning on is not one its second caller can
     /// make.
     ParameterMemberEmpty,
-    /// A non-`token` octet in an `auth-param` name, carrying the character.
-    ParameterNameCharacter(char),
+    /// A non-`token` octet in an `auth-param` name, carrying the name as
+    /// written and the character.
+    ParameterNameCharacter {
+        /// The name, as the sender wrote it.
+        name: &'a str,
+        /// The first octet `token` does not admit.
+        character: char,
+    },
     /// A non-`token` octet in an unquoted `auth-param` value, carrying the
-    /// character.
-    ParameterValueCharacter(char),
+    /// parameter it belonged to and the character. The name is what tells two
+    /// of these apart in one challenge.
+    ParameterValueCharacter {
+        /// The `auth-param` name the bad value belonged to.
+        name: &'a str,
+        /// The first octet `token` does not admit.
+        character: char,
+    },
     /// A value that opens with a DQUOTE and is not a well-formed
     /// `quoted-string`. Carries the parameter it belonged to, the value as
     /// written, and the [`QuotedStringDefect`](crate::helpers::quoted_string::QuotedStringDefect) — the reason this
@@ -395,11 +423,10 @@ pub enum AuthDefect<'a> {
     /// One `auth-param` name written more than once in one challenge, carrying
     /// the name as the second occurrence spelled it.
     ///
-    /// **The second variant here that is not a defect of the grammar**, and it
-    /// is held back the same way [`RealmUnquoted`](Self::RealmUnquoted) is:
+    /// **The second variant here that is not a defect of the grammar**:
     /// `#auth-param` derives `realm=a, realm=b` as readily as any other list of
-    /// two, and a member that fails the production outright is what a sender
-    /// fixes first.
+    /// two, so it is counted over the well-formed members only, which is what
+    /// its sentence says of them.
     ///
     /// **Challenge-side only, because the sentence counts per challenge.** A
     /// `credentials` value is not a challenge and § 11.4 gives it no unit to
@@ -408,19 +435,17 @@ pub enum AuthDefect<'a> {
     /// A `realm` written as a `token` where § 11.5 admits only the
     /// `quoted-string`. Carries the value as written.
     ///
-    /// **The one variant here that is not a defect of the grammar**, and the
-    /// walk treats it accordingly: it is held back until every member has been
-    /// read and returned only if none of them failed the production. A value
-    /// outside both alternatives is a value a recipient cannot read at all,
-    /// and it is the one a sender fixes first.
+    /// **Not a defect of the grammar**, and read only for a member that is
+    /// otherwise well formed, so one member never carries this and a grammar
+    /// finding both. It used to wait until every member of the challenge was
+    /// clean, which hid it behind a defect in some other member entirely.
     RealmUnquoted(&'a str),
     /// Whitespace beside an `auth-param`'s `=`, carrying the member as written.
     ///
-    /// **Held back like the two above, and ranked below them.** `auth-param`
-    /// prints `BWS` there, so the member derives, and a recipient is required
-    /// to remove the octets and read what is left. What refuses them is
-    /// § 5.6.3's requirement on the sender. A duplicated name and a token realm
-    /// change what a recipient reads, and this does not.
+    /// Read for a well-formed member, like the two above: `auth-param` prints
+    /// `BWS` there, so the member derives, and a recipient is required to
+    /// remove the octets and read what is left. What refuses them is § 5.6.3's
+    /// requirement on the sender.
     ParameterBws(&'a str),
 }
 
@@ -454,7 +479,10 @@ impl AuthDefect<'_> {
             Self::SuspiciousSingleToken(word) => format!(
                 "{field} challenge carries the single word '{word}' after its scheme, and the grammar refuses nothing about it: `token68` derives that word, and so does an `auth-param` whose value was left off, so the value cannot say which of the two was written"
             ),
-            Self::EmptyParameterName => format!("{field} auth-param name is empty"),
+            Self::EmptyParameterName(member) => format!(
+                "{field} auth-param name is empty in '{}'",
+                crate::helpers::shown::shown_in_finding(member)
+            ),
             Self::ParameterEqualsMissing(name) => {
                 format!("{field} auth-param '{name}' is written without its '='")
             }
@@ -469,12 +497,14 @@ impl AuthDefect<'_> {
             // auth-param name" with nothing in it saying which of the four
             // fields carrying this production had been read, which is the whole
             // reason the argument is here.
-            Self::ParameterNameCharacter(c) => {
-                format!("Invalid character '{c}' in {field} auth-param name")
-            }
-            Self::ParameterValueCharacter(c) => {
-                format!("Invalid character '{c}' in {field} auth-param value")
-            }
+            Self::ParameterNameCharacter { name, character } => format!(
+                "Invalid character '{character}' in {field} auth-param name '{}'",
+                crate::helpers::shown::shown_in_finding(name)
+            ),
+            Self::ParameterValueCharacter { name, character } => format!(
+                "Invalid character '{character}' in {field} auth-param value for '{}'",
+                crate::helpers::shown::shown_in_finding(name)
+            ),
             Self::ParameterQuotedValue {
                 name,
                 value,
@@ -525,8 +555,9 @@ fn token68_padding(value: &str) -> Option<usize> {
     Some(value.len() - body.len())
 }
 
-/// Whether one assembled `WWW-Authenticate` challenge is syntactically
-/// acceptable, answered as a [`AuthDefect`].
+/// Every way one assembled `WWW-Authenticate` challenge fails § 11.3, as
+/// [`AuthDefect`]s in the order the members were written; empty when it
+/// conforms.
 ///
 /// **A challenge cannot fail to have an `auth-scheme` here, and the branch that
 /// said it could is gone.** The value is trimmed and checked for emptiness
@@ -538,7 +569,7 @@ fn token68_padding(value: &str) -> Option<usize> {
 /// variant nothing constructs is a claim the module cannot back. What the test
 /// named `validate_missing_scheme_error` actually exercises is a leading-space
 /// member whose scheme reads as `realm="x"` and fails on the `=`.
-pub fn validate_challenge_syntax(challenge: &str) -> Result<(), AuthDefect<'_>> {
+pub fn validate_challenge_syntax(challenge: &str) -> Vec<AuthDefect<'_>> {
     let c = trim_ows(challenge);
     // The caller has already refused this. `split_and_group_challenges` returns
     // `EmptyMember` for any member that is empty after the splitter's `OWS`
@@ -550,7 +581,7 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), AuthDefect<'_>> 
     // tomorrow.
     // cite(RFC 9110 § 11.3): "challenge   = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
     if c.is_empty() {
-        return Err(AuthDefect::SchemeMissing);
+        return vec![AuthDefect::SchemeMissing];
     }
     // A challenge is a member of a list, so its `#auth-param` members have
     // already been through `split_and_group_challenges`. `Side::Challenge` is
@@ -627,7 +658,7 @@ pub fn validate_scheme_tail(
     value: &str,
     side: Side,
     members: MemberEmptiness,
-) -> Result<(), AuthDefect<'_>> {
+) -> Vec<AuthDefect<'_>> {
     // The three `token68` readings below share this: the alternative's alphabet
     // has no control octet in it, whichever way the value reached the branch.
     let has_control = |s: &str| s.chars().any(|c| (c as u32) < 0x20 || c == '\x7f');
@@ -635,14 +666,20 @@ pub fn validate_scheme_tail(
     // scheme is first token before whitespace -- through the shared splitter, so
     // the challenge side and the credentials side cut at the same octets.
     // cite(RFC 9110 § 11.3): "challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
+    //
+    // The scheme and what follows it are two productions, and a defect in the
+    // first does not stop the second being read: the split is at the first
+    // `1*SP` whatever the scheme holds, so the tail is the same octets either
+    // way and each is its own repair.
     let (scheme, tail) = split_scheme_and_tail(value);
+    let mut out = Vec::new();
     if let Some(invalid) = crate::helpers::token::find_invalid_token_char(scheme) {
-        return Err(AuthDefect::SchemeCharacter(invalid));
+        out.push(AuthDefect::SchemeCharacter(invalid));
     }
 
     if let Some(rest) = tail {
         if rest.is_empty() {
-            return Ok(());
+            return out;
         }
 
         // `token68` closes with `*"="`, and the routing below reads an `=`
@@ -664,21 +701,20 @@ pub fn validate_scheme_tail(
         // branches around it has nothing left to ask.
         // cite(RFC 9110 § 11.2): "auth-param     = token BWS "=" BWS ( token / quoted-string )"
         if token68_padding(rest).is_some_and(|padding| padding > 1) {
-            return Ok(());
+            return out;
         }
 
         if !rest.contains('=') {
             if has_control(rest) {
-                return Err(AuthDefect::Token68ControlCharacter);
-            }
-            if side == Side::Challenge
+                out.push(AuthDefect::Token68ControlCharacter);
+            } else if side == Side::Challenge
                 && !rest
                     .chars()
                     .any(|ch| matches!(ch, '+' | '/' | '=' | '.' | '-' | '_'))
             {
-                return Err(AuthDefect::SuspiciousSingleToken(rest));
+                out.push(AuthDefect::SuspiciousSingleToken(rest));
             }
-            return Ok(());
+            return out;
         }
 
         // rest contains '='; decide heuristics
@@ -688,9 +724,9 @@ pub fn validate_scheme_tail(
         if !rest.contains(',') {
             if first_invalid && !after_eq.starts_with('"') {
                 if has_control(rest) {
-                    return Err(AuthDefect::Token68ControlCharacter);
+                    out.push(AuthDefect::Token68ControlCharacter);
                 }
-                return Ok(());
+                return out;
             }
 
             if rest.ends_with('=') && after_eq.is_empty() {
@@ -722,162 +758,228 @@ pub fn validate_scheme_tail(
                             || scheme.eq_ignore_ascii_case("bearer")));
                 if !scheme_writes_params {
                     if has_control(rest) {
-                        return Err(AuthDefect::Token68ControlCharacter);
+                        out.push(AuthDefect::Token68ControlCharacter);
                     }
-                    return Ok(());
+                    return out;
                 }
 
-                return Err(AuthDefect::ParameterValueEmpty(first_part));
+                out.push(AuthDefect::ParameterValueEmpty(first_part));
+                return out;
             }
         }
 
-        // Parse auth-params. The `OWS` around the `#auth-param` commas is the
-        // splitter's; the `str::trim` this replaced also took the two `obs-text`
-        // octets that look like whitespace, and no `token` admits either.
-        // Whether an empty member is this walk's to report is the caller's
-        // answer, and both answers are true of one of them: the challenge side's
-        // commas have been through `split_and_group_challenges`, the credentials
-        // side's have been through nothing.
-        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-        // § 11.5's MUST, held back until the grammar has finished.
-        //
-        // **A realm written as a `token` is not a defect of the production**,
-        // which offers `token / quoted-string` and derives `realm=foo` as
-        // readily as `realm="foo"`. So it cannot be returned where the walk
-        // returns everything else: a member that fails `auth-param` outright is
-        // what a sender fixes first, and reporting a historical spelling in its
-        // place would let the weakest claim in the walk mask the strongest.
-        // The value is remembered and returned below only if every member came
-        // through clean.
-        //
-        // **The first realm and not the last**, on the same footing as every
-        // other arm here: one value, one finding, and the one a reader meets
-        // first is the one the walk reaches first.
-        //
-        // Where the scheme is `Digest`, RFC 7616 says this about `realm` in
-        // both directions and reports it under its own entries — § 3.4 for a
-        // credential, § 3.3 for a challenge — so the general reading declines
-        // rather than putting a second finding on one value with one repair.
-        //
-        // **The guard was directed and is not any more**, which is worth saying
-        // because the narrower version was correct when it was written: § 3.4's
-        // reader walks `Authorization` and `Proxy-Authorization` and never a
-        // response, so a challenge spelled `Digest realm=foo` really was this
-        // reading's alone until § 3.3 gained one. A decline scoped to a
-        // direction is a claim about which readers exist, and that is a fact
-        // that moves.
-        // cite(RFC 9110 § 11.5): "For historical reasons, a sender MUST only generate the quoted-string syntax."
-        let realm_is_answered_elsewhere = scheme.eq_ignore_ascii_case("digest");
-        let mut unquoted_realm: Option<&str> = None;
+        out.extend(auth_param_list(rest, scheme, side, members));
+    }
 
-        // § 11.2's other MUST, held back on the same footing and reported ahead
-        // of the realm's spelling.
-        //
-        // **The scope is a challenge and not a field line.** `WWW-Authenticate`
-        // is `#challenge` and § 11.6.1 prints two challenges each naming their
-        // own `realm` as the ordinary case, so the count is taken here — inside
-        // one assembled challenge, after `split_and_group_challenges` has
-        // decided where the challenges are — and a walk that counted per field
-        // value would report the specification's own example. On the
-        // credentials side there is no challenge to count within: § 11.4 gives
-        // `credentials` no list around it and states no sentence of its own, so
-        // this is `Side`'s to decide and not the grammar's.
-        //
-        // **It outranks the realm's spelling**, which is the one ordering
-        // between two held-back facts that has to be chosen rather than
-        // derived. The realm reading takes the first realm and not the last,
-        // and it can only do that by assuming there is one; told to quote a
-        // realm the recipient may not be the one using, a sender repairs a
-        // value that was never the finding's subject. Naming the duplication
-        // first leaves one value with one repair, and the respelling is
-        // reported on the next message.
-        //
-        // The names are folded because the same sentence folds them.
-        // cite(RFC 9110 § 11.2): "Authentication parameters are name/value pairs, where the name token is matched case-insensitively and each parameter name MUST only occur once per challenge."
-        let mut seen: Vec<String> = Vec::new();
-        let mut duplicated: Option<&str> = None;
+    out
+}
 
-        // § 5.6.3's MUST NOT on the sender, held back behind both of the above:
-        // `auth-param` prints `BWS` beside its `=`, so the member derives and a
-        // recipient reads it with the whitespace removed. The first member
-        // carrying it, on the same footing as the realm.
-        // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
-        let mut bws: Option<&str> = None;
+/// One `auth-param` member as written: the name with its trailing `BWS`, the
+/// name, what follows the `=` with its leading `BWS`, and the value.
+struct AuthParamMember<'a> {
+    name_written: &'a str,
+    name: &'a str,
+    val: &'a str,
+    value: &'a str,
+}
 
-        for param in split_commas_respecting_quotes(rest) {
-            // OWS only: `str::trim` takes the octets %xA0 and %x85 for
-            // whitespace, and a member holding one of them is not empty.
-            if members == MemberEmptiness::ReadHere
-                && crate::helpers::headers::trim_ows(param).is_empty()
-            {
-                return Err(AuthDefect::ParameterMemberEmpty);
-            }
-            let mut kv = param.splitn(2, '=');
-            let name_written = kv
-                .next()
-                .expect("splitn always yields at least one element");
-            let name = trim_ows(name_written);
-            let val = kv.next();
-            if name.is_empty() {
-                return Err(AuthDefect::EmptyParameterName);
-            }
-            // The `=` and the value after it are two things a sender leaves out,
-            // and one variant used to answer for both. A member with no `=` in
-            // it derives from `auth-param` not at all; a member with an `=` and
-            // nothing after it broke the floor of the two alternatives.
-            let Some(val) = val else {
-                return Err(AuthDefect::ParameterEqualsMissing(name));
-            };
-            if let Some(inv) = crate::helpers::token::find_invalid_token_char(name) {
-                return Err(AuthDefect::ParameterNameCharacter(inv));
-            }
-            let v = trim_ows(val);
-            if v.is_empty() {
-                return Err(AuthDefect::ParameterValueEmpty(name));
-            }
-            if bws.is_none()
-                && (name_written.ends_with(is_sp_or_htab) || val.starts_with(is_sp_or_htab))
-            {
-                bws = Some(trim_ows(param));
-            }
-            if v.starts_with('"') {
-                if let Err(defect) = crate::helpers::quoted_string::check_quoted_string(v) {
-                    return Err(AuthDefect::ParameterQuotedValue {
-                        name,
-                        value: v,
-                        defect,
-                    });
-                }
-            } else if let Some(inv) = crate::helpers::token::find_invalid_token_char(v) {
-                return Err(AuthDefect::ParameterValueCharacter(inv));
-            } else if unquoted_realm.is_none()
-                && !realm_is_answered_elsewhere
-                && name.eq_ignore_ascii_case("realm")
-            {
-                unquoted_realm = Some(v);
-            }
-            if side == Side::Challenge {
-                let folded = name.to_ascii_lowercase();
-                if seen.contains(&folded) {
-                    duplicated = duplicated.or(Some(name));
-                } else {
-                    seen.push(folded);
-                }
-            }
+/// One member of an `#auth-param` list read against the production, answered
+/// with its parts or with the first thing it fails to be.
+///
+/// **One member, one finding.** The checks read the name, then the `=`, then
+/// the value, and a member that fails an earlier one has nothing the later ones
+/// could be about: a member with no `=` has no value to judge. This is the
+/// funnel inside [`auth_param_list`]'s walk, and returning here is returning
+/// from one member and not from the list.
+// cite(RFC 9110 § 11.2): "auth-param     = token BWS "=" BWS ( token / quoted-string )"
+fn auth_param_member(param: &str) -> Result<AuthParamMember<'_>, AuthDefect<'_>> {
+    let mut kv = param.splitn(2, '=');
+    let name_written = kv
+        .next()
+        .expect("splitn always yields at least one element");
+    let name = trim_ows(name_written);
+    if name.is_empty() {
+        return Err(AuthDefect::EmptyParameterName(trim_ows(param)));
+    }
+    // The `=` and the value after it are two things a sender leaves out,
+    // and one variant used to answer for both. A member with no `=` in
+    // it derives from `auth-param` not at all; a member with an `=` and
+    // nothing after it broke the floor of the two alternatives.
+    let Some(val) = kv.next() else {
+        return Err(AuthDefect::ParameterEqualsMissing(name));
+    };
+    if let Some(character) = crate::helpers::token::find_invalid_token_char(name) {
+        return Err(AuthDefect::ParameterNameCharacter { name, character });
+    }
+    let value = trim_ows(val);
+    if value.is_empty() {
+        return Err(AuthDefect::ParameterValueEmpty(name));
+    }
+    if value.starts_with('"') {
+        if let Err(defect) = crate::helpers::quoted_string::check_quoted_string(value) {
+            return Err(AuthDefect::ParameterQuotedValue {
+                name,
+                value,
+                defect,
+            });
         }
+    } else if let Some(character) = crate::helpers::token::find_invalid_token_char(value) {
+        return Err(AuthDefect::ParameterValueCharacter { name, character });
+    }
+    Ok(AuthParamMember {
+        name_written,
+        name,
+        val,
+        value,
+    })
+}
 
-        if let Some(name) = duplicated {
-            return Err(AuthDefect::ParameterDuplicated(name));
+/// Every defect of an `#auth-param` list, the part of § 11.2's framework
+/// [`validate_scheme_tail`] reaches once the tail is known to be one.
+fn auth_param_list<'a>(
+    rest: &'a str,
+    scheme: &str,
+    side: Side,
+    members: MemberEmptiness,
+) -> Vec<AuthDefect<'a>> {
+    let mut out = Vec::new();
+    // Parse auth-params. The `OWS` around the `#auth-param` commas is the
+    // splitter's; the `str::trim` this replaced also took the two `obs-text`
+    // octets that look like whitespace, and no `token` admits either.
+    // Whether an empty member is this walk's to report is the caller's
+    // answer, and both answers are true of one of them: the challenge side's
+    // commas have been through `split_and_group_challenges`, the credentials
+    // side's have been through nothing.
+    //
+    // **Every member answers for itself.** `#auth-param` is a repetition
+    // the sender wrote member by member, so a member that fails the
+    // production is one repair and the member after it is another. This
+    // walk returned at the first, and a challenge carrying two defects drew
+    // one finding and then, once that was fixed, the other. What one
+    // member yields is still one finding: the checks below read the name,
+    // then the `=`, then the value, and a member that fails an earlier one
+    // has nothing the later ones could be about.
+    //
+    // The empty member is counted once per value, because its sentence
+    // names no member and two of them would be two identical lines.
+    // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+    let mut empty_member_seen = false;
+
+    // **A realm written as a `token` is not a defect of the production**,
+    // which offers `token / quoted-string` and derives `realm=foo` as
+    // readily as `realm="foo"`, and § 11.5's MUST is what refuses it. It
+    // used to be held back until every member came through clean, on the
+    // argument that reporting a historical spelling *in place of* a member
+    // that fails the grammar would let the weakest claim mask the
+    // strongest. Once every member answers, nothing is reported in place of
+    // anything, and holding it back only hid it behind an unrelated member.
+    // It is read for a member that is otherwise clean, so one member never
+    // carries both this and a grammar finding.
+    //
+    // **The first realm and not the last**: a second one is the duplicate's
+    // finding below, and which of the two a recipient keeps is exactly what
+    // that finding says nobody can know.
+    //
+    // Where the scheme is `Digest`, RFC 7616 says this about `realm` in
+    // both directions and reports it under its own entries — § 3.4 for a
+    // credential, § 3.3 for a challenge — so the general reading declines
+    // rather than putting a second finding on one value with one repair.
+    //
+    // **The guard was directed and is not any more**, which is worth saying
+    // because the narrower version was correct when it was written: § 3.4's
+    // reader walks `Authorization` and `Proxy-Authorization` and never a
+    // response, so a challenge spelled `Digest realm=foo` really was this
+    // reading's alone until § 3.3 gained one. A decline scoped to a
+    // direction is a claim about which readers exist, and that is a fact
+    // that moves.
+    // cite(RFC 9110 § 11.5): "For historical reasons, a sender MUST only generate the quoted-string syntax."
+    let realm_is_answered_elsewhere = scheme.eq_ignore_ascii_case("digest");
+    let mut unquoted_realm: Option<&str> = None;
+
+    // § 11.2's other MUST, counted over the members that are well formed,
+    // because the sentence it renders says both values are: a name written
+    // twice beside a malformed occurrence of itself is the malformed
+    // member's finding. Each name once, however many times it repeats.
+    //
+    // **The scope is a challenge and not a field line.** `WWW-Authenticate`
+    // is `#challenge` and § 11.6.1 prints two challenges each naming their
+    // own `realm` as the ordinary case, so the count is taken here — inside
+    // one assembled challenge, after `split_and_group_challenges` has
+    // decided where the challenges are — and a walk that counted per field
+    // value would report the specification's own example. On the
+    // credentials side there is no challenge to count within: § 11.4 gives
+    // `credentials` no list around it and states no sentence of its own, so
+    // this is `Side`'s to decide and not the grammar's.
+    //
+    // The names are folded because the same sentence folds them.
+    // cite(RFC 9110 § 11.2): "Authentication parameters are name/value pairs, where the name token is matched case-insensitively and each parameter name MUST only occur once per challenge."
+    let mut seen: Vec<String> = Vec::new();
+    let mut duplicated: Vec<&str> = Vec::new();
+
+    // § 5.6.3's MUST NOT on the sender: `auth-param` prints `BWS` beside
+    // its `=`, so the member derives and a recipient reads it with the
+    // whitespace removed. Every well-formed member carrying it, since the
+    // finding names the member.
+    // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
+    let mut bws: Vec<&str> = Vec::new();
+
+    for param in split_commas_respecting_quotes(rest) {
+        // OWS only: `str::trim` takes the octets %xA0 and %x85 for
+        // whitespace, and a member holding one of them is not empty.
+        if crate::helpers::headers::trim_ows(param).is_empty() {
+            if members == MemberEmptiness::ReadHere && !empty_member_seen {
+                empty_member_seen = true;
+                out.push(AuthDefect::ParameterMemberEmpty);
+            }
+            continue;
         }
-        if let Some(value) = unquoted_realm {
-            return Err(AuthDefect::RealmUnquoted(value));
+        let member = match auth_param_member(param) {
+            Ok(member) => member,
+            Err(defect) => {
+                out.push(defect);
+                continue;
+            }
+        };
+        let AuthParamMember {
+            name_written,
+            name,
+            val,
+            value: v,
+        } = member;
+        if !v.starts_with('"')
+            && unquoted_realm.is_none()
+            && !realm_is_answered_elsewhere
+            && name.eq_ignore_ascii_case("realm")
+        {
+            unquoted_realm = Some(v);
         }
-        if let Some(member) = bws {
-            return Err(AuthDefect::ParameterBws(member));
+        if name_written.ends_with(is_sp_or_htab) || val.starts_with(is_sp_or_htab) {
+            bws.push(trim_ows(param));
+        }
+        if side == Side::Challenge {
+            let folded = name.to_ascii_lowercase();
+            if !seen.contains(&folded) {
+                seen.push(folded);
+            } else if !duplicated.iter().any(|d| d.eq_ignore_ascii_case(name)) {
+                duplicated.push(name);
+            }
         }
     }
 
-    Ok(())
+    // A realm written twice has no single spelling to correct: which of the
+    // two a recipient keeps is the duplicate's finding, and naming the
+    // first one's spelling would send the sender to repair a value that
+    // may not be the one in use. One subject, and the duplication is the
+    // answer about it.
+    let realm_duplicated = duplicated.iter().any(|d| d.eq_ignore_ascii_case("realm"));
+    out.extend(duplicated.into_iter().map(AuthDefect::ParameterDuplicated));
+    out.extend(
+        unquoted_realm
+            .filter(|_| !realm_duplicated)
+            .map(AuthDefect::RealmUnquoted),
+    );
+    out.extend(bws.into_iter().map(AuthDefect::ParameterBws));
+    out
 }
 
 /// What a `credentials` field value fails to be.
@@ -949,8 +1051,8 @@ impl<'a> AuthorizationDefect<'a> {
     }
 }
 
-/// Whether a `credentials` field value is § 11.4's production, answered as an
-/// [`AuthorizationDefect`].
+/// Every way a `credentials` field value fails § 11.4's production, as
+/// [`AuthorizationDefect`]s; empty when it conforms.
 ///
 /// Unlike a `WWW-Authenticate` challenge, this requires the credentials — see
 /// the § 11.4 note in the body for why, which is that every concrete scheme
@@ -972,10 +1074,10 @@ impl<'a> AuthorizationDefect<'a> {
 /// in `WWW-Authenticate` drew a finding, and every scheme without a rule of its
 /// own — `Negotiate`, `NTLM`, anything bespoke — had its credentials read no
 /// further than "there is something there".
-pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDefect<'_>> {
+pub fn validate_authorization_syntax(value: &str) -> Vec<AuthorizationDefect<'_>> {
     let v = trim_ows(value);
     if v.is_empty() {
-        return Err(AuthorizationDefect::Empty);
+        return vec![AuthorizationDefect::Empty];
     }
 
     let mut parts = v.splitn(2, is_sp_or_htab);
@@ -984,9 +1086,18 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDef
         .expect("splitn always yields at least one element");
     let scheme = trim_ows(scheme);
     // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
+    //
+    // Recorded and not returned: the credentials after it are the other half
+    // of the production, cut at the same `1*SP`, and a second repair.
+    //
+    // The requirement that credentials follow is the concrete schemes', so it
+    // is not said of a scheme that is not a `token`: no scheme was named whose
+    // document could require anything.
+    let mut out = Vec::new();
     if let Some(invalid) = crate::helpers::token::find_invalid_token_char(scheme) {
-        return Err(AuthorizationDefect::SchemeCharacter(invalid));
+        out.push(AuthorizationDefect::SchemeCharacter(invalid));
     }
+    let scheme_is_a_token = out.is_empty();
 
     // §11.4's grammar makes the part after the scheme optional ([ 1*SP … ]), so a
     // bare scheme is framework-valid. This helper still requires something there
@@ -999,7 +1110,10 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDef
     if let Some(rest) = parts.next() {
         let rest = trim_ows(rest);
         if rest.is_empty() {
-            return Err(AuthorizationDefect::MissingCredentials);
+            if scheme_is_a_token {
+                out.push(AuthorizationDefect::MissingCredentials);
+            }
+            return out;
         }
         // Read before the alternative is chosen, and it stays ahead of the
         // production's own reading for that reason: a control octet is refused
@@ -1018,7 +1132,8 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDef
             .chars()
             .any(|c| ((c as u32) < 0x20 && c != '\t') || c == '\x7f')
         {
-            return Err(AuthorizationDefect::CredentialsControlCharacter);
+            out.push(AuthorizationDefect::CredentialsControlCharacter);
+            return out;
         }
         // `Side::Credentials`, and the reason is not that the ambiguity is
         // absent here. A single bare word after the scheme is derived by
@@ -1032,13 +1147,20 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDef
         // `MemberEmptiness::ReadHere`, because nothing has looked: a challenge's
         // commas have been through `split_and_group_challenges` before the walk
         // sees them and these have been through nothing.
-        if let Err(defect) = validate_scheme_tail(v, Side::Credentials, MemberEmptiness::ReadHere) {
-            return Err(AuthorizationDefect::Credentials(defect));
-        }
-        Ok(())
-    } else {
-        Err(AuthorizationDefect::MissingCredentials)
+        //
+        // The scheme was read above under this type's own variant, so the
+        // shared reading's verdict on the same octets is left out rather than
+        // reported twice.
+        out.extend(
+            validate_scheme_tail(v, Side::Credentials, MemberEmptiness::ReadHere)
+                .into_iter()
+                .filter(|defect| !matches!(defect, AuthDefect::SchemeCharacter(_)))
+                .map(AuthorizationDefect::Credentials),
+        );
+    } else if scheme_is_a_token {
+        out.push(AuthorizationDefect::MissingCredentials);
     }
+    out
 }
 
 /// What `Basic` credentials fail to be.
@@ -1284,49 +1406,57 @@ impl AuthParamsDefect<'_> {
 /// returning it here would collapse a whole challenge's worth of readings into
 /// one id for a value every member of which is well formed.
 ///
-/// **The `Err` is the defect and not a sentence.** Rendering it is
-/// [`AuthParamsDefect::message`] at the call site — one method, and the string
-/// is byte-identical to what this returned before. What the change buys is that
-/// three of the four defects are *nameable* by a caller reporting through the
-/// catalogue: the empty member is the list's, and the two about the name are
-/// the `token`'s.
+/// **The defects are values and not sentences.** Rendering one is
+/// [`AuthParamsDefect::message`] at the call site. Three of the four are
+/// *nameable* by a caller reporting through the catalogue: the empty member is
+/// the list's, and the two about the name are the `token`'s.
 ///
-/// Four rules call this and one of them reports. The other three treat a
-/// failure as "there is nothing here to reason about" and move on, which is
-/// what makes the caller count an upper bound rather than a work list.
+/// **A malformed member is set aside, and the rest are still read.** This
+/// returned an `Err` at the first, and four rules call it: one reported the
+/// `Err` and three treated it as "there is nothing here to reason about". So
+/// `Digest realm="r", nonce=abc, =x` lost `digest_challenge_quoting_invalid` on
+/// its `nonce` to a member that has nothing to do with it -- a refusal standing
+/// in for a verdict about every other member. The map holds the members that
+/// parse and the defects hold the ones that did not, in the order written.
 ///
 /// The name is measured here rather than left to the caller, which is why
-/// `digest_auth_valid`'s own name check answers nothing: this returns first.
+/// `digest_auth_valid`'s own name check answers nothing: a member whose name is
+/// not a `token` never reaches the map.
 // cite(RFC 9110 § 11.2): "auth-param     = token BWS "=" BWS ( token / quoted-string )"
 // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
 pub fn parse_auth_params(
     s: &str,
-) -> Result<std::collections::HashMap<String, String>, AuthParamsDefect<'_>> {
+) -> (
+    std::collections::HashMap<String, String>,
+    Vec<AuthParamsDefect<'_>>,
+) {
     let mut out = std::collections::HashMap::new();
+    let mut defects = Vec::new();
     // split comma-separated params respecting quoted-strings
     for part in split_commas_respecting_quotes(s) {
         let p = part;
         if p.is_empty() {
-            return Err(AuthParamsDefect::Empty);
+            defects.push(AuthParamsDefect::Empty);
+            continue;
         }
         let mut kv = p.splitn(2, '=');
-        let name = kv
-            .next()
-            .map(trim_ows)
-            .filter(|x| !x.is_empty())
-            .ok_or(AuthParamsDefect::NameEmpty)?;
-        let val = kv
-            .next()
-            .map(trim_ows)
-            .ok_or(AuthParamsDefect::ValueMissing(name))?;
+        let Some(name) = kv.next().map(trim_ows).filter(|x| !x.is_empty()) else {
+            defects.push(AuthParamsDefect::NameEmpty);
+            continue;
+        };
+        let Some(val) = kv.next().map(trim_ows) else {
+            defects.push(AuthParamsDefect::ValueMissing(name));
+            continue;
+        };
         // name must be a token
         if let Some(inv) = crate::helpers::token::find_invalid_token_char(name) {
-            return Err(AuthParamsDefect::NameCharacter(inv));
+            defects.push(AuthParamsDefect::NameCharacter(inv));
+            continue;
         }
         out.entry(name.to_ascii_lowercase())
             .or_insert_with(|| val.to_string());
     }
-    Ok(out)
+    (out, defects)
 }
 
 /// Parse the hexadecimal nonce-count value (`nc` auth-param).
@@ -1351,6 +1481,54 @@ pub fn parse_nc_hex(s: &str) -> Result<u64, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The one defect a value carries, or `Ok` for none. These cases were
+    /// each written for a value holding at most one defect, when the readings
+    /// returned at the first; this keeps them saying so, and panics if a value
+    /// turns out to hold a second -- which is the case the readings used to
+    /// hide, and belongs in a test that says it.
+    fn one<T: std::fmt::Debug>(defects: Vec<T>) -> Result<(), T> {
+        let mut it = defects.into_iter();
+        let first = it.next();
+        let rest: Vec<T> = it.collect();
+        assert!(
+            rest.is_empty(),
+            "a second defect beside {first:?}: {rest:?}"
+        );
+        first.map_or(Ok(()), Err)
+    }
+
+    /// The challenges, or the one list defect, in the shape the grouping
+    /// answered with before it read past its first.
+    /// The map, or the one member defect, in the shape the parse answered
+    /// with before it read past its first.
+    fn parsed(
+        value: &str,
+    ) -> Result<std::collections::HashMap<String, String>, AuthParamsDefect<'_>> {
+        let (map, defects) = parse_auth_params(value);
+        one(defects).map(|()| map)
+    }
+
+    /// A malformed member is set aside and the rest are still read: a
+    /// `Digest` challenge's `nonce` is graded whatever sits beside it.
+    #[test]
+    fn a_malformed_member_does_not_withdraw_the_others() {
+        let (map, defects) = parse_auth_params("realm=\"r\", =x, nonce=abc, b@d=1");
+        assert_eq!(map.get("nonce").map(String::as_str), Some("abc"));
+        assert_eq!(map.get("realm").map(String::as_str), Some("\"r\""));
+        assert_eq!(
+            defects,
+            vec![
+                AuthParamsDefect::NameEmpty,
+                AuthParamsDefect::NameCharacter('@')
+            ]
+        );
+    }
+
+    fn grouped(value: &str) -> Result<Vec<String>, AuthDefect<'_>> {
+        let (challenges, defects) = split_and_group_challenges(value);
+        one(defects).map(|()| challenges)
+    }
     use rstest::rstest;
 
     /// The trim and the split are `OWS`, so an `obs-text` octet is content:
@@ -1360,11 +1538,11 @@ mod tests {
     fn an_obs_text_octet_is_neither_padding_nor_a_separator() {
         let padded: String = std::iter::once('\u{a0}').chain("Basic x".chars()).collect();
         assert!(matches!(
-            validate_authorization_syntax(&padded),
+            one(validate_authorization_syntax(&padded)),
             Err(AuthorizationDefect::SchemeCharacter('\u{a0}'))
         ));
         // The whitespace the grammar does print is still a separator.
-        assert!(validate_authorization_syntax("Basic\tx").is_ok());
+        assert!(one(validate_authorization_syntax("Basic\tx")).is_ok());
     }
 
     /// The splitter itself, over the octets the callers disagreed about. The
@@ -1414,7 +1592,7 @@ mod tests {
 
     #[test]
     fn basic_single_challenge() {
-        let got = split_and_group_challenges("Basic realm=\"x\"").unwrap();
+        let got = grouped("Basic realm=\"x\"").unwrap();
         assert_eq!(got, vec!["Basic realm=\"x\"".to_string()]);
     }
 
@@ -1425,13 +1603,13 @@ mod tests {
     fn a_credentials_member_holding_an_obs_text_octet_is_not_empty() {
         let value: String = "Digest username=\"u\", \u{a0}".to_string();
         assert!(!matches!(
-            validate_authorization_syntax(&value),
+            one(validate_authorization_syntax(&value)),
             Err(AuthorizationDefect::Credentials(
                 AuthDefect::ParameterMemberEmpty
             ))
         ));
         assert!(matches!(
-            validate_authorization_syntax("Digest username=\"u\", "),
+            one(validate_authorization_syntax("Digest username=\"u\", ")),
             Err(AuthorizationDefect::Credentials(
                 AuthDefect::ParameterMemberEmpty
             ))
@@ -1440,7 +1618,10 @@ mod tests {
 
     #[test]
     fn validate_authorization_basic_ok() {
-        assert!(validate_authorization_syntax("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==").is_ok());
+        assert!(one(validate_authorization_syntax(
+            "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="
+        ))
+        .is_ok());
     }
 
     #[test]
@@ -1459,19 +1640,20 @@ mod tests {
 
     #[test]
     fn validate_authorization_digest_missing_credentials() {
-        assert!(validate_authorization_syntax("Digest").is_err());
+        assert!(one(validate_authorization_syntax("Digest")).is_err());
     }
 
     #[test]
     fn validate_authorization_bearer_ok() {
-        assert!(validate_authorization_syntax("Bearer abc123").is_ok());
+        assert!(one(validate_authorization_syntax("Bearer abc123")).is_ok());
     }
 
     #[test]
     fn validate_authorization_digest_ok() {
-        assert!(
-            validate_authorization_syntax("Digest username=\"Mufasa\", realm=\"test\"").is_ok()
-        );
+        assert!(one(validate_authorization_syntax(
+            "Digest username=\"Mufasa\", realm=\"test\""
+        ))
+        .is_ok());
     }
 
     /// Both spellings of the same thing: a scheme with no second half, and a
@@ -1481,11 +1663,11 @@ mod tests {
     #[test]
     fn validate_authorization_missing_credentials() {
         assert_eq!(
-            validate_authorization_syntax("Basic"),
+            one(validate_authorization_syntax("Basic")),
             Err(AuthorizationDefect::MissingCredentials)
         );
         assert_eq!(
-            validate_authorization_syntax("Basic "),
+            one(validate_authorization_syntax("Basic ")),
             Err(AuthorizationDefect::MissingCredentials)
         );
     }
@@ -1493,7 +1675,7 @@ mod tests {
     #[test]
     fn validate_authorization_invalid_scheme_char() {
         assert_eq!(
-            validate_authorization_syntax("B@sic xyz"),
+            one(validate_authorization_syntax("B@sic xyz")),
             Err(AuthorizationDefect::SchemeCharacter('@'))
         );
     }
@@ -1501,7 +1683,7 @@ mod tests {
     #[test]
     fn validate_authorization_control_chars() {
         assert_eq!(
-            validate_authorization_syntax("Bearer \u{0001}"),
+            one(validate_authorization_syntax("Bearer \u{0001}")),
             Err(AuthorizationDefect::CredentialsControlCharacter)
         );
     }
@@ -1512,11 +1694,15 @@ mod tests {
     #[test]
     fn a_tab_where_the_production_admits_one_is_not_a_control_octet() {
         assert_eq!(
-            validate_authorization_syntax("Digest username=\"u\",\trealm=\"x\""),
+            one(validate_authorization_syntax(
+                "Digest username=\"u\",\trealm=\"x\""
+            )),
             Ok(())
         );
         assert_eq!(
-            validate_authorization_syntax("Digest username=\"u\"\t,\trealm=\"a\tb\""),
+            one(validate_authorization_syntax(
+                "Digest username=\"u\"\t,\trealm=\"a\tb\""
+            )),
             Ok(())
         );
     }
@@ -1528,29 +1714,31 @@ mod tests {
     #[test]
     fn validate_authorization_empty() {
         assert_eq!(
-            validate_authorization_syntax(""),
+            one(validate_authorization_syntax("")),
             Err(AuthorizationDefect::Empty)
         );
         assert_eq!(
-            validate_authorization_syntax("   "),
+            one(validate_authorization_syntax("   ")),
             Err(AuthorizationDefect::Empty)
         );
     }
 
     #[test]
     fn multiple_members_grouped_into_challenge() {
-        let got = split_and_group_challenges("Basic, realm=\"x\"").unwrap();
+        let got = grouped("Basic, realm=\"x\"").unwrap();
         assert_eq!(got, vec!["Basic, realm=\"x\"".to_string()]);
     }
 
     #[test]
     fn quoted_commas_are_respected() {
-        let got = split_and_group_challenges("Basic realm=\"a,b\", more=1").unwrap();
+        let got = grouped("Basic realm=\"a,b\", more=1").unwrap();
         assert_eq!(got, vec!["Basic realm=\"a,b\", more=1".to_string()]);
     }
 
     /// Whitespace on either side of an `auth-param`'s `=` is `BWS`, on either
-    /// side of the framework, and it is held back behind the realm's spelling.
+    /// side of the framework. It used to be held back behind the realm's
+    /// spelling, so a token realm in one member hid the whitespace in another;
+    /// they are two members and two repairs.
     #[test]
     fn whitespace_beside_an_auth_params_equals_is_bws() {
         for (value, side, member) in [
@@ -1572,7 +1760,7 @@ mod tests {
             ),
         ] {
             assert_eq!(
-                validate_scheme_tail(value, side, MemberEmptiness::ReadHere),
+                one(validate_scheme_tail(value, side, MemberEmptiness::ReadHere)),
                 Err(AuthDefect::ParameterBws(member)),
                 "{value}"
             );
@@ -1583,14 +1771,17 @@ mod tests {
                 Side::Challenge,
                 MemberEmptiness::ReadHere
             ),
-            Err(AuthDefect::RealmUnquoted("x"))
+            vec![
+                AuthDefect::RealmUnquoted("x"),
+                AuthDefect::ParameterBws("a = b")
+            ]
         );
         assert_eq!(
-            validate_scheme_tail(
+            one(validate_scheme_tail(
                 "Basic  realm=\"x\",\tcharset=\"UTF-8\"",
                 Side::Challenge,
                 MemberEmptiness::ReadHere
-            ),
+            )),
             Ok(())
         );
     }
@@ -1604,17 +1795,17 @@ mod tests {
             "Digest realm=\"x\", algorithm =SHA-256",
             "Digest realm=\"x\", algorithm\t=\tSHA-256",
         ] {
-            let got = split_and_group_challenges(value).unwrap();
+            let got = grouped(value).unwrap();
             assert_eq!(got, vec![value.to_string()], "{value}");
         }
         // A scheme and then a parameter is still two challenges.
-        let got = split_and_group_challenges("Basic realm=\"a\", Newauth realm = \"b\"").unwrap();
+        let got = grouped("Basic realm=\"a\", Newauth realm = \"b\"").unwrap();
         assert_eq!(got.len(), 2);
     }
 
     #[test]
     fn multiple_challenges() {
-        let got = split_and_group_challenges("Basic realm=\"a\", NewScheme abc=").unwrap();
+        let got = grouped("Basic realm=\"a\", NewScheme abc=").unwrap();
         assert_eq!(
             got,
             vec![
@@ -1626,13 +1817,13 @@ mod tests {
 
     #[test]
     fn empty_member_is_error() {
-        let r = split_and_group_challenges(", Basic realm=\"x\"");
+        let r = grouped(", Basic realm=\"x\"");
         assert_eq!(r.unwrap_err(), AuthDefect::EmptyMember);
     }
 
     #[test]
     fn parameter_before_scheme_is_error() {
-        let r = split_and_group_challenges("error=\"x\"");
+        let r = grouped("error=\"x\"");
         assert_eq!(r.unwrap_err(), AuthDefect::SchemeMissing);
     }
 
@@ -1643,7 +1834,7 @@ mod tests {
     #[test]
     fn a_members_leading_ows_does_not_change_what_it_is() {
         for value in [" realm=\"x\"", "\trealm=\"x\"", "realm=\"x\"  "] {
-            let r = split_and_group_challenges(value);
+            let r = grouped(value);
             assert!(
                 r.as_ref().is_err_and(|e| *e == AuthDefect::SchemeMissing),
                 "{value}: {r:?}"
@@ -1653,7 +1844,7 @@ mod tests {
 
     #[test]
     fn consecutive_commas_report_error() {
-        let r = split_and_group_challenges("Basic realm=\"x\", , error=\"y\"");
+        let r = grouped("Basic realm=\"x\", , error=\"y\"");
         assert_eq!(r.unwrap_err(), AuthDefect::EmptyMember);
     }
 
@@ -1671,64 +1862,76 @@ mod tests {
     fn a_repeated_parameter_is_the_challenge_sides_alone() {
         let value = "Custom realm=\"a\", realm=\"b\"";
         assert_eq!(
-            validate_scheme_tail(value, Side::Challenge, MemberEmptiness::AlreadyRefused),
+            one(validate_scheme_tail(
+                value,
+                Side::Challenge,
+                MemberEmptiness::AlreadyRefused
+            )),
             Err(AuthDefect::ParameterDuplicated("realm"))
         );
         assert_eq!(
-            validate_scheme_tail(value, Side::Credentials, MemberEmptiness::ReadHere),
+            one(validate_scheme_tail(
+                value,
+                Side::Credentials,
+                MemberEmptiness::ReadHere
+            )),
             Ok(())
         );
     }
 
-    /// The two facts this walk holds back until every member has come through
-    /// the production, in the order it names them.
+    /// Two facts about one subject, and the walk names one of them.
     ///
     /// A value that is both — a realm written twice and written as a token —
-    /// has one repair per finding and they are not the same repair, so the
-    /// order decides which the sender is handed. The duplication goes first
-    /// because § 11.5's reading takes *the first* realm and can only do that by
-    /// assuming there is one: naming the spelling of a value the recipient may
-    /// not be using sends a sender to repair something that was never the
-    /// subject.
+    /// is answered by the duplication alone, because § 11.5's reading takes
+    /// *the first* realm and can only do that by assuming there is one: naming
+    /// the spelling of a value the recipient may not be using sends a sender to
+    /// repair something that was never the subject.
     #[test]
     fn duplication_is_named_before_the_realms_spelling() {
         assert_eq!(
-            validate_scheme_tail(
+            one(validate_scheme_tail(
                 "Basic realm=a, realm=b",
                 Side::Challenge,
                 MemberEmptiness::AlreadyRefused
-            ),
+            )),
             Err(AuthDefect::ParameterDuplicated("realm"))
         );
         // And with one realm the historical reason is what is left.
         assert_eq!(
-            validate_scheme_tail(
+            one(validate_scheme_tail(
                 "Basic realm=a",
                 Side::Challenge,
                 MemberEmptiness::AlreadyRefused
-            ),
+            )),
             Err(AuthDefect::RealmUnquoted("a"))
         );
     }
 
-    /// The grammar still outranks both of them: the walk returns on the first
-    /// member that fails `auth-param`, so a duplicate after a malformed member
-    /// is never counted.
+    /// Every member answers for itself. The walk used to return on the first
+    /// member that failed `auth-param`, so a duplicate after a malformed
+    /// member was never counted, and a second malformed member was reported
+    /// only once the first had been repaired.
     #[test]
-    fn a_member_outside_the_production_is_reached_first() {
+    fn a_member_outside_the_production_does_not_hide_the_rest() {
         assert_eq!(
             validate_scheme_tail(
                 "Basic realm=\"a\", bad@name=x, realm=\"b\"",
                 Side::Challenge,
                 MemberEmptiness::AlreadyRefused
             ),
-            Err(AuthDefect::ParameterNameCharacter('@'))
+            vec![
+                AuthDefect::ParameterNameCharacter {
+                    name: "bad@name",
+                    character: '@'
+                },
+                AuthDefect::ParameterDuplicated("realm"),
+            ]
         );
     }
 
     #[test]
     fn parse_auth_params_ok_and_lowercases_names() {
-        let got = parse_auth_params("username=\"Mufasa\", realm=\"x\", nonce=abc").unwrap();
+        let got = parsed("username=\"Mufasa\", realm=\"x\", nonce=abc").unwrap();
         assert_eq!(got.get("username").map(|s| s.as_str()), Some("\"Mufasa\""));
         assert_eq!(got.get("realm").map(|s| s.as_str()), Some("\"x\""));
         assert_eq!(got.get("nonce").map(|s| s.as_str()), Some("abc"));
@@ -1742,29 +1945,29 @@ mod tests {
     /// drew nothing about the realm at all.
     #[test]
     fn a_repeated_name_keeps_the_value_a_reader_meets_first() {
-        let got = parse_auth_params(r#"realm=foo, realm="ok", nonce="n""#).unwrap();
+        let got = parsed(r#"realm=foo, realm="ok", nonce="n""#).unwrap();
         assert_eq!(got.get("realm").map(String::as_str), Some("foo"));
         // And the fold is the same one § 11.2 applies to the name.
-        let got = parse_auth_params(r#"realm=foo, REALM="ok""#).unwrap();
+        let got = parsed(r#"realm=foo, REALM="ok""#).unwrap();
         assert_eq!(got.get("realm").map(String::as_str), Some("foo"));
     }
 
     #[test]
     fn parse_auth_params_errors_on_missing_value_or_name() {
-        assert!(parse_auth_params("username").is_err());
-        assert!(parse_auth_params("=abc").is_err());
-        assert!(parse_auth_params("").is_err());
+        assert!(parsed("username").is_err());
+        assert!(parsed("=abc").is_err());
+        assert!(parsed("").is_err());
     }
 
     #[test]
     fn parse_auth_params_invalid_name_char() {
-        let r = parse_auth_params("user@name=abc");
+        let r = parsed("user@name=abc");
         assert_eq!(r.unwrap_err(), AuthParamsDefect::NameCharacter('@'));
     }
 
     #[test]
     fn parse_auth_params_empty_member_is_error() {
-        let r = parse_auth_params("a=b, , c=d");
+        let r = parsed("a=b, , c=d");
         assert_eq!(r.unwrap_err(), AuthParamsDefect::Empty);
     }
 
@@ -1787,7 +1990,7 @@ mod tests {
                 "auth-param 'username' missing value",
             ),
         ] {
-            let got = parse_auth_params(input).unwrap_err();
+            let got = parsed(input).unwrap_err();
             assert_eq!(got, defect, "{input}");
             assert_eq!(got.message(), message, "{input}");
         }
@@ -1795,7 +1998,7 @@ mod tests {
 
     #[test]
     fn parse_auth_params_trailing_comma_is_error() {
-        let r = parse_auth_params("a=b,");
+        let r = parsed("a=b,");
         assert!(r.is_err());
     }
 
@@ -1835,7 +2038,7 @@ mod tests {
     #[case("DPoP eyJhbGciOiJFUzI1NiJ9-_abc==")]
     #[case("NewScheme abc===")]
     fn a_padded_token68_is_the_credential_and_not_a_parameter(#[case] challenge: &str) {
-        assert_eq!(validate_challenge_syntax(challenge), Ok(()));
+        assert_eq!(one(validate_challenge_syntax(challenge)), Ok(()));
     }
 
     /// A member with no `=` and a member with an `=` and nothing after it are
@@ -1845,11 +2048,11 @@ mod tests {
     #[test]
     fn a_member_without_its_delimiter_is_not_one_without_its_value() {
         assert_eq!(
-            validate_challenge_syntax("Basic realm=\"x\", flag"),
+            one(validate_challenge_syntax("Basic realm=\"x\", flag")),
             Err(AuthDefect::ParameterEqualsMissing("flag"))
         );
         assert_eq!(
-            validate_challenge_syntax("NewSch realm=, other=1"),
+            one(validate_challenge_syntax("NewSch realm=, other=1")),
             Err(AuthDefect::ParameterValueEmpty("realm"))
         );
     }
@@ -1862,7 +2065,7 @@ mod tests {
     #[test]
     fn an_empty_challenge_has_no_auth_scheme() {
         assert_eq!(
-            validate_challenge_syntax(""),
+            one(validate_challenge_syntax("")),
             Err(AuthDefect::SchemeMissing)
         );
     }
@@ -1874,7 +2077,7 @@ mod tests {
     #[test]
     fn validate_missing_scheme_error() {
         assert_eq!(
-            validate_challenge_syntax(" realm=\"x\""),
+            one(validate_challenge_syntax(" realm=\"x\"")),
             Err(AuthDefect::SchemeCharacter('='))
         );
     }
@@ -1882,21 +2085,21 @@ mod tests {
     #[test]
     fn validate_invalid_scheme_char() {
         assert_eq!(
-            validate_challenge_syntax("B@sic realm=\"x\""),
+            one(validate_challenge_syntax("B@sic realm=\"x\"")),
             Err(AuthDefect::SchemeCharacter('@'))
         );
     }
 
     #[test]
     fn validate_scheme_only_ok() {
-        let r = validate_challenge_syntax("Basic");
+        let r = one(validate_challenge_syntax("Basic"));
         assert!(r.is_ok());
     }
 
     #[test]
     fn suspicious_single_token_after_scheme_reports_error() {
         assert_eq!(
-            validate_challenge_syntax("NewSch abcd"),
+            one(validate_challenge_syntax("NewSch abcd")),
             Err(AuthDefect::SuspiciousSingleToken("abcd"))
         );
     }
@@ -1904,14 +2107,14 @@ mod tests {
     #[test]
     fn token68_with_control_character_reports_error() {
         assert_eq!(
-            validate_challenge_syntax("NewSch \u{0001}"),
+            one(validate_challenge_syntax("NewSch \u{0001}")),
             Err(AuthDefect::Token68ControlCharacter)
         );
     }
 
     #[test]
     fn first_part_invalid_and_after_eq_no_quotes_permitted_as_token68() {
-        let r = validate_challenge_syntax("NewSch bad@=abc");
+        let r = one(validate_challenge_syntax("NewSch bad@=abc"));
         assert!(r.is_ok());
     }
 
@@ -1963,42 +2166,48 @@ mod tests {
     #[test]
     fn scheme_with_trailing_eq_on_basic_reports_the_empty_value() {
         assert_eq!(
-            validate_challenge_syntax("Basic realm="),
+            one(validate_challenge_syntax("Basic realm=")),
             Err(AuthDefect::ParameterValueEmpty("realm"))
         );
     }
 
     #[test]
     fn scheme_with_trailing_eq_on_non_basic_is_ok() {
-        let r = validate_challenge_syntax("NewSch realm=");
+        let r = one(validate_challenge_syntax("NewSch realm="));
         assert!(r.is_ok());
     }
 
     /// Also not a value any caller sends — the assembler joins members with
     /// `", "` and a non-empty member, so no assembled challenge ends in a
-    /// separator. An empty `#auth-param` member is a parameter whose name is
-    /// empty, and that is what it reports.
+    /// separator. This used to report the empty member as a parameter whose
+    /// name is empty, which is another defect's id; the walk is told its caller
+    /// refused empty members and takes it at its word, and the caller that
+    /// assembles challenges reports this one under the list's own entry.
     #[test]
-    fn an_empty_auth_param_is_a_parameter_with_no_name() {
+    fn an_empty_auth_param_is_the_lists_to_report() {
         assert_eq!(
-            validate_challenge_syntax("Basic realm=\"x\", "),
-            Err(AuthDefect::EmptyParameterName)
+            one(validate_challenge_syntax("Basic realm=\"x\", ")),
+            Ok(())
         );
+        assert_eq!(grouped("Basic realm=\"x\", "), Err(AuthDefect::EmptyMember));
     }
 
     #[test]
     fn empty_param_name_is_error() {
         assert_eq!(
-            validate_challenge_syntax("Basic =\"x\""),
-            Err(AuthDefect::EmptyParameterName)
+            one(validate_challenge_syntax("Basic =\"x\"")),
+            Err(AuthDefect::EmptyParameterName("=\"x\""))
         );
     }
 
     #[test]
     fn invalid_character_in_param_name_is_error() {
         assert_eq!(
-            validate_challenge_syntax("Basic re@alm=1, x=1"),
-            Err(AuthDefect::ParameterNameCharacter('@'))
+            one(validate_challenge_syntax("Basic re@alm=1, x=1")),
+            Err(AuthDefect::ParameterNameCharacter {
+                name: "re@alm",
+                character: '@'
+            })
         );
     }
 
@@ -2079,7 +2288,7 @@ mod tests {
     /// to have a defect in.
     #[test]
     fn invalid_quoted_string_in_param_reports_error() {
-        let r = validate_challenge_syntax("Basic realm=\"unterminated");
+        let r = one(validate_challenge_syntax("Basic realm=\"unterminated"));
         assert_eq!(
             r,
             Err(AuthDefect::ParameterQuotedValue {
@@ -2119,19 +2328,25 @@ mod tests {
     #[test]
     fn invalid_character_in_param_value_is_error() {
         assert_eq!(
-            validate_challenge_syntax("Basic realm=x@y"),
-            Err(AuthDefect::ParameterValueCharacter('@'))
+            one(validate_challenge_syntax("Basic realm=x@y")),
+            Err(AuthDefect::ParameterValueCharacter {
+                name: "realm",
+                character: '@'
+            })
         );
         assert_eq!(
-            validate_challenge_syntax("Basic re@alm=xy, x=1"),
-            Err(AuthDefect::ParameterNameCharacter('@'))
+            one(validate_challenge_syntax("Basic re@alm=xy, x=1")),
+            Err(AuthDefect::ParameterNameCharacter {
+                name: "re@alm",
+                character: '@'
+            })
         );
-        assert_eq!(validate_challenge_syntax("Basic re@alm=xy"), Ok(()));
+        assert_eq!(one(validate_challenge_syntax("Basic re@alm=xy")), Ok(()));
     }
 
     #[test]
     fn token68_with_allowed_chars_ok() {
-        let r = validate_challenge_syntax("NewSch abc+");
+        let r = one(validate_challenge_syntax("NewSch abc+"));
         assert!(r.is_ok());
     }
 }

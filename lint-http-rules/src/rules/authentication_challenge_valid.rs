@@ -115,10 +115,9 @@ impl Rule for AuthenticationChallengeValid {
 
                 for s in crate::helpers::headers::field_lines(&resp.headers, field.key) {
                     // split assembled challenges
-                    let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
-                        Ok(c) => c,
-                        Err(_) => continue,
-                    };
+                    // The list's own defects are the framework reader's; the
+                    // challenges beside them are still challenges.
+                    let (challenges, _) = crate::helpers::auth::split_and_group_challenges(s);
 
                     for ch in challenges.iter() {
                         let ch = ch.trim();
@@ -133,7 +132,8 @@ impl Rule for AuthenticationChallengeValid {
                         if let Some(rest) = parts.next() {
                             let rest = rest.trim();
                             if rest.contains('=') {
-                                if let Ok(params) = crate::helpers::auth::parse_auth_params(rest) {
+                                {
+                                    let (params, _) = crate::helpers::auth::parse_auth_params(rest);
                                     if let Some(r) = params.get("realm") {
                                         // Normalize quoted and unquoted realm to the same
                                         // string before comparing: a sender must quote it, but

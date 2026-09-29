@@ -73,9 +73,7 @@ fn find_last_digest_challenge(
         }
         for hv2 in resp.headers.get_all(exchange.challenge.key).iter() {
             let Ok(val2) = hv2.to_str() else { continue };
-            let Ok(challs) = crate::helpers::auth::split_and_group_challenges(val2) else {
-                continue;
-            };
+            let (challs, _) = crate::helpers::auth::split_and_group_challenges(val2);
             for chall in challs {
                 let mut parts2 = chall.splitn(2, char::is_whitespace);
                 let scheme2 = parts2.next().unwrap_or("");
@@ -83,9 +81,7 @@ fn find_last_digest_challenge(
                     continue;
                 }
                 let rest2 = parts2.next().unwrap_or("").trim();
-                let Ok(map2) = crate::helpers::auth::parse_auth_params(rest2) else {
-                    continue;
-                };
+                let (map2, _) = crate::helpers::auth::parse_auth_params(rest2);
                 if nonce.is_none() {
                     if let Some(n) = map2.get("nonce") {
                         nonce = Some(n.trim_matches('"').to_string());
@@ -124,9 +120,7 @@ fn highest_nc_for_nonce(
                 continue;
             }
             let rest3 = parts3.next().unwrap_or("").trim();
-            let Ok(map3) = crate::helpers::auth::parse_auth_params(rest3) else {
-                continue;
-            };
+            let (map3, _) = crate::helpers::auth::parse_auth_params(rest3);
             let Some(prev_nonce) = map3.get("nonce") else {
                 continue;
             };
@@ -248,14 +242,11 @@ impl Rule for DigestAuthNonceHandling {
                     continue;
                 }
 
-                let params = match crate::helpers::auth::parse_auth_params(rest) {
-                    Ok(m) => m,
-                    Err(_) => {
-                        // syntax errors are caught by digest_auth_valid,
-                        // so just bail out here rather than reporting again.
-                        continue;
-                    }
-                };
+                // A malformed member is `digest_auth_valid`'s finding. The
+                // members that parse are still a nonce, an opaque and a count,
+                // and what this rule asks of them is not about syntax, so a
+                // bad member beside them is no reason to stop asking it.
+                let (params, _) = crate::helpers::auth::parse_auth_params(rest);
 
                 let nonce = params.get("nonce").map(|v| v.trim_matches('"').to_string());
                 let opaque = params

@@ -124,12 +124,11 @@ impl Rule for DigestChallengeValid {
             else {
                 continue;
             };
-            // A value that will not group into challenges is the framework
-            // reader's finding and not this one's: `challenge_list_defects`
-            // reports it under the production it broke.
-            let Ok(challenges) = crate::helpers::auth::split_and_group_challenges(&value) else {
-                continue;
-            };
+            // A defect of the list -- an empty member, a parameter before any
+            // scheme -- is the framework reader's finding and not this one's:
+            // `challenge_list_defects` reports it under the production it
+            // broke, and the challenges beside it are read here as any others.
+            let (challenges, _) = crate::helpers::auth::split_and_group_challenges(&value);
             for challenge in &challenges {
                 // The scheme is a case-insensitive token, and only this one
                 // scheme's document writes the lists below.
@@ -143,9 +142,9 @@ impl Rule for DigestChallengeValid {
                 let Some(rest) = tail else { continue };
                 // A parameter list that will not parse is the framework's to
                 // report, for the same reason the grouping above is.
-                let Ok(params) = crate::helpers::auth::parse_auth_params(rest) else {
-                    continue;
-                };
+                // A malformed member is the framework reader's finding; the
+                // members beside it are graded here as they would be alone.
+                let (params, _) = crate::helpers::auth::parse_auth_params(rest);
                 // **Every parameter, not the first.** A challenge writing two
                 // of them in the wrong syntax is two values to respell, and one
                 // finding naming one of them would leave the sender to
@@ -246,6 +245,11 @@ mod tests {
     #[case(r#"Digest realm="r", nonce="n", charset=UTF-8, userhash="true""#, 0)]
     // Another scheme's challenge is another document's.
     #[case(r#"Basic realm=r"#, 0)]
+    // A member the framework refuses is its reader's finding, and does not
+    // withdraw this one: the parse used to answer the whole challenge with
+    // the first refused member, so the `nonce` beside it went unread.
+    #[case(r#"Digest realm="r", nonce=abc, =x"#, 1)]
+    #[case(r#"Digest realm="r", b@d=1, nonce=abc"#, 1)]
     fn the_two_lists_are_read_over_a_digest_challenge(
         #[case] value: &str,
         #[case] expected: usize,

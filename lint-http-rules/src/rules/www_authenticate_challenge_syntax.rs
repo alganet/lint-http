@@ -502,9 +502,9 @@ mod tests {
         let r = crate::helpers::auth::validate_challenge_syntax("Basic realm=\"x\", flag");
         assert_eq!(
             r,
-            Err(crate::helpers::auth::AuthDefect::ParameterEqualsMissing(
+            vec![crate::helpers::auth::AuthDefect::ParameterEqualsMissing(
                 "flag"
-            ))
+            )]
         );
     }
 
@@ -791,39 +791,35 @@ mod tests {
     /// and not a repetition. A walk counting names per field line reports the
     /// specification's own example, which is what the third row pins.
     ///
-    /// The last row is the ordering between two facts the walk holds back. Both
-    /// are § 11.x sentences about a well-formed value, and the duplication is
-    /// named first because the realm reading takes the first realm and can only
-    /// do that by assuming there is one — told to quote a realm the recipient
-    /// may not be using, a sender repairs a value that was never the subject.
+    /// The last row is two facts about one subject. Both are § 11.x sentences
+    /// about a well-formed value, and the duplication alone answers because the
+    /// realm reading takes the first realm and can only do that by assuming
+    /// there is one — told to quote a realm the recipient may not be using, a
+    /// sender repairs a value that was never the subject.
+    ///
+    /// The row before it is the one that changed. The walk used to return on
+    /// the first member failing `auth-param`, so the duplicate behind it was
+    /// never counted; every member answers for itself now, and a malformed
+    /// name and a repeated one are two repairs.
     #[rstest]
-    #[case(
-        "Basic realm=\"a\", realm=\"b\"",
-        Some("challenge_parameter_duplicated")
-    )]
+    #[case("Basic realm=\"a\", realm=\"b\"", &["challenge_parameter_duplicated"])]
     // Folded before comparison, because the same sentence folds the name.
-    #[case(
-        "Basic realm=\"a\", REALM=\"b\"",
-        Some("challenge_parameter_duplicated")
-    )]
+    #[case("Basic realm=\"a\", REALM=\"b\"", &["challenge_parameter_duplicated"])]
     // Two challenges, one realm each: § 11.6.1 prints this shape itself.
-    #[case("Basic realm=\"a\", Bearer realm=\"b\"", None)]
+    #[case("Basic realm=\"a\", Bearer realm=\"b\"", &[])]
     // A parameter that is not `realm` counts the same; the sentence names none.
-    #[case(
-        "Bearer error=\"x\", error=\"y\"",
-        Some("challenge_parameter_duplicated")
-    )]
-    // A defect of the production still outranks it: the walk returns on the
-    // first member that fails `auth-param` and never reaches the count.
+    #[case("Bearer error=\"x\", error=\"y\"", &["challenge_parameter_duplicated"])]
+    // A defect of the production beside it is a second repair, not a reason
+    // to stop counting.
     #[case(
         "Basic realm=\"a\", bad@name=x, realm=\"b\"",
-        Some("auth_param_name_character_forbidden")
+        &["auth_param_name_character_forbidden", "challenge_parameter_duplicated"]
     )]
-    // And the duplication outranks § 11.5's spelling of the realm.
-    #[case("Basic realm=a, realm=\"b\"", Some("challenge_parameter_duplicated"))]
+    // And the duplication answers for § 11.5's spelling of the same realm.
+    #[case("Basic realm=a, realm=\"b\"", &["challenge_parameter_duplicated"])]
     fn a_parameter_name_written_twice_in_one_challenge_is_reported(
         #[case] value: &str,
-        #[case] expected: Option<&str>,
+        #[case] expected: &[&str],
     ) {
         let rule = WwwAuthenticateChallengeSyntax;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -839,14 +835,8 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        // One challenge, one finding: the walk answers with the first defect it
-        // reaches, and a second here would mean the value was read twice.
-        assert!(all.len() <= 1, "{value:?} drew {all:?}");
-        assert_eq!(
-            all.first().map(|v| v.violation.clone()),
-            expected.map(str::to_string),
-            "{value:?}"
-        );
+        let ids: Vec<&str> = all.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, expected, "{value:?}");
     }
 
     #[test]
@@ -1059,5 +1049,70 @@ mod tests {
     fn needs_a_response() {
         let rule = WwwAuthenticateChallengeSyntax;
         assert!(rule.needs_response());
+    }
+
+    /// **No defect ends the reading of a `#challenge` list.** The member walk
+    /// returned at the first `auth-param` that failed the production, the
+    /// held-back readings waited for a clean challenge, and a defect of the
+    /// list itself -- an empty member, a parameter before any scheme -- ended
+    /// the reading of every challenge after it, though § 5.6.1.2 has a
+    /// recipient ignore the empty member and the challenges around it are
+    /// still challenges. Each row carries two defects and draws both, in the
+    /// order written; the list's own come first. The last two rows are the
+    /// controls: two empty members are one finding, since its sentence names
+    /// none, and a conforming pair draws nothing.
+    #[rstest]
+    #[case("Basic realm=a b, charset=", &["auth_param_value_character_forbidden", "auth_param_value_empty"])]
+    #[case("Basic charset=, realm=a b", &["auth_param_value_empty", "auth_param_value_character_forbidden"])]
+    #[case("Basic realm=\"a\", realm=\"b\", x=a b", &["auth_param_value_character_forbidden", "challenge_parameter_duplicated"])]
+    #[case("Basic realm=foo, x=", &["auth_param_value_empty", "auth_param_realm_quoting_invalid"])]
+    #[case("Basic x = \"1\", y=", &["auth_param_value_empty", "bws_forbidden"])]
+    #[case("Basic realm=\"a\", , Bearer error=", &["challenge_member_empty", "auth_param_value_empty"])]
+    #[case("realm=\"x\", Basic charset=", &["challenge_scheme_missing", "auth_param_value_empty"])]
+    #[case("Basic realm=\"a\", , , Bearer", &["challenge_member_empty"])]
+    #[case("Basic realm=\"a\", charset=\"UTF-8\", Bearer realm=\"b\"", &[])]
+    fn every_defect_in_a_challenge_list_is_reported(
+        #[case] value: &str,
+        #[case] expected: &[&str],
+    ) {
+        let all = crate::test_helpers::run_rule_all(
+            &WwwAuthenticateChallengeSyntax,
+            &crate::test_helpers::make_test_transaction_with_response(
+                401,
+                &[("www-authenticate", value)],
+            ),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "www_authenticate_challenge_syntax",
+            ]),
+        );
+        let ids: Vec<&str> = all.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, expected, "{value:?}");
+    }
+
+    /// Two findings of one id in one challenge have to say which member each
+    /// is about, and the character sentences named none: both of these read
+    /// "Invalid character ' ' in WWW-Authenticate auth-param value".
+    #[test]
+    fn two_character_findings_name_their_own_parameters() {
+        let all = crate::test_helpers::run_rule_all(
+            &WwwAuthenticateChallengeSyntax,
+            &crate::test_helpers::make_test_transaction_with_response(
+                401,
+                &[("www-authenticate", "Basic realm=a b, charset=u tf")],
+            ),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "www_authenticate_challenge_syntax",
+            ]),
+        );
+        let messages: Vec<&str> = all.iter().map(|v| v.message.as_str()).collect();
+        assert_eq!(
+            messages,
+            [
+                "Invalid character ' ' in WWW-Authenticate auth-param value for 'realm'",
+                "Invalid character ' ' in WWW-Authenticate auth-param value for 'charset'",
+            ]
+        );
     }
 }

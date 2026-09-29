@@ -216,11 +216,11 @@ pub fn challenge_defect(defect: AuthDefect<'_>) -> &'static ViolationDef {
         AuthDefect::Token68ControlCharacter => &TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN,
         AuthDefect::SuspiciousSingleToken(_) => &CHALLENGE_TOKEN68_INVALID,
         AuthDefect::ParameterMemberEmpty => &LIST_MEMBER_EMPTY,
-        AuthDefect::EmptyParameterName => &AUTH_PARAM_NAME_EMPTY,
+        AuthDefect::EmptyParameterName(_) => &AUTH_PARAM_NAME_EMPTY,
         AuthDefect::ParameterEqualsMissing(_) => &AUTH_PARAM_EQUALS_MISSING,
         AuthDefect::ParameterValueEmpty(_) => &AUTH_PARAM_VALUE_EMPTY,
-        AuthDefect::ParameterNameCharacter(_) => &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
-        AuthDefect::ParameterValueCharacter(_) => &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
+        AuthDefect::ParameterNameCharacter { .. } => &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
+        AuthDefect::ParameterValueCharacter { .. } => &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
         AuthDefect::ParameterQuotedValue { defect, .. } => quoted_string_defect(defect),
         AuthDefect::ParameterDuplicated(_) => &CHALLENGE_PARAMETER_DUPLICATED,
         AuthDefect::RealmUnquoted(_) => &AUTH_PARAM_REALM_QUOTING_INVALID,
@@ -238,29 +238,32 @@ pub fn challenge_defect(defect: AuthDefect<'_>) -> &'static ViolationDef {
 /// other does not. `field` is only how the sentence names what carried the
 /// value.
 ///
-/// **A defect of the *list* ends the reading, and a defect of a member does
-/// not.** A value that could not be split into members has no members to
-/// answer for, so it yields one finding; past that, every member is a subject
-/// of its own and the comma beside a malformed one is not a reason to stop
-/// reading the one after it.
+/// **No defect ends the reading.** This used to say a defect of the *list*
+/// did, because a value that could not be split into members had no members to
+/// answer for -- and neither list defect is one of those. An empty member is
+/// one a recipient parses and ignores, and an `auth-param` before any scheme
+/// belongs to no challenge while every challenge after it is still one, so
+/// `Basic realm="a", , Bearer error=` has a `Bearer` challenge to read. The
+/// list's defects come first, then each challenge's in the order written.
 ///
 /// The tuple is the judge-then-report shape: nothing here builds a `Violation`,
 /// because the party and the context belong to the rule that asked.
 // cite(RFC 9110 § 11.6.1): "WWW-Authenticate = #challenge"
 // cite(RFC 9110 § 11.7.1): "Proxy-Authenticate = #challenge"
 pub fn challenge_list_defects(field: &str, value: &str) -> Vec<(&'static ViolationDef, String)> {
-    let challenges = match crate::helpers::auth::split_and_group_challenges(value) {
-        Ok(c) => c,
-        Err(defect) => return vec![(challenge_defect(defect), defect.message(field))],
-    };
-    challenges
-        .iter()
-        .filter_map(|challenge| {
+    let (challenges, list_defects) = crate::helpers::auth::split_and_group_challenges(value);
+    let mut out: Vec<(&'static ViolationDef, String)> = list_defects
+        .into_iter()
+        .map(|defect| (challenge_defect(defect), defect.message(field)))
+        .collect();
+    for challenge in &challenges {
+        out.extend(
             crate::helpers::auth::validate_challenge_syntax(challenge)
-                .err()
-                .map(|defect| (challenge_defect(defect), defect.message(field)))
-        })
-        .collect()
+                .into_iter()
+                .map(|defect| (challenge_defect(defect), defect.message(field))),
+        );
+    }
+    out
 }
 
 #[cfg(test)]
@@ -289,7 +292,10 @@ mod tests {
                 AuthDefect::SuspiciousSingleToken("realm"),
                 "challenge_token68_invalid",
             ),
-            (AuthDefect::EmptyParameterName, "auth_param_name_empty"),
+            (
+                AuthDefect::EmptyParameterName("=x"),
+                "auth_param_name_empty",
+            ),
             (
                 AuthDefect::ParameterEqualsMissing("flag"),
                 "auth_param_equals_missing",
@@ -300,11 +306,17 @@ mod tests {
             ),
             (AuthDefect::ParameterMemberEmpty, "list_member_empty"),
             (
-                AuthDefect::ParameterNameCharacter('@'),
+                AuthDefect::ParameterNameCharacter {
+                    name: "re@lm",
+                    character: '@',
+                },
                 "auth_param_name_character_forbidden",
             ),
             (
-                AuthDefect::ParameterValueCharacter('@'),
+                AuthDefect::ParameterValueCharacter {
+                    name: "realm",
+                    character: '@',
+                },
                 "auth_param_value_character_forbidden",
             ),
             (

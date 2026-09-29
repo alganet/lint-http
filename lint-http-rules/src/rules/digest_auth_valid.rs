@@ -199,8 +199,12 @@ impl Rule for DigestAuthValid {
                 };
 
                 // parse auth-param list into map
-                match crate::helpers::auth::parse_auth_params(rest) {
-                    Ok(map) => {
+                // The parse reads past a malformed member now, and this rule
+                // still answers with the first one before grading the rest --
+                // the order it has always had.
+                let (map, defects) = crate::helpers::auth::parse_auth_params(rest);
+                match defects.first().copied() {
+                    None => {
                         // Required fields: username, realm, nonce, uri, response. §3.4 lists the
                         // parameters and names the consequence for missing required ones, but
                         // labels no "required" set; these five are the ones the response
@@ -418,7 +422,7 @@ impl Rule for DigestAuthValid {
                     // `auth-param`'s own — § 11.2's sentence rather than
                     // § 5.6.6's, which describes a construct with no `BWS` in
                     // it.
-                    Err(defect) => {
+                    Some(defect) => {
                         let message =
                             format!("Invalid Digest auth parameters: {}", defect.message());
                         return Some(ctx.report_with(auth_param_member(defect), message));

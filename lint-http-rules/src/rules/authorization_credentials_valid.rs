@@ -228,44 +228,47 @@ impl Rule for AuthorizationCredentialsValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Read as octets. `to_str` refuses everything outside visible
-            // US-ASCII, which made an octet in the credentials a verdict about
-            // the field's encoding; the productions here own that octet -- the
-            // scheme's `token`, and each scheme's own credential grammar next
-            // door.
+        let mut out = Vec::new();
+        // Read as octets. `to_str` refuses everything outside visible
+        // US-ASCII, which made an octet in the credentials a verdict about
+        // the field's encoding; the productions here own that octet -- the
+        // scheme's `token`, and each scheme's own credential grammar next
+        // door.
+        //
+        // The production is one value rather than a list, so the field
+        // lines are **not** combined -- and every one of them is read,
+        // because a sender wrote each and this rule measures what was
+        // written. That a second line exists at all is
+        // `singleton_fields_not_repeated`'s finding, and picking a line to
+        // believe would make the rest of them unreadable rather than
+        // reported.
+        //
+        // Both fields § 11 writes as `credentials`, because the framework's
+        // shape is what this rule reads and § 11.7.2 writes the same
+        // production for the proxy. Which hop the value addresses is not
+        // this reading's subject; the sentence names the field so a finding
+        // about one is not read as a finding about the other.
+        for (shown, s) in crate::helpers::auth::credentials_field_lines(&tx.request.headers) {
+            // The value is credentials — an auth-scheme with its
+            // authentication information — which is the structure validated here.
+            // The "credentials must actually be present" half is scheme-derived
+            // (the framework grammar permits a bare scheme); the helper owns that
+            // reasoning and the §11.4 structure cite.
+            // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
             //
-            // The production is one value rather than a list, so the field
-            // lines are **not** combined -- and every one of them is read,
-            // because a sender wrote each and this rule measures what was
-            // written. That a second line exists at all is
-            // `singleton_fields_not_repeated`'s finding, and picking a line to
-            // believe would make the rest of them unreadable rather than
-            // reported.
-            //
-            // Both fields § 11 writes as `credentials`, because the framework's
-            // shape is what this rule reads and § 11.7.2 writes the same
-            // production for the proxy. Which hop the value addresses is not
-            // this reading's subject; the sentence names the field so a finding
-            // about one is not read as a finding about the other.
-            for (shown, s) in crate::helpers::auth::credentials_field_lines(&tx.request.headers) {
-                // The value is credentials — an auth-scheme with its
-                // authentication information — which is the structure validated here.
-                // The "credentials must actually be present" half is scheme-derived
-                // (the framework grammar permits a bare scheme); the helper owns that
-                // reasoning and the §11.4 structure cite.
-                // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
-                if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(&s) {
-                    return Some(
-                        ctx.report_with(credentials_defect(defect), defect.message(shown)),
-                    );
-                }
-            }
-            None
-        };
-        Vec::from_iter(finding())
+            // Every line, and every defect in it: this walk used to return
+            // at the first defective line, so a request whose
+            // `Authorization` and `Proxy-Authorization` were both broken
+            // was told about one of them.
+            out.extend(
+                crate::helpers::auth::validate_authorization_syntax(&s)
+                    .into_iter()
+                    .map(|defect| {
+                        ctx.report_with(credentials_defect(defect), defect.message(shown))
+                    }),
+            );
+        }
+        out
     }
 }
 
@@ -618,5 +621,60 @@ mod tests {
             }
         }
         assert!(saw_a_finding, "no published example produced a finding");
+    }
+
+    fn judge_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<String> {
+        crate::test_helpers::run_rule_all(
+            &AuthorizationCredentialsValid,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "authorization_credentials_valid",
+            ]),
+        )
+        .into_iter()
+        .map(|v| v.message)
+        .collect()
+    }
+
+    /// **Every member of a credential's `#auth-param` list, and every field
+    /// carrying one, answers for itself.** The walk returned at the first
+    /// defective member, and this rule at the first defective field line, so a
+    /// credential with two broken parameters, or a request whose two
+    /// credentials fields were both broken, was told about one thing and then,
+    /// once that was fixed, about the next. The last row is the control: a
+    /// scheme that is not a `token` names no scheme whose document could
+    /// require credentials, so it is one finding and not two.
+    #[rstest]
+    #[case(
+        &[("authorization", "Custom a=, b=c d")],
+        &[
+            "Authorization auth-param 'a' has nothing after its '='",
+            "Invalid character ' ' in Authorization auth-param value for 'b'",
+        ]
+    )]
+    #[case(
+        &[("authorization", "B@d x"), ("proxy-authorization", "Custom b=c d")],
+        &[
+            "Invalid character '@' in Authorization auth-scheme",
+            "Invalid character ' ' in Proxy-Authorization auth-param value for 'b'",
+        ]
+    )]
+    #[case(
+        &[("authorization", "Custom a=\"1\", , , b=")],
+        &[
+            "Authorization auth-param list has an empty member",
+            "Authorization auth-param 'b' has nothing after its '='",
+        ]
+    )]
+    #[case(&[("authorization", "B@d")], &["Invalid character '@' in Authorization auth-scheme"])]
+    #[case(&[("authorization", "Custom a=\"1\", b=c")], &[])]
+    fn every_defective_member_and_field_is_reported(
+        #[case] fields: &[(&str, &str)],
+        #[case] expected: &[&str],
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(fields);
+        assert_eq!(judge_all(&tx), expected, "{fields:?}");
     }
 }

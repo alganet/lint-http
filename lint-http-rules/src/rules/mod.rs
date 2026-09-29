@@ -2243,6 +2243,32 @@ enabled = "true"
         // Named per file, which is coarser than the shape and is the cost: a
         // real member walk added to an excused file would be excluded with it.
         const LOOKS_UP_ONE_NAMED_PART: [&str; 0] = [];
+        // **The helpers are read too, and excused per function rather than
+        // per file.** Until 2026-09-27 this test read `src/rules` alone, and
+        // the walk every `WWW-Authenticate`, `Proxy-Authenticate`,
+        // `Authorization` and `Proxy-Authorization` goes through lived in
+        // `helpers/auth.rs`: it returned at the first defective `auth-param`,
+        // the challenge grouping returned at the first empty member, and the
+        // parse three Digest readers use returned at the first refused member
+        // and took every other member with it. Pointed at `src/helpers`, the
+        // test named those three and three more, and the three more are the
+        // functions below -- each answering one question about one value, so
+        // that what a second defect would add is not a second repair:
+        //
+        // - the labels of one host name are one name, and RFC 1035's
+        //   preferred syntax is a verdict about the name;
+        // - the subtags of one language tag are one tag, and the caller
+        //   walks the tags;
+        // - RFC 9112 § 6.3 makes an unusable `Content-Length` one framing
+        //   error for the message, whichever member made it unusable.
+        //
+        // A file would have been too coarse here: excusing `auth.rs` whole is
+        // how the three walks above would have stayed.
+        const ONE_VALUE_ONE_VERDICT: [(&str, &str); 3] = [
+            ("domain.rs", "preferred_name_syntax_defect"),
+            ("language.rs", "validate_language_tag"),
+            ("content_length.rs", "validate_content_length"),
+        ];
         // The helpers that yield a list's members, and the ones that do not.
         // Every `pub fn` of the two modules these come from is in one list or
         // the other, checked below, so a new member helper cannot be added
@@ -2383,13 +2409,17 @@ enabled = "true"
             dead
         );
 
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
         let mut carrying = Vec::new();
-        for entry in std::fs::read_dir(&dir)? {
+        let mut excused = Vec::new();
+        for entry in
+            std::fs::read_dir(src.join("rules"))?.chain(std::fs::read_dir(src.join("helpers"))?)
+        {
             let path = entry?.path();
             if path.extension().is_none_or(|e| e != "rs") {
                 continue;
             }
+            let in_helpers = path.parent().is_some_and(|d| d.ends_with("helpers"));
             let name = path.file_name().unwrap_or_default().to_string_lossy();
             if ANSWERS_PER_MESSAGE.contains(&name.as_ref())
                 || LOOKS_UP_ONE_NAMED_PART.contains(&name.as_ref())
@@ -2479,15 +2509,36 @@ enabled = "true"
                 // shape the rules had before they were fixed, which is the
                 // shape they can no longer be written in. `Err` and `?` are the
                 // two a splitter uses, which is how seven walks stayed here
-                // after the `Some` and `vec!` spellings were both watched.
+                // after the `Some` and `vec!` spellings were both watched. A
+                // tuple is the third: the shape a splitter is repaired *into*
+                // returns its members beside its defects, and a regression in
+                // that shape returns the pair early rather than an `Err`.
                 let ends_the_walk = lines[j + 1..end].iter().any(|l| {
                     l.contains("return Some(")
                         || l.contains("return vec![")
                         || l.contains("return Err(")
+                        || l.contains("return (")
                         || l.contains("?;")
                 });
                 if ends_the_walk {
-                    carrying.push(format!("{}:{}", name, i + 1));
+                    // The function the walk is in: the nearest `fn` above it
+                    // at a shallower indentation.
+                    let within = lines[..i]
+                        .iter()
+                        .rev()
+                        .find(|l| {
+                            l.len() - l.trim_start().len() < indent
+                                && (l.trim_start().starts_with("fn ")
+                                    || l.trim_start().starts_with("pub fn "))
+                        })
+                        .and_then(|l| l.split("fn ").nth(1))
+                        .map(|rest| rest.split(['(', '<']).next().unwrap_or(rest))
+                        .unwrap_or("");
+                    if in_helpers && ONE_VALUE_ONE_VERDICT.contains(&(name.as_ref(), within)) {
+                        excused.push((name.to_string(), within.to_string()));
+                    } else {
+                        carrying.push(format!("{}:{} ({})", name, i + 1, within));
+                    }
                 }
             }
         }
@@ -2498,6 +2549,18 @@ enabled = "true"
              answers for the value where the sender wrote a member. Collect the \
              findings and keep the one each member yields:\n  {}",
             carrying.join("\n  ")
+        );
+        // Every excuse still stands over a walk that ends early: an entry the
+        // walk no longer matches is a permission for nothing, and a reader of
+        // this list would count it as a function that was argued.
+        let stale: Vec<&(&str, &str)> = ONE_VALUE_ONE_VERDICT
+            .iter()
+            .filter(|(f, n)| !excused.iter().any(|(ef, en)| ef == f && en == n))
+            .collect();
+        assert!(
+            stale.is_empty(),
+            "an excused function no longer ends a member walk early; delete it:\n  {:?}",
+            stale
         );
         Ok(())
     }
