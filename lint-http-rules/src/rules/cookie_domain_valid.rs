@@ -7,7 +7,8 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::{
     domain_defect, COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_IPV4_ADDRESS_FORBIDDEN,
     COOKIE_DOMAIN_IPV6_LITERAL_FORBIDDEN, COOKIE_DOMAIN_LEADING_DOT_OBSOLETE,
-    COOKIE_DOMAIN_MISSING, COOKIE_DOMAIN_MISSING_WORDING, RFC_6265_5_1_3, RFC_6265_5_2_3,
+    COOKIE_DOMAIN_MISSING, COOKIE_DOMAIN_MISSING_WORDING, RFC_6265_4_1_1, RFC_6265_5_1_3,
+    RFC_6265_5_2_3,
 };
 use crate::violations::domain::{
     DOMAIN_LABEL_CHARACTER_FORBIDDEN, DOMAIN_LABEL_EDGE_HYPHEN_FORBIDDEN, DOMAIN_LABEL_EMPTY,
@@ -47,13 +48,14 @@ impl RuleMeta for CookieDomainValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validate the `Domain` attribute of `Set-Cookie` header values. This rule checks that\n`Domain` values are syntactically valid domain names (no spaces, valid label characters,\nlabel length and overall length limits) and flags uses that are likely incorrect, such as\nIP addresses or empty values. A leading `.` is tolerated for historical reasons but is\nreported as deprecated."
+        "Validate the `Domain` attribute of `Set-Cookie` header values. This rule checks that\n`Domain` values are syntactically valid domain names (no spaces, valid label characters,\nlabel length and overall length limits) and flags uses that are likely incorrect, such as\nIP addresses or empty values. A leading `.`, which the grammar a server writes does not\npermit and every user agent strips, is reported at `info`, naming the value to write\ninstead."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_1035_2_3_1,
             RFC_1035_2_3_4,
+            RFC_6265_4_1_1,
             RFC_6265_5_1_3,
             RFC_6265_5_2_3,
         ]
@@ -97,7 +99,7 @@ impl RuleMeta for CookieDomainValid {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— leading dot is deprecated (this rule reports it)"),
+                label: Some("— a leading dot, which every user agent strips"),
                 snippet: "Set-Cookie: SID=1; Domain=.example.com",
             },
             Example {
@@ -183,13 +185,19 @@ impl CookieDomainValid {
                 }
                 match crate::helpers::domain::validate_cookie_domain(val) {
                     Ok(()) => {
-                        if val.starts_with('.') {
+                        // The value as written, and what is left once § 5.2.3 has
+                        // taken the dot off: the cookie-domain every user agent
+                        // stores, and so the value to write instead.
+                        if let Some(rest) = val.strip_prefix('.') {
                             out.push(ctx.report_with(
                                 &COOKIE_DOMAIN_LEADING_DOT_OBSOLETE,
-                                about(
-                                    "Set-Cookie 'Domain' attribute uses a leading '.' which is \
-                                     deprecated; prefer the registry form without leading dot",
-                                ),
+                                about(&format!(
+                                    "Set-Cookie Domain '{val}' starts with a '.', which RFC \
+                                     6265 § 4.1.1's grammar does not permit; a user agent \
+                                     strips it (§ 5.2.3), so the cookie is scoped exactly as \
+                                     'Domain={rest}' scopes it, to that host and every host \
+                                     under it: write that"
+                                )),
                             ));
                         }
                     }
@@ -453,12 +461,28 @@ mod tests {
         assert!(v.is_some());
     }
 
-    #[test]
-    fn leading_dot_reports_deprecation_message() {
-        let v = check_set_cookie("SID=1; Domain=.example.com");
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("deprecated") || msg.contains("leading '.'"));
+    /// The sentence names the value it was drawn by and the one to write
+    /// instead, which is the value with the dot taken off and nothing else
+    /// changed: § 5.2.3 lower-cases the cookie-domain after stripping, and the
+    /// operator is told what to write, not what the user agent stores.
+    #[rstest]
+    #[case("SID=1; Domain=.example.com", "'.example.com'", "'Domain=example.com'")]
+    #[case(
+        "SID=1; Domain=.Wikipedia.ORG",
+        "'.Wikipedia.ORG'",
+        "'Domain=Wikipedia.ORG'"
+    )]
+    #[case("SID=1; domain=.a.b.example", "'.a.b.example'", "'Domain=a.b.example'")]
+    fn a_leading_dot_names_the_value_and_its_repair(
+        #[case] cookie: &str,
+        #[case] written: &str,
+        #[case] repair: &str,
+    ) {
+        let v = check_set_cookie(cookie).expect("reports");
+        assert_eq!(v.violation, "cookie_domain_leading_dot_obsolete");
+        assert!(v.message.contains(written), "{}", v.message);
+        assert!(v.message.contains(repair), "{}", v.message);
+        assert!(v.message.ends_with("(cookie 'SID')"), "{}", v.message);
     }
 
     #[test]

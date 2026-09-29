@@ -1700,6 +1700,8 @@ severity = "warn"
 
 [violations.cookie_domain_leading_dot_obsolete]
 # Set-Cookie Domain attribute keeps the obsolete leading dot
+# SHOULD obliges the sender, so this defaults to warn.
+# Departs from that: The SHOULD NOT is § 4.1.1's, and the sibling entries that quote it report at `warn` on the strength of it. This one cannot: § 5.2.3 is a MUST on the recipient, and its first step strips the leading dot, so the cookie-domain is the one the server would have written without it and nothing any conforming user agent does changes. The same bracket as `cookie_attribute_separator_space_missing` and `cookie_expires_malformed`.
 severity = "info"
 
 [violations.cookie_domain_missing]

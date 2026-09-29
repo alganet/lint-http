@@ -289,19 +289,42 @@ defects! {
         spec: &[RFC_6265_5_2_3],
     }
 
-    /// A leading `.`, which is not a syntax error: the user agent strips it,
-    /// so `.example.com` and `example.com` are the same cookie-domain. That is
-    /// exactly why it is reported — RFC 2965 gave the dot a meaning and RFC
-    /// 6265 does not, so it is a form that survives without saying anything.
-    /// `info` by default, because nothing about the cookie is wrong.
+    /// A leading `.`: `Domain=.example.com`, where § 4.1.1 writes
+    /// `Domain=example.com`.
     ///
+    /// **It is outside the grammar, and § 4.1.2.3 says so in the sentence that
+    /// excuses it.** `domain-value` is a `subdomain`, whose first label cannot be
+    /// empty, and the note on the attribute calls the character "not
+    /// permitted" in the same breath as it says a user agent ignores it. That
+    /// is § 5.2.3's first step, before the value is lower-cased or matched
+    /// against anything, so `.example.com` and `example.com` are one
+    /// cookie-domain: the cookie goes to that host and every host under it
+    /// either way. The dot is RFC 2109's, which required it on an explicit
+    /// `Domain`; RFC 6265 kept the tolerance and dropped the meaning.
+    ///
+    /// `info`, on [`COOKIE_ATTRIBUTE_SEPARATOR_SPACE_MISSING`]'s footing and
+    /// for its reason: the SHOULD NOT is the sender's, and a MUST on every
+    /// user agent takes the dot off before anything reads the value, so no
+    /// conforming recipient scopes the cookie differently for it.
+    ///
+    // cite(RFC 6265 § 4.1.1, label: domain-value): "domain-value      = <subdomain>"
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
+    // cite(RFC 6265 § 4.1.2.3): "Note that a leading %x2E ("."), if present, is ignored even though that character is not permitted"
+    // cite(RFC 6265 § 5.2.3): "If the attribute-name case-insensitively matches the string "Domain", the user agent MUST process the cookie-av as follows."
     // cite(RFC 6265 § 5.2.3): "Let cookie-domain be the attribute-value without the leading %x2E (".") character."
     COOKIE_DOMAIN_LEADING_DOT_OBSOLETE = {
         id: "cookie_domain_leading_dot_obsolete",
         title: "Set-Cookie Domain attribute keeps the obsolete leading dot",
         message: "",
         default_severity: Severity::Info,
-        spec: &[RFC_6265_5_2_3],
+        spec: &[RFC_6265_4_1_1, RFC_6265_5_2_3],
+        strength: Strength::Should,
+        departure: "The SHOULD NOT is § 4.1.1's, and the sibling entries that quote it \
+            report at `warn` on the strength of it. This one cannot: § 5.2.3 is a MUST \
+            on the recipient, and its first step strips the leading dot, so the \
+            cookie-domain is the one the server would have written without it and \
+            nothing any conforming user agent does changes. The same bracket as \
+            `cookie_attribute_separator_space_missing` and `cookie_expires_malformed`.",
     }
 
     /// A dotted-quad where a host name goes. The cookie is not thereby
