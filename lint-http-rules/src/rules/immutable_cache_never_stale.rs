@@ -59,7 +59,7 @@ impl RuleMeta for ImmutableCacheNeverStale {
     }
 
     fn description(&self) -> &'static str {
-        "The `immutable` cache-control directive (RFC 8246) signals that the representation is not expected to change.  Clients and caches are therefore encouraged to treat the response as fresh for the duration of its advertised freshness lifetime and to avoid revalidation during that period.  Revalidating (issuing a conditional request) while the entry is still fresh is wasteful and undermines the purpose of `immutable`.\n\nThis rule reconstructs a small piece of cache state for a given client and resource by locating the most recent prior response bearing an `immutable` directive that does not simultaneously forbid caching (`no-store` or `no-cache`).  It estimates the \"age\" of that response using any `Age` header and the elapsed time since the response was observed.  The advertised freshness lifetime is computed using the shared helper in `helpers::headers`, which honours `Cache-Control: max-age` and falls back to an `Expires` header if necessary.  If a subsequent request for the same resource includes a conditional header (`If-None-Match` or `If-Modified-Since`) **and** the calculated age is still less than the freshness lifetime, a warning is produced.  Unconditional requests and conditional requests made after the freshness lifetime expires are permitted, since `immutable` entries may still be reused without revalidation once stale.\n\n**A reload is still reported, and a force reload is not.** RFC 8246 §2 names a reload as a case in which the client should still not revalidate, so a request carrying `Cache-Control: max-age=0` is reported like any other. The exception it makes is an explicit override by the user, such as a force reload, which reaches the wire as a request `no-cache` (or `Pragma: no-cache` with no `Cache-Control`)."
+        "The `immutable` cache-control directive (RFC 8246) signals that the representation is not expected to change.  Clients and caches are therefore encouraged to treat the response as fresh for the duration of its advertised freshness lifetime and to avoid revalidation during that period.  Revalidating (issuing a conditional request) while the entry is still fresh is wasteful and undermines the purpose of `immutable`.\n\nThis rule reconstructs a small piece of cache state for a given client and resource by locating the most recent prior response bearing an `immutable` directive that does not simultaneously forbid caching (`no-store` or `no-cache`).  It estimates the \"age\" of that response using any `Age` header and the elapsed time since the response was observed.  The advertised freshness lifetime is computed using the shared helper in `helpers::headers`, which honours `Cache-Control: max-age` and falls back to an `Expires` header if necessary.  If a subsequent request for the same resource includes a conditional header (`If-None-Match` or `If-Modified-Since`) **and** the calculated age is still less than the freshness lifetime, a warning is produced.  Unconditional requests and conditional requests made after the freshness lifetime expires are permitted, since `immutable` entries may still be reused without revalidation once stale.\n\n**A reload is still reported, and a force reload is not.** RFC 8246 §2 names a reload as a case in which the client should still not revalidate, so a request carrying `Cache-Control: max-age=0` is reported like any other. The exception it makes is an explicit override by the user, such as a force reload, which reaches the wire as a request `no-cache` (or `Pragma: no-cache` with no `Cache-Control`).\n\n**Nor is a revalidation after the client's own write.** A `2xx` or `3xx` answer to an unsafe method — `POST`, `PUT`, `PATCH`, `DELETE`, or any method whose safety is unknown — sent by the same client to the same URI makes its cache invalidate the stored responses for that URI (RFC 9111 §4.4): remove them, or mark them as needing validation before they are used. Either way the fresh entry is not one the next request could be served from, and the conditional request is owed. An entry stored after the write is fresh again and is read as before."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -101,6 +101,11 @@ impl RuleMeta for ImmutableCacheNeverStale {
                 snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=600, immutable\n< ETag: \"a\"\n\n# the user forces a reload\n> GET /image.png HTTP/1.1\n> Host: example.com\n> Cache-Control: no-cache\n> If-None-Match: \"a\"",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a revalidation after the client's own write"),
+                snippet: "> GET /items/7 HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=31536000, immutable\n< ETag: \"v1\"\n\n> PUT /items/7 HTTP/1.1\n> Host: example.com\n> Content-Length: 12\n\n< HTTP/1.1 204 No Content\n\n# a minute later, the client asks for the item again:\n> GET /items/7 HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"\n\n# the PUT made the cache invalidate its entry for /items/7, so validating\n# it before use is required, not early",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— a plain reload is still owed no revalidation"),
                 snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=600, immutable\n< Age: 5\n< ETag: \"a\"\n\n# the user reloads\n> GET /image.png HTTP/1.1\n> Host: example.com\n> Cache-Control: max-age=0\n> If-None-Match: \"a\"",
@@ -138,7 +143,13 @@ impl Rule for ImmutableCacheNeverStale {
             // cite(RFC 9111 § 4): "the request method associated with the stored response allows it to be used for the presented request"
             // cite(RFC 9111 § 4): "request header fields nominated by the stored response (if any) match those presented (see Section 4.1)"
             // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless:"
-            let (prev_tx, prev_resp) = history.responses().find(|(prev_tx, resp)| {
+            //
+            // And it reads only what the client's last write left. A 2xx or 3xx
+            // to an unsafe method made the cache invalidate every entry before
+            // it, and a revalidation of one of those is owed, not early.
+            let mut entries =
+                crate::helpers::stored_response::responses_since_invalidation(history);
+            let (prev_tx, prev_resp) = entries.find(|(prev_tx, resp)| {
                 header_has_immutable(&resp.headers)
                     && crate::helpers::stored_response::storage_allowed(
                         &prev_tx.request.headers,
@@ -452,6 +463,60 @@ mod tests {
             ]),
         );
         assert!(v.is_none());
+    }
+
+    /// The client's own write between the entry and the revalidation. A 2xx or
+    /// 3xx to an unsafe method, or to one whose safety is unknown, invalidated
+    /// the entry, so the revalidation was owed; an error answer, or a safe
+    /// method, left the entry as it was.
+    #[rstest::rstest]
+    #[case("POST", 200, false)]
+    #[case("PUT", 204, false)]
+    #[case("POST", 303, false)]
+    #[case("PURGE", 200, false)]
+    #[case("POST", 403, true)]
+    #[case("DELETE", 500, true)]
+    #[case("OPTIONS", 200, true)]
+    fn a_write_between_decides_whether_the_entry_is_still_held(
+        #[case] method: &str,
+        #[case] status: u16,
+        #[case] reported: bool,
+    ) {
+        let base = Utc::now();
+        let prev = make_prev_with_headers(
+            &[
+                ("cache-control", "max-age=60, immutable"),
+                ("etag", "\"v\""),
+            ],
+            base,
+        );
+        let mut write = crate::test_helpers::make_test_transaction_with_response(status, &[]);
+        write.client = crate::test_helpers::make_test_client();
+        write.request.method = method.to_string();
+        write.request.uri = "/resource".to_string();
+        write.timestamp = base + chrono::Duration::seconds(5);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(304, &[]);
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v\"")]);
+        tx.timestamp = base + chrono::Duration::seconds(10);
+
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![write, prev]);
+        let v = crate::test_helpers::run_rule(
+            &ImmutableCacheNeverStale,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "immutable_cache_never_stale",
+            ]),
+        );
+        assert_eq!(
+            v.as_ref().map(|v| v.violation.as_str()),
+            reported.then_some("cache_control_immutable_ignored"),
+            "{method} -> {status}"
+        );
     }
 
     #[test]

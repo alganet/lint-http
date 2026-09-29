@@ -47,7 +47,7 @@ impl RuleMeta for SMaxAgeEnforced {
     }
 
     fn description(&self) -> &'static str {
-        "Responses that include a `Cache-Control: s-maxage=<seconds>` directive are intended to limit how long **shared** caches may consider the representation fresh.  Private caches (e.g. in a browser or single-client proxy) **must ignore** `s-maxage` and instead rely on the ordinary freshness lifetime (`max-age`, `Expires`, heuristics, etc.).  Misinterpreting `s-maxage` on the client side can lead to unnecessary conditional requests and wasted network traffic.\n\nThis rule watches a series of transactions from the same client and examines the most recent prior response for the same resource that carried both an `<s-maxage>` value and a larger `max-age`.  If the client subsequently issues a conditional request **after** the `s-maxage` interval but **before** the `max-age` interval has elapsed, the cached entry was still fresh according to the private-cache semantics and revalidation was premature.  A warning is issued in that case.\n\nA request that refused the entry itself is not reported: `no-cache` (or `Pragma: no-cache` with no `Cache-Control`), a `max-age` the entry has outlived, or a `min-fresh` the private lifetime cannot meet (RFC 9111 §5.2.1). Such a request has stated why it revalidated, and it was not `s-maxage`."
+        "Responses that include a `Cache-Control: s-maxage=<seconds>` directive are intended to limit how long **shared** caches may consider the representation fresh.  Private caches (e.g. in a browser or single-client proxy) **must ignore** `s-maxage` and instead rely on the ordinary freshness lifetime (`max-age`, `Expires`, heuristics, etc.).  Misinterpreting `s-maxage` on the client side can lead to unnecessary conditional requests and wasted network traffic.\n\nThis rule watches a series of transactions from the same client and examines the most recent prior response for the same resource that carried both an `<s-maxage>` value and a larger `max-age`.  If the client subsequently issues a conditional request **after** the `s-maxage` interval but **before** the `max-age` interval has elapsed, the cached entry was still fresh according to the private-cache semantics and revalidation was premature.  A warning is issued in that case.\n\nA request that refused the entry itself is not reported: `no-cache` (or `Pragma: no-cache` with no `Cache-Control`), a `max-age` the entry has outlived, or a `min-fresh` the private lifetime cannot meet (RFC 9111 §5.2.1). Such a request has stated why it revalidated, and it was not `s-maxage`.\n\n**Nor is a revalidation after the client's own write.** A `2xx` or `3xx` answer to an unsafe method — `POST`, `PUT`, `PATCH`, `DELETE`, or any method whose safety is unknown — sent by the same client to the same URI makes its cache invalidate the stored responses for that URI (RFC 9111 §4.4): remove them, or mark them as needing validation before they are used. Either way the fresh entry is not one the next request could be served from, and the conditional request is owed. An entry stored after the write is fresh again and is read as before."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -75,6 +75,11 @@ impl RuleMeta for SMaxAgeEnforced {
                 compliance: Compliance::Compliant,
                 label: Some("— a request that refused the entry itself"),
                 snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=3600, s-maxage=60\n< Age: 120\n< ETag: \"v1\"\n\n# a reload, after s-maxage and inside max-age\n> GET /resource HTTP/1.1\n> Host: example.com\n> Cache-Control: max-age=0\n> If-None-Match: \"v1\"\n\n# the request says why it revalidated, and it was not s-maxage",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a revalidation after the client's own write"),
+                snippet: "> GET /items/7 HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=600, s-maxage=10\n< ETag: \"v1\"\n\n> PUT /items/7 HTTP/1.1\n> Host: example.com\n> Content-Length: 12\n\n< HTTP/1.1 204 No Content\n\n# a minute later, the client asks for the item again:\n> GET /items/7 HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"\n\n# the PUT made the cache invalidate its entry for /items/7, so validating\n# it before use is required, not early",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -111,29 +116,34 @@ impl Rule for SMaxAgeEnforced {
             // cite(RFC 9111 § 4): "the request method associated with the stored response allows it to be used for the presented request"
             // cite(RFC 9111 § 4): "request header fields nominated by the stored response (if any) match those presented (see Section 4.1)"
             // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless:"
-            let (prev_tx, s_max_age, max_age) =
-                history.responses().find_map(|(prev_tx, resp)| {
-                    let s_age =
-                        crate::helpers::cache_control::get_cache_control_s_maxage(&resp.headers)?;
-                    let max_age =
-                        crate::helpers::cache_control::get_cache_control_max_age(&resp.headers)?;
-                    (max_age > s_age
-                        && crate::helpers::stored_response::storage_allowed(
-                            &prev_tx.request.headers,
-                            resp.status,
-                            &resp.headers,
-                        )
-                        && crate::helpers::stored_response::method_allows(
-                            &prev_tx.request.method,
-                            &tx.request.method,
-                        )
-                        && crate::helpers::stored_response::selecting_fields_match(
-                            &prev_tx.request.headers,
-                            &resp.headers,
-                            &tx.request.headers,
-                        ))
-                    .then_some((prev_tx, s_age, max_age))
-                })?;
+            //
+            // And it reads only what the client's last write left. A 2xx or 3xx
+            // to an unsafe method made the cache invalidate every entry before
+            // it, and a revalidation of one of those is owed, not early.
+            let mut entries =
+                crate::helpers::stored_response::responses_since_invalidation(history);
+            let (prev_tx, s_max_age, max_age) = entries.find_map(|(prev_tx, resp)| {
+                let s_age =
+                    crate::helpers::cache_control::get_cache_control_s_maxage(&resp.headers)?;
+                let max_age =
+                    crate::helpers::cache_control::get_cache_control_max_age(&resp.headers)?;
+                (max_age > s_age
+                    && crate::helpers::stored_response::storage_allowed(
+                        &prev_tx.request.headers,
+                        resp.status,
+                        &resp.headers,
+                    )
+                    && crate::helpers::stored_response::method_allows(
+                        &prev_tx.request.method,
+                        &tx.request.method,
+                    )
+                    && crate::helpers::stored_response::selecting_fields_match(
+                        &prev_tx.request.headers,
+                        &resp.headers,
+                        &tx.request.headers,
+                    ))
+                .then_some((prev_tx, s_age, max_age))
+            })?;
 
             // The age the stored response arrived with plus the time it has
             // since spent in our record — §4.2.3's algorithm minus the terms no
@@ -418,6 +428,58 @@ mod tests {
         )
         .expect("the GET entry behind the OPTIONS");
         assert_eq!(v.violation, "cache_control_s_maxage_ignored");
+    }
+
+    /// The client's own write between the entry and the revalidation. A 2xx or
+    /// 3xx to an unsafe method, or to one whose safety is unknown, invalidated
+    /// the entry, so the revalidation was owed; an error answer, or a safe
+    /// method, left the entry as it was.
+    #[rstest::rstest]
+    #[case("POST", 200, false)]
+    #[case("PUT", 204, false)]
+    #[case("POST", 303, false)]
+    #[case("PURGE", 200, false)]
+    #[case("POST", 403, true)]
+    #[case("DELETE", 500, true)]
+    #[case("OPTIONS", 200, true)]
+    fn a_write_between_decides_whether_the_entry_is_still_held(
+        #[case] method: &str,
+        #[case] status: u16,
+        #[case] reported: bool,
+    ) {
+        let base = Utc::now();
+        let prev = make_prev_with_headers(
+            &[
+                ("cache-control", "max-age=100, s-maxage=10"),
+                ("etag", "\"e\""),
+            ],
+            base,
+        );
+        let mut write = crate::test_helpers::make_test_transaction_with_response(status, &[]);
+        write.client = crate::test_helpers::make_test_client();
+        write.request.method = method.to_string();
+        write.request.uri = "/resource".to_string();
+        write.timestamp = base + chrono::Duration::seconds(5);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(304, &[]);
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"e\"")]);
+        tx.timestamp = base + chrono::Duration::seconds(20);
+
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![write, prev]);
+        let v = crate::test_helpers::run_rule(
+            &SMaxAgeEnforced,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["s_max_age_enforced"]),
+        );
+        assert_eq!(
+            v.as_ref().map(|v| v.violation.as_str()),
+            reported.then_some("cache_control_s_maxage_ignored"),
+            "{method} -> {status}"
+        );
     }
 
     #[test]

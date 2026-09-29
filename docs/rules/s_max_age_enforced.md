@@ -14,6 +14,8 @@ This rule watches a series of transactions from the same client and examines the
 
 A request that refused the entry itself is not reported: `no-cache` (or `Pragma: no-cache` with no `Cache-Control`), a `max-age` the entry has outlived, or a `min-fresh` the private lifetime cannot meet (RFC 9111 §5.2.1). Such a request has stated why it revalidated, and it was not `s-maxage`.
 
+**Nor is a revalidation after the client's own write.** A `2xx` or `3xx` answer to an unsafe method — `POST`, `PUT`, `PATCH`, `DELETE`, or any method whose safety is unknown — sent by the same client to the same URI makes its cache invalidate the stored responses for that URI (RFC 9111 §4.4): remove them, or mark them as needing validation before they are used. Either way the fresh entry is not one the next request could be served from, and the conditional request is owed. An entry stored after the write is fresh again and is read as before.
+
 ## Violations
 
 - [cache_control_s_maxage_ignored](../violations/cache_control_s_maxage_ignored.md) — A cache that s-maxage does not address used it for freshness
@@ -70,6 +72,31 @@ enabled = true
 > If-None-Match: "v1"
 
 # the request says why it revalidated, and it was not s-maxage
+```
+
+### ✅ Good — a revalidation after the client's own write
+
+```http
+> GET /items/7 HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Cache-Control: max-age=600, s-maxage=10
+< ETag: "v1"
+
+> PUT /items/7 HTTP/1.1
+> Host: example.com
+> Content-Length: 12
+
+< HTTP/1.1 204 No Content
+
+# a minute later, the client asks for the item again:
+> GET /items/7 HTTP/1.1
+> Host: example.com
+> If-None-Match: "v1"
+
+# the PUT made the cache invalidate its entry for /items/7, so validating
+# it before use is required, not early
 ```
 
 ### ❌ Bad — premature revalidation based on `s-maxage`

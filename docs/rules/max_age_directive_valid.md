@@ -20,6 +20,8 @@ It is an efficiency finding rather than a protocol violation: RFC 9111 §4.2 fra
 
 **The other side of the comparison is not reported here.** A stale entry refetched without a conditional request is [`cached_validators_reused`](cached_validators_reused.md)'s finding, from the same evidence: that rule asks for a validator on the stored response and no precondition on this request, without consulting freshness at all, so it makes every report this rule could make and does not need the freshness estimate to make it.
 
+**Nor is a revalidation after the client's own write.** A `2xx` or `3xx` answer to an unsafe method — `POST`, `PUT`, `PATCH`, `DELETE`, or any method whose safety is unknown — sent by the same client to the same URI makes its cache invalidate the stored responses for that URI (RFC 9111 §4.4): remove them, or mark them as needing validation before they are used. Either way the fresh entry is not one the next request could be served from, and the conditional request is owed. An entry stored after the write is fresh again and is read as before.
+
 ## Violations
 
 - [conditional_redundant](../violations/conditional_redundant.md) — A still-fresh stored response is revalidated anyway
@@ -126,6 +128,31 @@ enabled = true
 
 # the stored response is older than the request accepts, so validating it is
 # what the client asked for
+```
+
+### ✅ Good — a revalidation after the client's own write
+
+```http
+> GET /items/7 HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Cache-Control: max-age=60
+< ETag: "v1"
+
+> PUT /items/7 HTTP/1.1
+> Host: example.com
+> Content-Length: 12
+
+< HTTP/1.1 204 No Content
+
+# ten seconds later, the client asks for the item again:
+> GET /items/7 HTTP/1.1
+> Host: example.com
+> If-None-Match: "v1"
+
+# the PUT made the cache invalidate its entry for /items/7, so validating
+# it before use is required, not early
 ```
 
 ### ❌ Bad — unnecessary revalidation while still fresh

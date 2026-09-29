@@ -14,6 +14,8 @@ This rule reconstructs a small piece of cache state for a given client and resou
 
 **A reload is still reported, and a force reload is not.** RFC 8246 §2 names a reload as a case in which the client should still not revalidate, so a request carrying `Cache-Control: max-age=0` is reported like any other. The exception it makes is an explicit override by the user, such as a force reload, which reaches the wire as a request `no-cache` (or `Pragma: no-cache` with no `Cache-Control`).
 
+**Nor is a revalidation after the client's own write.** A `2xx` or `3xx` answer to an unsafe method — `POST`, `PUT`, `PATCH`, `DELETE`, or any method whose safety is unknown — sent by the same client to the same URI makes its cache invalidate the stored responses for that URI (RFC 9111 §4.4): remove them, or mark them as needing validation before they are used. Either way the fresh entry is not one the next request could be served from, and the conditional request is owed. An entry stored after the write is fresh again and is read as before.
+
 ## Violations
 
 - [cache_control_immutable_ignored](../violations/cache_control_immutable_ignored.md) — A still-fresh immutable response is revalidated anyway
@@ -93,6 +95,31 @@ enabled = true
 > Host: example.com
 > Cache-Control: no-cache
 > If-None-Match: "a"
+```
+
+### ✅ Good — a revalidation after the client's own write
+
+```http
+> GET /items/7 HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Cache-Control: max-age=31536000, immutable
+< ETag: "v1"
+
+> PUT /items/7 HTTP/1.1
+> Host: example.com
+> Content-Length: 12
+
+< HTTP/1.1 204 No Content
+
+# a minute later, the client asks for the item again:
+> GET /items/7 HTTP/1.1
+> Host: example.com
+> If-None-Match: "v1"
+
+# the PUT made the cache invalidate its entry for /items/7, so validating
+# it before use is required, not early
 ```
 
 ### ❌ Bad — a plain reload is still owed no revalidation

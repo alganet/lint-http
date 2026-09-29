@@ -35,19 +35,22 @@
 //! all, and a rule that skips it reports a reuse of an entry that never
 //! existed. [`storage_allowed`] is that question; [`method_allows`] is § 4's.
 //!
-//! **§ 4.4 is deliberately not a third question here, and the reason is in
-//! the definition rather than in the requirement.** A non-error response to an
-//! unsafe method makes a cache invalidate the target URI, so it is tempting to
-//! read a `POST` between the offer and the refusal as having taken the entry
-//! away. But § 4.4 defines "invalidate" as *either* removing the stored
-//! responses *or* marking them as needing mandatory validation before they can
-//! be sent — and a client holding a marked entry is holding the validator, and
-//! § 4.3.1 still asks it to send that validator when it revalidates. So a
-//! conforming client can act on the finding, which is the whole test these
-//! filters are applied under: `no-store` is filtered because *no* conforming
-//! client held anything, and an invalidated entry does not meet that bar.
-//! Written down because the question comes up on every reading of this module
-//! and the answer is not in the `MUST`.
+//! **§ 4.4 is a question for the second three and not for the first, and the
+//! reason is in the definition rather than in the requirement.** A non-error
+//! response to an unsafe method makes a cache invalidate the target URI, and
+//! § 4.4 defines "invalidate" as *either* removing the stored responses *or*
+//! marking them as needing mandatory validation before they can be sent. The
+//! first three report a client for declining a validator after a `POST`, and a
+//! client holding a marked entry is holding the validator, and § 4.3.1 still
+//! asks it to send that validator when it revalidates. So a conforming client
+//! can act on the finding, which is the whole test these filters are applied
+//! under: `no-store` is filtered because *no* conforming client held anything,
+//! and an invalidated entry does not meet that bar. The second three report a
+//! client for revalidating a fresh entry, and there both halves of the
+//! definition give the same answer: a removed entry is not there to be fresh,
+//! and a marked one is owed the very validation the finding calls early. No
+//! conforming client can act on that finding, so their walk begins at
+//! [`responses_since_invalidation`].
 // cite(RFC 9111 § 4.4): "in need of a mandatory validation before they can be sent in response to a subsequent request"
 
 /// Whether a stored response recorded against `stored` may be used to answer a
@@ -365,6 +368,40 @@ pub fn request_refuses_entry(request: &hyper::HeaderMap, current_age: i64, lifet
             .is_some_and(|n| lifetime < current_age.saturating_add(n))
 }
 
+/// The earlier responses a cache could still hold unmarked, newest first:
+/// every one newer than the newest non-error response to an unsafe method.
+///
+/// **The walk stops rather than skips.** The invalidating exchange takes every
+/// entry stored before it, and a response stored after it is an entry again,
+/// so the walk reads down the history until it meets one and no further. The
+/// history is already this client's and this target URI's, which is the URI
+/// § 4.4's MUST names; the other URIs it lets a cache invalidate are a MAY,
+/// and a walk scoped to one URI cannot see them.
+///
+/// A method is read as unsafe unless it is one of the four RFC 9110 defines as
+/// safe, compared exactly. A method registered safe elsewhere (`PROPFIND`,
+/// `QUERY`) is one a cache need not know, and the sentence has a cache that
+/// does not know invalidate, so an unknown method stops the walk too. What a
+/// caller loses by that is a finding, never a false one.
+// cite(RFC 9111 § 4.4): "A cache MUST invalidate the target URI (Section 7.1 of [HTTP]) when it receives a non-error status code in response to an unsafe request method (including methods whose safety is unknown)."
+// cite(RFC 9111 § 4.4): "A "non-error response" is one with a 2xx (Successful) or 3xx (Redirection) status code."
+// cite(RFC 9110 § 9.2.1): "Of the request methods defined by this specification, the GET, HEAD, OPTIONS, and TRACE methods are defined to be safe."
+pub fn responses_since_invalidation(
+    history: &crate::transaction_history::TransactionHistory,
+) -> impl Iterator<
+    Item = (
+        &crate::http_transaction::HttpTransaction,
+        &crate::http_transaction::ResponseInfo,
+    ),
+> {
+    history.responses().take_while(|(tx, resp)| {
+        matches!(
+            tx.request.method.as_str(),
+            "GET" | "HEAD" | "OPTIONS" | "TRACE"
+        ) || !(200..400).contains(&resp.status)
+    })
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -412,6 +449,41 @@ mod tests {
         )])));
     }
     use super::*;
+
+    /// The walk stops at the newest write the answer did not refuse, and not
+    /// before it: an entry stored after the write is held again, and one
+    /// stored before it is not, whatever lies further back.
+    #[rstest]
+    #[case(&[("GET", 200), ("POST", 200), ("GET", 200)], 1)]
+    #[case(&[("POST", 200), ("GET", 200)], 0)]
+    #[case(&[("PUT", 304), ("GET", 200)], 0)]
+    #[case(&[("Get", 200), ("GET", 200)], 0)]
+    #[case(&[("POST", 404), ("GET", 200)], 2)]
+    #[case(&[("OPTIONS", 200), ("TRACE", 200), ("HEAD", 200), ("GET", 200)], 4)]
+    fn a_write_the_origin_accepted_ends_the_walk(
+        #[case] newest_first: &[(&str, u16)],
+        #[case] held: usize,
+    ) {
+        let base = chrono::Utc::now();
+        let history = crate::transaction_history::TransactionHistory::from_transactions(
+            newest_first
+                .iter()
+                .enumerate()
+                .map(|(age, &(method, status))| {
+                    let mut t =
+                        crate::test_helpers::make_test_transaction_with_response(status, &[]);
+                    t.request.method = method.to_string();
+                    t.timestamp = base - chrono::Duration::seconds(age as i64);
+                    t
+                })
+                .collect(),
+        );
+        assert_eq!(
+            responses_since_invalidation(&history).count(),
+            held,
+            "{newest_first:?}"
+        );
+    }
 
     /// The three questions and the one exception, each turned off alone.
     #[test]
