@@ -32,6 +32,13 @@ which is agreement, not contradiction. A `max-age` the `Age` has consumed entire
 is a response stale on arrival, exactly as `max-age=0` is, and is read that way in
 both directions.
 
+Beside `private`, an `Expires` at or before `Date` (or one naming no instant) is not
+flagged. The caches `Expires` is written for cannot read `private` either, and an
+already-expired date is what keeps a shared one among them from storing a response
+meant for one user; making it agree with `max-age` would hand that cache the lifetime
+meant for the user's own. A future `Expires` beside `private` is still flagged, and
+the message asks for one at or before `Date` rather than for agreement.
+
 ## Violations
 
 - [expires_conflicting](../violations/expires_conflicting.md) — Expires and the Cache-Control freshness directives disagree
@@ -101,6 +108,17 @@ Date: Wed, 21 Oct 2015 07:28:00 GMT
 Age: 900
 Cache-Control: max-age=600
 Expires: Wed, 21 Oct 2015 08:28:00 GMT
+
+<...>
+```
+
+### ✅ Good A private response already expired for the caches that cannot read `private`, and fresh for an hour in the user's own
+
+```http
+HTTP/1.1 200 OK
+Date: Wed, 21 Oct 2015 07:28:00 GMT
+Cache-Control: private, max-age=3600
+Expires: Wed, 21 Oct 2015 07:28:00 GMT
 
 <...>
 ```

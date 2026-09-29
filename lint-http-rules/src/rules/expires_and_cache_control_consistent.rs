@@ -38,6 +38,14 @@ use crate::violations::ViolationDef;
 /// [`EXPIRES_MALFORMED`](crate::violations::expires::EXPIRES_MALFORMED) is the
 /// entry that says so. Whether the two fields *disagree* is a question about
 /// what the sender wrote, and it is now asked of what the sender wrote.
+///
+/// **What is not a second answer however it disagrees: an already-expired
+/// `Expires` beside `private`.** The population the field is written for cannot
+/// read the directive, so to it the response is shareable, and a date it reads
+/// as past is the only way the sender has of keeping a shared cache of that age
+/// from serving it to the next user. The two shapes that answer a fresh
+/// directive with an expired field decline there; the future one does not, and
+/// its message names that repair instead of agreement.
 static DECLARED: &[&ViolationDef] = &[&EXPIRES_CONFLICTING];
 use chrono::{DateTime, Utc};
 
@@ -68,7 +76,7 @@ impl RuleMeta for ExpiresAndCacheControlConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected.\n\nThe comparison is made against the instant the sender wrote, not the one a recipient\ncan read: a value refused only for its spelling — a zone token of `UTC`, a weekday that\nis not the day its own date falls on — still names its instant, and naming the same\ninstant `Date` plus `max-age` names is agreement however it is spelled. That such a\nvalue is unreadable is reported separately.\n\nAn `Expires` that names no instant at all counts as contradictory rather than as no\ninformation: a cache is required to read it as already expired, so the common\n`Expires: 0` paired with an unspent `max-age` is flagged.\n\nThe lifetime a directive advertises is compared after the age the response arrived\nwith is taken off it. A response served out of a cache has spent part of its\n`max-age` already, and an origin behind such a cache commonly writes `Expires` as\nthe instant the lifetime actually runs out — `Date` plus `max-age` minus `Age` —\nwhich is agreement, not contradiction. A `max-age` the `Age` has consumed entirely\nis a response stale on arrival, exactly as `max-age=0` is, and is read that way in\nboth directions."
+        "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected.\n\nThe comparison is made against the instant the sender wrote, not the one a recipient\ncan read: a value refused only for its spelling — a zone token of `UTC`, a weekday that\nis not the day its own date falls on — still names its instant, and naming the same\ninstant `Date` plus `max-age` names is agreement however it is spelled. That such a\nvalue is unreadable is reported separately.\n\nAn `Expires` that names no instant at all counts as contradictory rather than as no\ninformation: a cache is required to read it as already expired, so the common\n`Expires: 0` paired with an unspent `max-age` is flagged.\n\nThe lifetime a directive advertises is compared after the age the response arrived\nwith is taken off it. A response served out of a cache has spent part of its\n`max-age` already, and an origin behind such a cache commonly writes `Expires` as\nthe instant the lifetime actually runs out — `Date` plus `max-age` minus `Age` —\nwhich is agreement, not contradiction. A `max-age` the `Age` has consumed entirely\nis a response stale on arrival, exactly as `max-age=0` is, and is read that way in\nboth directions.\n\nBeside `private`, an `Expires` at or before `Date` (or one naming no instant) is not\nflagged. The caches `Expires` is written for cannot read `private` either, and an\nalready-expired date is what keeps a shared one among them from storing a response\nmeant for one user; making it agree with `max-age` would hand that cache the lifetime\nmeant for the user's own. A future `Expires` beside `private` is still flagged, and\nthe message asks for one at or before `Date` rather than for agreement."
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -114,6 +122,13 @@ impl RuleMeta for ExpiresAndCacheControlConsistent {
                     "An Age that has consumed the whole max-age is a response stale on arrival, so an Expires an hour out is freshness no cache has",
                 ),
                 snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nAge: 900\nCache-Control: max-age=600\nExpires: Wed, 21 Oct 2015 08:28:00 GMT\n\n<...>",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "A private response already expired for the caches that cannot read `private`, and fresh for an hour in the user's own",
+                ),
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nCache-Control: private, max-age=3600\nExpires: Wed, 21 Oct 2015 07:28:00 GMT\n\n<...>",
             },
         ]
     }
@@ -162,6 +177,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             let mut cc_present = false;
             let mut cc_no_cache = false;
             let mut cc_no_store = false;
+            let mut cc_private = false;
             let mut cc_max_age: Option<i64> = None;
             // The joined value is held here because a directive borrows the
             // member it was parsed from, and it is read as octets so a bad
@@ -173,6 +189,8 @@ impl Rule for ExpiresAndCacheControlConsistent {
                     cc_no_cache = true;
                 } else if directive.is("no-store") {
                     cc_no_store = true;
+                } else if directive.is("private") {
+                    cc_private = true;
                 } else if directive.is("max-age") {
                     cc_max_age = directive.delta_seconds().or(cc_max_age);
                 }
@@ -207,6 +225,24 @@ impl Rule for ExpiresAndCacheControlConsistent {
             let cc_stale_on_arrival =
                 cc_no_cache || cc_no_store || cc_max_age.is_some_and(|s| s <= age);
 
+            // An already-expired `Expires` beside `private` is not a second
+            // lifetime: it is the only answer the field's own audience can be
+            // given. The recipients § 5.3 writes `Expires` for cannot read
+            // `Cache-Control`, so they cannot read `private` either, and to a
+            // shared cache of that kind the response is anyone's. A date at or
+            // before `Date` — or one naming no instant, which it must read the
+            // same way — is what keeps it from storing one user's response for
+            // the next, and the directive population is told the lifetime in
+            // the only field it reads. Making the two agree, which is what this
+            // entry asks of every other disagreement, hands that cache the
+            // `max-age` the sender meant only for the user's own. The qualified
+            // form is no different to that cache: it cannot read which fields
+            // were named, so it would store them. Only a *future* `Expires`
+            // beside `private` is still two answers, and the worse one.
+            // cite(RFC 9111 § 5.3): "In both these cases, the value in Expires is only intended for recipients that have not yet implemented the Cache-Control header field."
+            // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
+            let fresh_beside_expired = cc_still_fresh && !cc_private;
+
             // The recipient is required to read an Expires it cannot derive an instant from
             // — `0` above all, the classic anti-caching idiom — as a time already past. So it
             // contradicts a positive max-age/s-maxage exactly the way a stale date does, and the
@@ -218,7 +254,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // expired" is true against any.
             // cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
             let Some(expires) = expires_meant else {
-                if cc_still_fresh {
+                if fresh_beside_expired {
                     return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
                             "Expires '{}' names no instant, so a cache MUST read it as already expired, but Cache-Control max-age/s-maxage says the response is still fresh — values are contradictory",
                             expires_raw
@@ -271,11 +307,19 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // the directive wins and Expires is ignored, so this is a consistency flag, not a spec
             // violation — the two values simply disagree.
             // cite(RFC 9111 § 5.3): "If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field."
-            if cc_still_fresh && expires <= date_ref {
+            if fresh_beside_expired && expires <= date_ref {
                 return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
                         "Response contains Cache-Control max-age/s-maxage but Expires {} is not in the future relative to Date {} — values are contradictory (RFC 9111 §4.2, §5.3){}",
                         expires, date_ref, as_written
                     )));
+            }
+
+            // The decline above covers the distance too. Until it existed the arm
+            // just above was the only way to reach here with a past date, and it
+            // always returned; now a `private` response does reach here with one,
+            // and how far behind `Date` it lies is not a second question about it.
+            if cc_private && expires <= date_ref {
+                return None;
             }
 
             // Best-effort consistency: when Date is present, warn if Expires and Date+max-age
@@ -325,9 +369,18 @@ impl Rule for ExpiresAndCacheControlConsistent {
                             } else {
                                 String::new()
                             };
+                            // Beside `private` neither usual repair is safe:
+                            // agreement hands a cache that cannot read the
+                            // directive the user's own lifetime, and without
+                            // the field it may compute one heuristically.
+                            let repair = if cc_private {
+                                "a private response's Expires is read only by caches that cannot see `private`, so write it at or before Date"
+                            } else {
+                                "prefer consistent values or omit Expires"
+                            };
                             return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
-                                    "Cache-Control max-age={} suggests Expires should be {} (Date + max-age){}, but Expires is {} — prefer consistent values or omit Expires (RFC 9111 §5.3){}",
-                                    max_age, expected, spent, expires, as_written
+                                    "Cache-Control max-age={} suggests Expires should be {} (Date + max-age){}, but Expires is {} — {} (RFC 9111 §5.3){}",
+                                    max_age, expected, spent, expires, repair, as_written
                                 )));
                         }
                     }
@@ -492,6 +545,80 @@ mod tests {
             "headers={headers:?} gave {v:?}"
         );
         Ok(())
+    }
+
+    /// `private` beside an `Expires` its own audience reads as already
+    /// expired: one instruction per population, not two lifetimes.
+    ///
+    /// The `public` row and the future-`Expires` rows are the other half: a
+    /// decline that reached them would silence the disagreement that hands a
+    /// cache unable to read `private` a lifetime it may share.
+    #[rstest]
+    // Read off pagead2.googlesyndication.com: `Expires` is `Date`.
+    #[case(&[("cache-control","private, max-age=3600, stale-while-revalidate=3600"),("date","Sun, 30 Aug 2026 00:03:39 GMT"),("expires","Sun, 30 Aug 2026 00:03:39 GMT")], false)]
+    #[case(&[("cache-control","private, max-age=3600"),("date","Sun, 30 Aug 2026 00:03:39 GMT"),("expires","Thu, 01 Jan 1970 00:00:00 GMT")], false)]
+    #[case(&[("cache-control","private, max-age=3600"),("date","Sun, 30 Aug 2026 00:03:39 GMT"),("expires","0")], false)]
+    #[case(&[("cache-control","max-age=3600, PRIVATE"),("date","Sun, 30 Aug 2026 00:03:39 GMT"),("expires","-1")], false)]
+    // The qualified form names fields that cache cannot read the names of.
+    #[case(&[("cache-control","private=\"set-cookie\", max-age=3600"),("date","Sun, 30 Aug 2026 00:03:39 GMT"),("expires","0")], false)]
+    #[case(&[("cache-control","public, max-age=3600"),("date","Sun, 30 Aug 2026 00:03:39 GMT"),("expires","Sun, 30 Aug 2026 00:03:39 GMT")], true)]
+    #[case(&[("cache-control","private, max-age=3600"),("date","Sun, 30 Aug 2026 00:03:39 GMT"),("expires","Sun, 30 Aug 2026 03:03:39 GMT")], true)]
+    #[case(&[("cache-control","private, no-cache"),("date","Sun, 30 Aug 2026 00:03:39 GMT"),("expires","Sun, 30 Aug 2026 03:03:39 GMT")], true)]
+    // Agreement is still agreement.
+    #[case(&[("cache-control","private, max-age=3600"),("date","Sun, 30 Aug 2026 00:03:39 GMT"),("expires","Sun, 30 Aug 2026 01:03:39 GMT")], false)]
+    fn an_expired_expires_is_the_answer_private_gives_an_older_cache(
+        #[case] headers: &[(&str, &str)],
+        #[case] expect_violation: bool,
+    ) {
+        let tx = make_test_transaction_with_response(200, headers);
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "expires_and_cache_control_consistent",
+        ]);
+        let v = crate::test_helpers::run_rule(
+            &ExpiresAndCacheControlConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "headers={headers:?} gave {v:?}"
+        );
+    }
+
+    /// Beside `private`, both of the usual repairs expose the response to a
+    /// cache that cannot read the directive, so the finding names the one
+    /// that does not.
+    #[test]
+    fn a_private_disagreement_names_the_repair_that_keeps_it_private() {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "expires_and_cache_control_consistent",
+        ]);
+        let run = |cc: &'static str| {
+            let tx = make_test_transaction_with_response(
+                200,
+                &[
+                    ("cache-control", cc),
+                    ("date", "Sun, 30 Aug 2026 00:03:39 GMT"),
+                    ("expires", "Sun, 30 Aug 2026 03:03:39 GMT"),
+                ],
+            );
+            crate::test_helpers::run_rule(
+                &ExpiresAndCacheControlConsistent,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .expect("a finding")
+            .message
+        };
+        let private = run("private, max-age=3600");
+        assert!(private.contains("at or before Date"), "{private}");
+        assert!(!private.contains("omit Expires"), "{private}");
+        let public = run("public, max-age=3600");
+        assert!(public.contains("omit Expires"), "{public}");
+        assert!(!public.contains("at or before Date"), "{public}");
     }
 
     #[test]

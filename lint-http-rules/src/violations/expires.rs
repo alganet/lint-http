@@ -50,7 +50,8 @@ defects! {
     /// freshness directives do not: an unreadable date (which a cache must
     /// treat as already expired) beside a lifetime still unspent, a future
     /// `Expires` beside `no-cache`, `no-store` or a lifetime already spent, an
-    /// already-past `Expires` beside a lifetime still unspent, or a date more
+    /// already-past `Expires` beside a lifetime still unspent (the first and
+    /// this one unless the response is `private`), or a date more
     /// than a second away from every instant `Date` and an unspent `max-age`
     /// can name.
     ///
@@ -81,6 +82,14 @@ defects! {
     /// make them agree, or drop the field — and so is the loss, which is that
     /// the response has two expiry answers sorted by the age of the cache
     /// reading it. The message says which shape was in front of it.
+    ///
+    /// **Except beside `private`, where the loss runs the other way.** A cache
+    /// that reads only this field cannot read `private`, so for it the response
+    /// is shareable, and an `Expires` it reads as already past is what keeps a
+    /// shared one from storing a single user's response. That pairing is one
+    /// instruction per population and is not reported. A *future* `Expires`
+    /// beside `private` still is, and its repair is a date at or before `Date`:
+    /// agreement, or no field at all, leaves that cache a lifetime to share.
     ///
     /// **Not a conformance finding, and § 5.3 is why it is worth making
     /// anyway.** The specification resolves the disagreement by precedence and

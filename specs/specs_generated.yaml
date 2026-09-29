@@ -12015,6 +12015,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 171
+    - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
+      line: 243
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 185
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
@@ -12038,43 +12040,49 @@ sources:
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 252
+      line: 288
   - label: expires_and_cache_control_consistent (2)
     section: § 4.2.3
     snippet: apparent_age = max(0, response_time - date_value)
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 313
+      line: 357
   - label: expires_and_cache_control_consistent (3)
     section: § 5.3
     snippet: A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired").
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 219
+      line: 255
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
       line: 133
     - file: lint-http-rules/src/violations/expires.rs
-      line: 140
+      line: 149
   - label: expires_and_cache_control_consistent (4)
     section: § 5.3
     snippet: If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field.
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 251
+      line: 287
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 273
+      line: 309
     - file: lint-http-rules/src/violations/expires.rs
-      line: 96
+      line: 105
+  - label: expires_and_cache_control_consistent (5)
+    section: § 5.3
+    snippet: In both these cases, the value in Expires is only intended for recipients that have not yet implemented the Cache-Control header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
+      line: 242
   - label: expires
     section: § 5.3
     snippet: The Expires field value is an HTTP-date timestamp, as defined in Section 5.6.7 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 135
+      line: 150
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
       line: 124
     - file: lint-http-rules/src/violations/expires.rs
-      line: 139
+      line: 148
   - label: immutable_cache_never_stale
     section: § 5.2.2.4
     snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
@@ -12122,7 +12130,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 359
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 196
+      line: 214
   - label: lint-http-rules/src/helpers/cache_control.rs (3)
     section: § 4.2.1
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
@@ -12150,7 +12158,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 396
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 195
+      line: 213
   - label: lint-http-rules/src/helpers/cache_control.rs (7)
     section: § 4.2.3
     snippet: corrected_initial_age = max(apparent_age, corrected_age_value);
