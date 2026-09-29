@@ -96,8 +96,7 @@ defects! {
     /// arrives in it may arrive twice, and a method that changes state twice
     /// changes it twice.
     ///
-    /// **The deployment's list is the measurement**, which is the same stand-in
-    /// the registry entries in this catalogue make. RFC 9110 § 9.2.1 defines
+    /// **The deployment's list is the measurement.** RFC 9110 § 9.2.1 defines
     /// four safe methods and the IANA registry lists more, so a fixed set here
     /// would report conforming requests; the operator's array is the answer to
     /// the sentence's "absent other information".

@@ -8,11 +8,11 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-The `auth-scheme` naming an HTTP authentication scheme SHOULD be one the IANA registry holds (for example, `Basic`, `Bearer`, `Digest`), and this rule asks that of every field § 11 writes the framework into — the challenges of a `WWW-Authenticate` or `Proxy-Authenticate`, and the credentials of an `Authorization` or `Proxy-Authorization`. The registry is the namespace for schemes in challenges and credentials, not for one hop of them, so the proxy-authentication half of the framework is asked the same question as the origin half. It measures the name against an operator-configured allowlist rather than against the live registry, so `allowed` is the deployment's chosen subset of acceptable schemes. **This rule reports nothing about grammar.** A scheme that is not a `token`, a challenge that does not parse, a credential missing after its scheme — each belongs to the rule that owns the field it sits in (`www_authenticate_challenge_syntax`, `authorization_credentials_valid`), and a name those rules refuse is skipped here rather than reported as unregistered, because the registry could not hold it either way.
+The `auth-scheme` naming an HTTP authentication scheme ought to be one the IANA registry holds (for example, `Basic`, `Bearer`, `Digest`, `Negotiate`), and this rule asks that of every field § 11 writes the framework into — the challenges of a `WWW-Authenticate` or `Proxy-Authenticate`, and the credentials of an `Authorization` or `Proxy-Authorization`. The registry is the namespace for schemes in challenges and credentials, not for one hop of them, so the proxy-authentication half of the framework is asked the same question as the origin half. It measures the name against a snapshot of the registry this crate carries, and `allowed` adds the schemes a deployment knowingly uses beyond it. It used to ask a three-name list in its configuration instead, which reported `Negotiate`, `DPoP` and every other registered scheme as unregistered. **This rule reports nothing about grammar.** A scheme that is not a `token`, a challenge that does not parse, a credential missing after its scheme — each belongs to the rule that owns the field it sits in (`www_authenticate_challenge_syntax`, `authorization_credentials_valid`), and a name those rules refuse is skipped here rather than reported as unregistered, because the registry could not hold it either way.
 
 ## Violations
 
-- [auth_scheme_unregistered](../violations/auth_scheme_unregistered.md) — Authentication scheme is not one the deployment recognises
+- [auth_scheme_unregistered](../violations/auth_scheme_unregistered.md) — An authentication scheme is not in the IANA registry
 
 ## Specifications
 
@@ -32,7 +32,10 @@ The `auth-scheme` naming an HTTP authentication scheme SHOULD be one the IANA re
 ```toml
 [rules.auth_scheme_registered]
 enabled = true
-allowed = ["Basic", "Bearer", "Digest"]
+# The IANA HTTP Authentication Scheme registry is the check, and this crate
+# carries a snapshot of it. `allowed` names the schemes this deployment knowingly
+# uses beyond it, and adds to the registry rather than replacing it.
+allowed = []
 ```
 
 ## Examples
@@ -47,6 +50,13 @@ Authorization: Bearer abc123
 ```http
 WWW-Authenticate: Digest realm="test", nonce="abc"
 Authorization: Digest username="Mufasa", realm="test", nonce="abc", uri="/resource", response="d41d8cd98f00b204e9800998ecf8427e"
+```
+
+### ✅ Good (registered, and on no list a deployment keeps)
+
+```http
+WWW-Authenticate: Negotiate
+Authorization: Negotiate YIIFxAYGKwYBBQUCoIIFuDCCBbSgh==
 ```
 
 ### ❌ Bad

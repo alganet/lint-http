@@ -24,6 +24,7 @@ pub mod engine;
 pub mod helpers;
 pub mod lint_protocol;
 pub mod queries;
+pub mod registries;
 // `unsafe_code` is denied workspace-wide (see the root `Cargo.toml`), and this
 // subtree is the one exemption. `linkme::distributed_slice` places each rule's
 // registration in a named `#[link_section]`, which the lint counts as unsafe;

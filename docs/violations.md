@@ -50,7 +50,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [auth_param_value_character_forbidden](violations/auth_param_value_character_forbidden.md) — An authentication parameter value holds a character outside token
 - [auth_param_value_empty](violations/auth_param_value_empty.md) — An authentication parameter is written with no value after its '='
 - [auth_scheme_character_forbidden](violations/auth_scheme_character_forbidden.md) — Authentication scheme holds a character outside token
-- [auth_scheme_unregistered](violations/auth_scheme_unregistered.md) — Authentication scheme is not one the deployment recognises
+- [auth_scheme_unregistered](violations/auth_scheme_unregistered.md) — An authentication scheme is not in the IANA registry
 - [authority_conflicting](violations/authority_conflicting.md) — A request's :authority and Host name different authorities
 - [authority_empty](violations/authority_empty.md) — A request's authority field is present and empty
 - [authority_missing](violations/authority_missing.md) — A request that owes an authority names none
@@ -100,7 +100,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [challenge_scheme_missing](violations/challenge_scheme_missing.md) — Authentication parameter arrives before any scheme
 - [challenge_token68_invalid](violations/challenge_token68_invalid.md) — Authentication token68 is indistinguishable from a parameter
 - [charset_empty](violations/charset_empty.md) — Charset parameter carries no name
-- [charset_unregistered](violations/charset_unregistered.md) — Charset name is not one the deployment recognises
+- [charset_unregistered](violations/charset_unregistered.md) — A charset name is not in the IANA registry
 - [clear_site_data_missing](violations/clear_site_data_missing.md) — A sign-out response does not ask the client to clear its storage
 - [comment_character_forbidden](violations/comment_character_forbidden.md) — Comment holds a character ctext does not admit
 - [comment_delimiter_missing](violations/comment_delimiter_missing.md) — Comment is never closed
@@ -325,7 +325,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [media_type_name_empty](violations/media_type_name_empty.md) — A media type subtype is a suffix with no base name
 - [media_type_suffix_empty](violations/media_type_suffix_empty.md) — A media type subtype ends in a bare plus
 - [media_type_suffix_unregistered](violations/media_type_suffix_unregistered.md) — A structured syntax suffix is not one the deployment recognises
-- [media_type_unregistered](violations/media_type_unregistered.md) — Media type is not one the deployment recognises
+- [media_type_unregistered](violations/media_type_unregistered.md) — A media type is not in the IANA registry
 - [media_type_wildcard_forbidden](violations/media_type_wildcard_forbidden.md) — A media range is written where one media type belongs
 - [method_case_invalid](violations/method_case_invalid.md) — A method is a standardized name written in another case
 - [method_connect_content_forbidden](violations/method_connect_content_forbidden.md) — A CONNECT request declares content its definition has no room for

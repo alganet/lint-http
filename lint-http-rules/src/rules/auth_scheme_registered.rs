@@ -56,17 +56,19 @@ impl RuleMeta for AuthSchemeRegistered {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-allowed = ["Basic", "Bearer", "Digest"]
+# The IANA HTTP Authentication Scheme registry is the check, and this crate
+# carries a snapshot of it. `allowed` names the schemes this deployment knowingly
+# uses beyond it, and adds to the registry rather than replacing it.
+allowed = []
 "#
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let allowed = crate::helpers::rule_config::parse_lowercased_list(
+        let allowed = crate::helpers::rule_config::parse_lowercased_additions(
             cfg,
             self.id(),
             "allowed",
-            "acceptable auth-schemes",
-            "['Basic','Bearer']",
+            "['X-MyAuth']",
         )?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
@@ -77,7 +79,7 @@ allowed = ["Basic", "Bearer", "Digest"]
     }
 
     fn description(&self) -> &'static str {
-        "The `auth-scheme` naming an HTTP authentication scheme SHOULD be one the IANA registry holds (for example, `Basic`, `Bearer`, `Digest`), and this rule asks that of every field § 11 writes the framework into — the challenges of a `WWW-Authenticate` or `Proxy-Authenticate`, and the credentials of an `Authorization` or `Proxy-Authorization`. The registry is the namespace for schemes in challenges and credentials, not for one hop of them, so the proxy-authentication half of the framework is asked the same question as the origin half. It measures the name against an operator-configured allowlist rather than against the live registry, so `allowed` is the deployment's chosen subset of acceptable schemes. **This rule reports nothing about grammar.** A scheme that is not a `token`, a challenge that does not parse, a credential missing after its scheme — each belongs to the rule that owns the field it sits in (`www_authenticate_challenge_syntax`, `authorization_credentials_valid`), and a name those rules refuse is skipped here rather than reported as unregistered, because the registry could not hold it either way."
+        "The `auth-scheme` naming an HTTP authentication scheme ought to be one the IANA registry holds (for example, `Basic`, `Bearer`, `Digest`, `Negotiate`), and this rule asks that of every field § 11 writes the framework into — the challenges of a `WWW-Authenticate` or `Proxy-Authenticate`, and the credentials of an `Authorization` or `Proxy-Authorization`. The registry is the namespace for schemes in challenges and credentials, not for one hop of them, so the proxy-authentication half of the framework is asked the same question as the origin half. It measures the name against a snapshot of the registry this crate carries, and `allowed` adds the schemes a deployment knowingly uses beyond it. It used to ask a three-name list in its configuration instead, which reported `Negotiate`, `DPoP` and every other registered scheme as unregistered. **This rule reports nothing about grammar.** A scheme that is not a `token`, a challenge that does not parse, a credential missing after its scheme — each belongs to the rule that owns the field it sits in (`www_authenticate_challenge_syntax`, `authorization_credentials_valid`), and a name those rules refuse is skipped here rather than reported as unregistered, because the registry could not hold it either way."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -124,6 +126,11 @@ allowed = ["Basic", "Bearer", "Digest"]
                 snippet: "WWW-Authenticate: Digest realm=\"test\", nonce=\"abc\"\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/resource\", response=\"d41d8cd98f00b204e9800998ecf8427e\"",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("(registered, and on no list a deployment keeps)"),
+                snippet: "WWW-Authenticate: Negotiate\nAuthorization: Negotiate YIIFxAYGKwYBBQUCoIIFuDCCBbSgh==",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "WWW-Authenticate: NewScheme abc=\nAuthorization: X-MyAuth abc",
@@ -168,14 +175,10 @@ impl Rule for AuthSchemeRegistered {
         {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
             // The registry question, asked of one scheme token that is already
-            // known to be one.
-            //
-            // The guidance the allowlist stands for: schemes ought to be registered.
-            // The comparison is lowercase because the scheme token is case-insensitive
-            // (§11.1). Note this is checked against an operator-configured `allowed`
-            // list, not the live IANA registry — the allowlist is the operator's chosen
-            // subset of acceptable (typically registered) schemes, and §16.4.1 is where
-            // registered ones live.
+            // known to be one: the snapshot this crate carries of the registry
+            // § 16.4.1 names, and then what the operator adds to it. The
+            // comparison ignores case because the scheme token is
+            // case-insensitive (§ 11.1).
             //
             // A name that is not a `token` is not a name the registry could
             // hold, so it is skipped rather than answered: the character is
@@ -186,18 +189,24 @@ impl Rule for AuthSchemeRegistered {
             // An auth-scheme is a token; the tchar set is helper-owned.
             // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
             // cite(RFC 9110 § 16.4.1): "The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials."
-            let check_registered =
-                |hdr_name: &str, scheme: &str, party: crate::lint::Party| -> Option<Violation> {
-                    if crate::helpers::token::find_invalid_token_char(scheme).is_some()
-                        || config.allowed.contains(&scheme.to_ascii_lowercase())
-                    {
-                        return None;
-                    }
-                    Some(ctx.by(party).report_with(
+            let check_registered = |hdr_name: &str,
+                                    scheme: &str,
+                                    party: crate::lint::Party|
+             -> Option<Violation> {
+                if crate::helpers::token::find_invalid_token_char(scheme).is_some()
+                    || crate::registries::auth_scheme_registered(scheme)
+                    || config.allowed.contains(&scheme.to_ascii_lowercase())
+                {
+                    return None;
+                }
+                Some(ctx.by(party).report_with(
                         &AUTH_SCHEME_UNREGISTERED,
-                        format!("Unrecognized auth-scheme '{}' in {}", scheme, hdr_name),
+                        format!(
+                            "Auth-scheme '{}' in {} is not in the IANA HTTP Authentication Scheme registry, and this rule's `allowed` list does not name it",
+                            scheme, hdr_name
+                        ),
                     ))
-                };
+            };
 
             // The challenges a response advertises, in each field § 11 writes
             // as `#challenge`. Read as octets and over the section: the field
@@ -612,7 +621,7 @@ mod tests {
         };
 
         // Neither octet is this rule's question. In the `token68` the scheme
-        // is spelled correctly and is in the allowlist, so there is nothing to
+        // is spelled correctly and is registered, so there is nothing to
         // ask; in the scheme the name is not a `token`, so the registry could
         // not hold it whatever it says. Both are
         // `www_authenticate_challenge_syntax`'s, which is the rule named for
@@ -624,10 +633,11 @@ mod tests {
 
     #[test]
     fn parse_allowed_config_error_cases() {
-        // Missing table
+        // No `allowed` at all: the registry alone, which is not an error --
+        // the list adds to the registry and adding nothing is the default.
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "auth_scheme_registered");
-        assert!(AuthSchemeRegistered.prepare(&cfg).is_err());
+        assert!(AuthSchemeRegistered.prepare(&cfg).is_ok());
 
         // Not a table
         let mut cfg2 = crate::config::Config::default();
@@ -652,7 +662,7 @@ mod tests {
         );
         assert!(AuthSchemeRegistered.prepare(&cfg3).is_err());
 
-        // empty allowed array
+        // An empty `allowed` array is the shipped default, and the same answer.
         let mut cfg4 = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg4, "auth_scheme_registered");
         cfg4.rules.insert(
@@ -664,7 +674,7 @@ mod tests {
                 t
             }),
         );
-        assert!(AuthSchemeRegistered.prepare(&cfg4).is_err());
+        assert!(AuthSchemeRegistered.prepare(&cfg4).is_ok());
 
         // non-string item
         let mut cfg5 = crate::config::Config::default();
@@ -708,6 +718,38 @@ mod tests {
             parsed.allowed,
             vec!["basic".to_string(), "bearer".to_string()]
         );
+    }
+
+    /// Under the shipped configuration, which lists nothing, every scheme the
+    /// registry holds is silent in all four fields, whatever its case. The
+    /// three-name list that stood in for the registry reported every one of
+    /// these.
+    #[rstest]
+    #[case("www-authenticate", "Negotiate")]
+    #[case("www-authenticate", "DPoP algs=\"ES256\"")]
+    #[case("www-authenticate", "HOBA challenge=\"x\", max-age=10")]
+    #[case("proxy-authenticate", "Mutual realm=\"x\"")]
+    #[case("authorization", "SCRAM-SHA-256 data=biws")]
+    #[case("authorization", "vapid t=abc, k=def")]
+    #[case("proxy-authorization", "negotiate YIIF")]
+    #[case("authorization", "PrivateToken token=abc")]
+    fn a_registered_scheme_is_not_reported(#[case] key: &str, #[case] value: &str) {
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["auth_scheme_registered"]);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
+        let headers = crate::test_helpers::make_headers_from_pairs(&[(key, value)]);
+        if key.ends_with("authenticate") {
+            tx.response.as_mut().expect("a response").headers = headers;
+        } else {
+            tx.request.headers = headers;
+        }
+        let found = crate::test_helpers::run_rule_all(
+            &AuthSchemeRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(found.is_empty(), "{key}: {value}: {found:?}");
     }
 
     /// **Every unregistered scheme a field offers is its own finding.** The

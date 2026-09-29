@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # auth_scheme_unregistered
 
-Authentication scheme is not one the deployment recognises
+An authentication scheme is not in the IANA registry
 
 ## Message
 
@@ -24,7 +24,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.auth_scheme_unregistered]
-# Authentication scheme is not one the deployment recognises
+# An authentication scheme is not in the IANA registry
 severity = "warn"
 ```
 

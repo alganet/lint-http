@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # charset_unregistered
 
-Charset name is not one the deployment recognises
+A charset name is not in the IANA registry
 
 ## Message
 
@@ -24,7 +24,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.charset_unregistered]
-# Charset name is not one the deployment recognises
+# A charset name is not in the IANA registry
 severity = "warn"
 ```
 

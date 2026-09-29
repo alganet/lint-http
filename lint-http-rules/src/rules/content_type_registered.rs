@@ -8,8 +8,9 @@ use crate::violations::media_type::{MEDIA_TYPE_UNREGISTERED, RFC_9110_8_3_1};
 use crate::violations::ViolationDef;
 
 /// One entry, and it is the pair's own: everything this rule reports is a
-/// well-formed `media-type` that the operator's list does not hold. A value
-/// that does not parse is declined here and is the syntax rules' finding.
+/// well-formed `media-type` that neither the registry nor the operator's list
+/// holds. A value that does not parse is declined here and is the syntax
+/// rules' finding.
 static DECLARED: &[&ViolationDef] = &[&MEDIA_TYPE_UNREGISTERED];
 
 pub struct ContentTypeRegistered;
@@ -28,7 +29,7 @@ const IANA_MEDIA_TYPES: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "IANA Media Types",
     section: None,
     url: "https://www.iana.org/assignments/media-types/media-types.xhtml",
-    note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
+    note: "The registry this rule reads, as the snapshot this crate carries; the configured `allowed` array adds to it",
 };
 
 impl RuleMeta for ContentTypeRegistered {
@@ -38,50 +39,22 @@ impl RuleMeta for ContentTypeRegistered {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-# The list has to carry the media types HTTP itself produces, or the rule
-# reports the protocol working. `multipart/byteranges` is what a multi-range
-# request gets back (RFC 9110 § 14.6) and `message/http` is what a TRACE
-# response carries (RFC 9112 § 10.1) -- neither is a choice the origin made.
-# `application/octet-stream` is the type RFC 9110 § 8.3 names for content whose
-# type is unknown, so a default that rejects it rejects the specified fallback.
-#
-# The rest are the ordinary shapes of a request body, a non-JSON API, and the
-# subresources a browser fetches for any page it renders. The stylesheet, script
-# and font types are registered and are served by essentially every deployment
-# with a web front end, so leaving them out reported conformant traffic on any
-# corpus a browser produced -- the same defect as rejecting `message/http`, one
-# step further out.
-#
-# A deployment is still expected to narrow this to what it actually serves.
-allowed = [
-  "text/plain",
-  "text/html",
-  "text/css",
-  "text/javascript",
-  "application/javascript",
-  "application/json",
-  "application/xml",
-  "application/wasm",
-  "application/octet-stream",
-  "application/x-www-form-urlencoded",
-  "multipart/byteranges",
-  "multipart/form-data",
-  "message/http",
-  "font/woff",
-  "font/woff2",
-  "image/*",
-  "+json",
-]
+# The IANA Media Types registry is the check, and this crate carries a snapshot
+# of it. `allowed` names what this deployment knowingly uses beyond it, and adds
+# to the registry rather than replacing it. An entry may be exact
+# (`application/x-protobuf`), a type wildcard (`image/*`), `*/*`, or a
+# structured syntax suffix (`+json`); the last three are conveniences of this
+# option, not media-type syntax.
+allowed = []
 "#
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let allowed = crate::helpers::rule_config::parse_lowercased_list(
+        let allowed = crate::helpers::rule_config::parse_lowercased_additions(
             cfg,
             self.id(),
             "allowed",
-            "acceptable media-types or patterns",
-            "['text/plain','application/json','image/*','+json']",
+            "['application/x-protobuf','+json']",
         )?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
@@ -96,7 +69,7 @@ allowed = [
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks that `Content-Type` media types (in both requests and responses) appear in an allowlist you configure. It helps flag unregistered or accidental vendor types that may cause interoperability problems.\n\n**It does not consult the IANA registry**, despite the rule's name: there is no lookup, and a media type is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. RFC 9110 says media types *ought to* be registered, which is the motivation for the rule, but the check itself is your policy.\n\nEntries may be exact (`text/plain`), a type wildcard (`image/*`), `*/*`, or a structured syntax suffix (`+json`, matching `application/vnd.example+json` but not `application/json` or `text/notjson`). The wildcard and suffix forms are conveniences of this configuration, not media-type syntax. Comparisons are case-insensitive."
+        "Reports a `Content-Type` naming a media type that the IANA Media Types registry does not hold, in a request or in a response.\n\n**The registry is the check.** RFC 9110 §8.3.1 says media types *ought to* be registered, and this crate carries a snapshot of the registry to ask. It used to ask a short list in its configuration instead, which reported every registered type the list left out — `application/pdf`, `text/markdown`, `multipart/mixed` — as unregistered.\n\n**`allowed` adds to the registry.** A deployment that knowingly uses a type nobody registered, such as `application/x-protobuf`, names it there, and the rule stops reporting it. It never narrows: a registered type the deployment does not serve is not what this entry is about. Entries may be exact (`text/plain`), a type wildcard (`image/*`), `*/*`, or a structured syntax suffix (`+json`, matching `application/vnd.example+json` but not `application/json` or `text/notjson`). The wildcard and suffix forms are conveniences of this configuration, not media-type syntax. Comparisons are case-insensitive.\n\n**The finding is a `warn`, and why it is not more.** Registration is asked of whoever defines a type, and two parties that agree on an unregistered one exchange it without harm. What the registry buys is that a third party can learn what the bytes are."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -107,9 +80,9 @@ allowed = [
         DECLARED
     }
 
-    /// **One allowlist, asked of both halves.** The request's `Content-Type`
+    /// **One registry, asked of both halves.** The request's `Content-Type`
     /// describes what the client enclosed and the response's what the origin
-    /// selected, so the unrecognised media type is the writer's either way and
+    /// selected, so the unregistered media type is the writer's either way and
     /// the reader is told which writer it is reading.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
@@ -122,6 +95,11 @@ allowed = [
                 compliance: Compliance::Compliant,
                 label: None,
                 snippet: "Content-Type: text/plain\nContent-Type: application/json; charset=utf-8\nContent-Type: application/ld+json\nContent-Type: image/png",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(registered, whatever a deployment lists)"),
+                snippet: "Content-Type: application/pdf\nContent-Type: text/markdown; charset=utf-8",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -169,21 +147,20 @@ impl Rule for ContentTypeRegistered {
                 let s = parsed.subtype.to_ascii_lowercase();
                 let full = format!("{}/{}", t, s);
 
-                // What follows is an *allowlist* match, not a registry lookup, and the
-                // rule's name oversells it. The sentence below is why such a rule is
-                // wanted — registration is the thing worth encouraging — but it is an
-                // "ought to", it is addressed to people defining media types, and
-                // nothing here consults the IANA registry. An operator's list stands in
-                // for it: entries can be exact (`text/plain`), a type wildcard
-                // (`image/*`), `*/*`, or a structured-syntax suffix (`+json`). The
-                // wildcard and suffix forms are configuration conveniences with no
-                // basis in any specification. The sentence that motivates the
-                // whole check is quoted on `media_type_unregistered`, which is
-                // what a value reaching the end of this loop reports as — and
-                // it was RFC 6838 § 4.2.8's suffix sentence that sat on the
-                // finding before, a sentence about how one *allowlist entry*
-                // is matched rather than about registration at all.
+                // The registry first, since it is what the finding names. The
+                // sentence below is why the rule exists; it is an "ought to"
+                // addressed to whoever defines a type, and a registered pair is
+                // the one value it can never be about.
+                // cite(RFC 9110 § 8.3.1): "Media types ought to be registered with IANA according to the procedures defined in [BCP13]."
+                if crate::registries::media_type_registered(&t, &s) {
+                    return None;
+                }
 
+                // Then what the deployment knowingly uses beyond it: entries can
+                // be exact (`application/x-protobuf`), a type wildcard
+                // (`image/*`), `*/*`, or a structured-syntax suffix (`+json`).
+                // The wildcard and suffix forms are configuration conveniences
+                // with no basis in any specification.
                 for pat in allowed {
                     if pat == "*/*" || pat == &full {
                         return None;
@@ -215,7 +192,10 @@ impl Rule for ContentTypeRegistered {
 
                 Some(ctx.by(party).report_with(
                     &MEDIA_TYPE_UNREGISTERED,
-                    format!("Unrecognized media type '{}' in {} header", full, hdr_name),
+                    format!(
+                        "Media type '{}' in {} header is not in the IANA Media Types registry, and this rule's `allowed` list does not name it",
+                        full, hdr_name
+                    ),
                 ))
             };
 
@@ -571,22 +551,82 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn parse_config_rejects_empty_allowed_array() {
-        let mut cfg =
-            crate::test_helpers::make_test_config_with_enabled_rules(&["content_type_registered"]);
+    /// An empty `allowed`, and an absent one, are the registry alone. The
+    /// array used to be the whole of what the rule accepted, so an empty one
+    /// was refused as a rule that would report everything; it adds to the
+    /// registry now, and adding nothing is the shipped default.
+    #[rstest]
+    #[case::empty(Some(vec![]))]
+    #[case::absent(None)]
+    fn an_empty_or_absent_allowed_is_the_registry_alone(
+        #[case] allowed: Option<Vec<toml::Value>>,
+    ) -> anyhow::Result<()> {
+        let mut cfg = crate::config::Config::default();
         cfg.rules.insert(
             "content_type_registered".into(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("allowed".into(), toml::Value::Array(vec![]));
+                if let Some(a) = allowed {
+                    t.insert("allowed".into(), toml::Value::Array(a));
+                }
                 t
             }),
         );
+        let parsed = ContentTypeRegistered.prepare(&cfg)?;
+        let parsed: &crate::helpers::rule_config::AllowedList =
+            parsed.state.downcast_ref().expect("allowed list state");
+        assert!(parsed.allowed.is_empty());
 
-        let res = ContentTypeRegistered.prepare(&cfg);
-        assert!(res.is_err());
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", "application/pdf")]);
+        let found = crate::test_helpers::run_rule_all(
+            &ContentTypeRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(found.is_empty(), "{found:?}");
+        Ok(())
+    }
+
+    /// Under the shipped configuration, which lists nothing: a registered type
+    /// is silent whatever its top-level type, and an unregistered one is
+    /// reported whatever its spelling. The registered half was reported
+    /// wholesale when a sixteen-entry list stood in for the registry --
+    /// `application/pdf`, `text/markdown` and `multipart/mixed` among them.
+    #[rstest]
+    #[case("application/pdf", false)]
+    #[case("text/markdown; charset=utf-8", false)]
+    #[case("multipart/mixed; boundary=frontier", false)]
+    #[case("text/csv", false)]
+    #[case("video/mp4", false)]
+    #[case("Application/PDF", false)]
+    #[case("application/protobuf", false)]
+    #[case("application/x-protobuf", true)]
+    #[case("httpd/unix-directory", true)]
+    #[case("image/x-icon", true)]
+    #[case("application/reports+json", true)]
+    fn the_shipped_configuration_asks_the_registry(#[case] ct: &str, #[case] reported: bool) {
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["content_type_registered"]);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", ct)]);
+        let found = crate::test_helpers::run_rule_all(
+            &ContentTypeRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(found.len(), usize::from(reported), "{ct}: {found:?}");
+        if reported {
+            assert!(
+                found[0].message.contains(&ct.to_ascii_lowercase()),
+                "{found:?}"
+            );
+        }
     }
 
     #[test]

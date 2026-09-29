@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # media_type_unregistered
 
-Media type is not one the deployment recognises
+A media type is not in the IANA registry
 
 ## Message
 
@@ -24,7 +24,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.media_type_unregistered]
-# Media type is not one the deployment recognises
+# A media type is not in the IANA registry
 severity = "warn"
 ```
 

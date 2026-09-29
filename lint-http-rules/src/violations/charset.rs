@@ -24,7 +24,8 @@
 //! and
 //! [`media_type_unregistered`](crate::violations::media_type::MEDIA_TYPE_UNREGISTERED),
 //! and the same shape as both: an *ought to* addressed to whoever defines the
-//! name, measured against a list the operator wrote.
+//! name, measured against the registry it names, as [`crate::registries`]
+//! carries it.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -54,12 +55,16 @@ defects! {
         spec: &[RFC_9110_8_3_2],
     }
 
-    /// A charset name the deployment does not recognise. Matched
-    /// case-insensitively, because that is how § 8.3.2 says charset names are
-    /// matched, and against the operator's `allowed` list rather than IANA's
-    /// table — the stand-in the other two registry entries make, for the same
-    /// reason: this crate carries no snapshot of a registry it cannot keep
-    /// current.
+    /// A charset name the IANA Character Sets registry does not hold, under any
+    /// of its names or aliases. Matched case-insensitively, because that is how
+    /// § 8.3.2 says charset names are matched.
+    ///
+    /// **Measured against the registry**, as the snapshot in
+    /// [`crate::registries`] carries it, with what the operator's `allowed`
+    /// list adds. A three-name list stood in for it before, on the argument
+    /// that a snapshot is stale the day it is written; a stale snapshot misses
+    /// the names registered since, and the list missed `Shift_JIS`,
+    /// `windows-1252` and every other name the registry held.
     ///
     /// `warn`. The consequence of an unknown name is a recipient guessing at
     /// the encoding, which is a decoding risk rather than a malformed message.
@@ -67,7 +72,7 @@ defects! {
     // cite(RFC 9110 § 8.3.2): "Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978]."
     CHARSET_UNREGISTERED = {
         id: "charset_unregistered",
-        title: "Charset name is not one the deployment recognises",
+        title: "A charset name is not in the IANA registry",
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_8_3_2],

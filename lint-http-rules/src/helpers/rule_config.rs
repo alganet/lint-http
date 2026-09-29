@@ -4,9 +4,9 @@
 
 //! The shared shape of a configured list of case-insensitive names.
 //!
-//! Nine rules configure themselves with a required array of strings whose
-//! entries are matched case-insensitively against the wire — seven under the
-//! key `allowed`, two under the key `headers` — and each had grown its own
+//! Nine rules configure themselves with an array of strings whose entries are
+//! matched case-insensitively against the wire — seven under the key
+//! `allowed`, two under the key `headers` — and each had grown its own
 //! copy of the same parser, differing only in the key and the noun its error
 //! messages named. The parser moves here; the key and the *nouns* stay with
 //! the rules (`key`/`what`/`example` below), and so do the citations that
@@ -80,6 +80,41 @@ pub fn parse_lowercased_list(
         return Err(anyhow::anyhow!("'{}' array cannot be empty", key));
     }
 
+    lowercased_strings(arr, key)
+}
+
+/// Parse an optional `key` array out of `[rules.<rule_id>]` that *adds* to
+/// what the rule already accepts, folding each entry to lowercase.
+///
+/// **The difference from [`parse_lowercased_list`] is what the list is.** A
+/// required list is the whole of what a rule accepts, so an empty one would
+/// accept nothing and is refused. This one sits beside a registry the rule
+/// carries, so leaving it out, or writing it empty, is the ordinary case: the
+/// deployment uses nothing the registry does not hold.
+pub fn parse_lowercased_additions(
+    cfg: &Config,
+    rule_id: &str,
+    key: &str,
+    example: &str,
+) -> anyhow::Result<Vec<String>> {
+    let Some(rule_cfg) = cfg.get_rule_config(rule_id) else {
+        return Ok(Vec::new());
+    };
+    let table = rule_cfg
+        .as_table()
+        .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{}' must be a table", rule_id))?;
+    let Some(list_val) = table.get(key) else {
+        return Ok(Vec::new());
+    };
+    let arr = list_val.as_array().ok_or_else(|| {
+        anyhow::anyhow!("'{}' must be an array of strings (e.g., {})", key, example)
+    })?;
+    lowercased_strings(arr, key)
+}
+
+/// Every item of `arr` as a lowercase string, or the index of the first one
+/// that is not a string.
+fn lowercased_strings(arr: &[toml::Value], key: &str) -> anyhow::Result<Vec<String>> {
     let mut out = Vec::new();
     for (i, item) in arr.iter().enumerate() {
         let s = item.as_str().ok_or_else(|| {

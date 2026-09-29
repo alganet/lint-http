@@ -123,17 +123,18 @@ defects! {
         spec: &[RFC_9110_12_5_1],
     }
 
-    /// A well-formed `type/subtype` that the deployment does not expect. The
-    /// tokens parse, the pair is comparable, and a recipient still has nothing
-    /// telling it what the bytes are.
+    /// A well-formed `type/subtype` that the IANA Media Types registry does not
+    /// hold. The tokens parse, the pair is comparable, and a recipient has no
+    /// registration telling it what the bytes are.
     ///
-    /// **Measured against the operator's `allowed` list rather than against
-    /// IANA's table**, which this crate does not carry — the same stand-in
-    /// `auth_scheme_unregistered` makes, and worth the same caution: an entry
-    /// may be an exact pair, a `type/*`, `*/*`, or a `+suffix`, and those three
-    /// wildcard forms are configuration conveniences with no basis in any
-    /// document. So a finding here means "not on the list", and the list is the
-    /// operator's answer to the sentence quoted below.
+    /// **Measured against the registry**, as the snapshot in
+    /// [`crate::registries`] carries it, with what the operator's `allowed`
+    /// list adds. That list stood in for the registry before, sixteen entries
+    /// long, and every registered type it left out drew this entry:
+    /// `application/pdf`, `text/markdown`, `multipart/mixed`. An `allowed`
+    /// entry may be an exact pair, a `type/*`, `*/*`, or a `+suffix`, and
+    /// those three wildcard forms are configuration conveniences with no basis
+    /// in any document; they only ever silence.
     ///
     /// `warn`: registration is an *ought to* addressed to whoever defines the
     /// type, and an unregistered type between two parties that agree on it
@@ -142,7 +143,7 @@ defects! {
     // cite(RFC 9110 § 8.3.1): "Media types ought to be registered with IANA according to the procedures defined in [BCP13]."
     MEDIA_TYPE_UNREGISTERED = {
         id: "media_type_unregistered",
-        title: "Media type is not one the deployment recognises",
+        title: "A media type is not in the IANA registry",
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_8_3_1],

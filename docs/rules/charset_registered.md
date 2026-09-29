@@ -8,15 +8,13 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Check charset names against an allowlist you configure, wherever HTTP writes one. A `Content-Type`'s `charset` parameter is one site and an `Accept-Charset` member is the other; the rule also reports an empty `charset`, a malformed quoted-string, and characters that do not belong in the name.
+Check charset names against the IANA Character Sets registry, wherever HTTP writes one. A `Content-Type`'s `charset` parameter is one site and an `Accept-Charset` member is the other; the rule also reports an empty `charset`, a malformed quoted-string, and characters that do not belong in the name.
 
 **Two fields, one question, and that is what the rule is named after.** RFC 9110 §8.3.2 defines charset names once and §12.5.2 sends a reader there for the ones an `Accept-Charset` carries, so the same name reached through a `parameter` value and through a bare `token` is the same name. Reading only `Content-Type` left a field whose every member *is* a charset name unasked. **Every unregistered member of an `Accept-Charset` is reported**, unlike the `Content-Type` walk, which picks the first of however many lines: `#( ( token / "*" ) [ weight ] )` states a preference per position, so three names nobody registered are three names to correct. The `*` is exempt, being the production's other alternative rather than a charset; an empty member and a name that is not a `token` are `accept_charset_valid`'s findings, since a name that does not derive is not a name to look up.
 
-**The shipped `allowed` array is three names, and it was chosen when the only site was a `Content-Type`.** A server declaring *the* charset of one representation and a client listing the charsets it will take are different-sized questions; an operator whose clients send preference lists will want to widen it.
+**The registry is the check.** RFC 9110 §8.3.2 says charset names *ought to* be registered in the IANA "Character Sets" registry, and this crate carries a snapshot of it: every name, preferred MIME name and alias, so `latin1` is as registered as `ISO-8859-1`. It used to ask a three-name list in its configuration instead, which reported `Shift_JIS`, `windows-1252` and every other registered charset as unregistered. **`allowed` adds to the registry**: a deployment that knowingly sends a name nobody registered names it there. Matching is case-insensitive, as §8.3.2 requires, and a quoted value is compared after unescaping, since the quoted and unquoted forms are equivalent.
 
-**It does not consult the IANA registry**, despite the rule's name: there is no lookup, and a charset is "registered" as far as this rule is concerned exactly when your `allowed` array covers it. RFC 9110 §8.3.2 says charset names *ought to* be registered, which is the motivation for the rule, but the check itself is your policy. Matching is case-insensitive, as §8.3.2 requires, and a quoted value is compared after unescaping, since the quoted and unquoted forms are equivalent.
-
-**`token` is not the charset production.** An unquoted name is checked against `token`, while a charset name follows `mime-charset` (RFC 2978 §2.3). The two sets are *incomparable*: `mime-charset` admits `{` and `}` that `token` rejects, and `token` admits `*`, `.` and `|` that `mime-charset` rejects — so `charset=utf.8` reaches the allowlist rather than being called malformed. Neither direction changes a verdict: RFC 9110 §8.3.2 says no registered charset name uses braces, and a name carrying `.` or `*` is reported by the allowlist check if it is not configured. Only the wording of the finding differs.
+**`token` is not the charset production.** An unquoted name is checked against `token`, while a charset name follows `mime-charset` (RFC 2978 §2.3). The two sets are *incomparable*: `mime-charset` admits `{` and `}` that `token` rejects, and `token` admits `*`, `.` and `|` that `mime-charset` rejects — so `charset=utf.8` reaches the registry check rather than being called malformed. Neither direction changes a verdict: RFC 9110 §8.3.2 says no registered charset name uses braces, and a name carrying `.` or `*` is reported by the registry check unless the registry or `allowed` holds it. Only the wording of the finding differs.
 
 **Scope:** this rule reports only on charsets. A `Content-Type` that does not parse as a `media-type`, and the presence of more than one `Content-Type` field line, are both `content_type_valid`'s findings; everything about an `Accept-Charset` member other than its name — the weight, the empty element, the deprecation — is `accept_charset_valid`'s. It reads every `Content-Type` and every `Accept-Charset` line in the header section of each message, in both directions, and attributes each to whoever wrote it; trailers are not read, since a `Content-Type` there is malformed framing rather than a charset question.
 
@@ -25,7 +23,7 @@ Check charset names against an allowlist you configure, wherever HTTP writes one
 ## Violations
 
 - [charset_empty](../violations/charset_empty.md) — Charset parameter carries no name
-- [charset_unregistered](../violations/charset_unregistered.md) — Charset name is not one the deployment recognises
+- [charset_unregistered](../violations/charset_unregistered.md) — A charset name is not in the IANA registry
 - [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
 - [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
 - [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
@@ -42,14 +40,17 @@ Check charset names against an allowlist you configure, wherever HTTP writes one
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 - [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 - [RFC 2978 §2.3](https://www.rfc-editor.org/rfc/rfc2978.html#section-2.3): `mime-charset`, the production a charset name actually follows. It and `token` are incomparable — `{`/`}` on one side, `*`/`.`/`|` on the other — so checking `token` is stricter in one direction and looser in the other, and neither direction changes a verdict
-- [IANA Character Sets](https://www.iana.org/assignments/character-sets/character-sets.xhtml): The registry this rule is named after but does not read; the configured `allowed` array stands in for it
+- [IANA Character Sets](https://www.iana.org/assignments/character-sets/character-sets.xhtml): The registry this rule reads, as the snapshot this crate carries, names and aliases alike; the configured `allowed` array adds to it
 
 ## Configuration
 
 ```toml
 [rules.charset_registered]
 enabled = true
-allowed = ["utf-8", "iso-8859-1", "us-ascii"]
+# The IANA Character Sets registry is the check, every name and alias it lists,
+# and this crate carries a snapshot of it. `allowed` names what this deployment
+# knowingly uses beyond it, and adds to the registry rather than replacing it.
+allowed = []
 ```
 
 ## Examples
@@ -68,6 +69,13 @@ Content-Type: text/html; charset="UTF-8"
 X-Content-Type-Options: nosniff
 
 <html>...</html>
+```
+
+### ✅ Good (registered, and on no list a deployment keeps)
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=Shift_JIS
 ```
 
 ### ❌ Bad

@@ -57,18 +57,19 @@ defects! {
         spec: &[RFC_9110_11_2],
     }
 
-    /// A scheme name that is a perfectly good `token` and is not one the
-    /// deployment expects. Nothing about the value is malformed: what is
-    /// reported is that a recipient meeting it has nothing to look it up in.
+    /// A scheme name that is a perfectly good `token` and that the IANA HTTP
+    /// Authentication Scheme registry does not hold. Nothing about the value is
+    /// malformed: what is reported is that a recipient meeting it has nothing
+    /// to look it up in.
     ///
-    /// **The comparison is against the operator's `allowed` list, not against
-    /// the registry itself**, and that is a deliberate stand-in rather than an
-    /// approximation of one: this crate ships no snapshot of IANA's table, a
-    /// snapshot would be stale the day it was written, and a deployment
-    /// generally accepts far fewer schemes than are registered. So the list is
-    /// the operator's answer to § 11.1's *ought to*, and the id names the
-    /// sentence rather than the list — an operator silencing this is saying
-    /// "unrecognised schemes are fine here", which is what they mean.
+    /// **The comparison is against the registry**, as the snapshot in
+    /// [`crate::registries`] carries it, with what the operator's `allowed`
+    /// list adds. A three-name list stood in for it before, argued from two
+    /// things: a snapshot is stale the day it is written, and a deployment
+    /// accepts far fewer schemes than are registered. The first costs the
+    /// names registered since the snapshot; the list cost `Negotiate`, `DPoP`
+    /// and eight more that were registered all along. The second is a question
+    /// about what a deployment accepts, and the id names registration.
     ///
     /// `warn`, and the sentence quoted is why it is not an error: schemes ought
     /// to be registered, and a private scheme between two parties that know
@@ -77,7 +78,7 @@ defects! {
     // cite(RFC 9110 § 11.1): "New and existing authentication schemes are specified independently and ought to be registered"
     AUTH_SCHEME_UNREGISTERED = {
         id: "auth_scheme_unregistered",
-        title: "Authentication scheme is not one the deployment recognises",
+        title: "An authentication scheme is not in the IANA registry",
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_11_1],

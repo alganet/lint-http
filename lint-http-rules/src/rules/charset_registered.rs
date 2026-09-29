@@ -58,7 +58,7 @@ const IANA_CHARACTER_SETS: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "IANA Character Sets",
     section: None,
     url: "https://www.iana.org/assignments/character-sets/character-sets.xhtml",
-    note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
+    note: "The registry this rule reads, as the snapshot this crate carries, names and aliases alike; the configured `allowed` array adds to it",
 };
 
 impl RuleMeta for CharsetRegistered {
@@ -68,7 +68,10 @@ impl RuleMeta for CharsetRegistered {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-allowed = ["utf-8", "iso-8859-1", "us-ascii"]
+# The IANA Character Sets registry is the check, every name and alias it lists,
+# and this crate carries a snapshot of it. `allowed` names what this deployment
+# knowingly uses beyond it, and adds to the registry rather than replacing it.
+allowed = []
 "#
     }
 
@@ -77,12 +80,11 @@ allowed = ["utf-8", "iso-8859-1", "us-ascii"]
         // comparison, which is sound because the matching itself is defined to
         // ignore case.
         // cite(RFC 9110 § 8.3.2): "In both cases, charset names are matched case-insensitively."
-        let allowed = crate::helpers::rule_config::parse_lowercased_list(
+        let allowed = crate::helpers::rule_config::parse_lowercased_additions(
             cfg,
             self.id(),
             "allowed",
-            "acceptable charset names",
-            "['utf-8','iso-8859-1']",
+            "['utf8']",
         )?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
@@ -93,7 +95,7 @@ allowed = ["utf-8", "iso-8859-1", "us-ascii"]
     }
 
     fn description(&self) -> &'static str {
-        "Check charset names against an allowlist you configure, wherever HTTP writes one. A `Content-Type`'s `charset` parameter is one site and an `Accept-Charset` member is the other; the rule also reports an empty `charset`, a malformed quoted-string, and characters that do not belong in the name.\n\n**Two fields, one question, and that is what the rule is named after.** RFC 9110 §8.3.2 defines charset names once and §12.5.2 sends a reader there for the ones an `Accept-Charset` carries, so the same name reached through a `parameter` value and through a bare `token` is the same name. Reading only `Content-Type` left a field whose every member *is* a charset name unasked. **Every unregistered member of an `Accept-Charset` is reported**, unlike the `Content-Type` walk, which picks the first of however many lines: `#( ( token / \"*\" ) [ weight ] )` states a preference per position, so three names nobody registered are three names to correct. The `*` is exempt, being the production's other alternative rather than a charset; an empty member and a name that is not a `token` are `accept_charset_valid`'s findings, since a name that does not derive is not a name to look up.\n\n**The shipped `allowed` array is three names, and it was chosen when the only site was a `Content-Type`.** A server declaring *the* charset of one representation and a client listing the charsets it will take are different-sized questions; an operator whose clients send preference lists will want to widen it.\n\n**It does not consult the IANA registry**, despite the rule's name: there is no lookup, and a charset is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. RFC 9110 §8.3.2 says charset names *ought to* be registered, which is the motivation for the rule, but the check itself is your policy. Matching is case-insensitive, as §8.3.2 requires, and a quoted value is compared after unescaping, since the quoted and unquoted forms are equivalent.\n\n**`token` is not the charset production.** An unquoted name is checked against `token`, while a charset name follows `mime-charset` (RFC 2978 §2.3). The two sets are *incomparable*: `mime-charset` admits `{` and `}` that `token` rejects, and `token` admits `*`, `.` and `|` that `mime-charset` rejects — so `charset=utf.8` reaches the allowlist rather than being called malformed. Neither direction changes a verdict: RFC 9110 §8.3.2 says no registered charset name uses braces, and a name carrying `.` or `*` is reported by the allowlist check if it is not configured. Only the wording of the finding differs.\n\n**Scope:** this rule reports only on charsets. A `Content-Type` that does not parse as a `media-type`, and the presence of more than one `Content-Type` field line, are both `content_type_valid`'s findings; everything about an `Accept-Charset` member other than its name — the weight, the empty element, the deprecation — is `accept_charset_valid`'s. It reads every `Content-Type` and every `Accept-Charset` line in the header section of each message, in both directions, and attributes each to whoever wrote it; trailers are not read, since a `Content-Type` there is malformed framing rather than a charset question.\n\n**One silence worth knowing about:** an unbalanced quote in an *earlier* parameter swallows the rest of the value, so `boundary=\"unterminated; charset=bogus` yields no charset finding here. The value is malformed and `content_type_valid` reports it; there is genuinely no parameter list left to read once the quoting breaks."
+        "Check charset names against the IANA Character Sets registry, wherever HTTP writes one. A `Content-Type`'s `charset` parameter is one site and an `Accept-Charset` member is the other; the rule also reports an empty `charset`, a malformed quoted-string, and characters that do not belong in the name.\n\n**Two fields, one question, and that is what the rule is named after.** RFC 9110 §8.3.2 defines charset names once and §12.5.2 sends a reader there for the ones an `Accept-Charset` carries, so the same name reached through a `parameter` value and through a bare `token` is the same name. Reading only `Content-Type` left a field whose every member *is* a charset name unasked. **Every unregistered member of an `Accept-Charset` is reported**, unlike the `Content-Type` walk, which picks the first of however many lines: `#( ( token / \"*\" ) [ weight ] )` states a preference per position, so three names nobody registered are three names to correct. The `*` is exempt, being the production's other alternative rather than a charset; an empty member and a name that is not a `token` are `accept_charset_valid`'s findings, since a name that does not derive is not a name to look up.\n\n**The registry is the check.** RFC 9110 §8.3.2 says charset names *ought to* be registered in the IANA \"Character Sets\" registry, and this crate carries a snapshot of it: every name, preferred MIME name and alias, so `latin1` is as registered as `ISO-8859-1`. It used to ask a three-name list in its configuration instead, which reported `Shift_JIS`, `windows-1252` and every other registered charset as unregistered. **`allowed` adds to the registry**: a deployment that knowingly sends a name nobody registered names it there. Matching is case-insensitive, as §8.3.2 requires, and a quoted value is compared after unescaping, since the quoted and unquoted forms are equivalent.\n\n**`token` is not the charset production.** An unquoted name is checked against `token`, while a charset name follows `mime-charset` (RFC 2978 §2.3). The two sets are *incomparable*: `mime-charset` admits `{` and `}` that `token` rejects, and `token` admits `*`, `.` and `|` that `mime-charset` rejects — so `charset=utf.8` reaches the registry check rather than being called malformed. Neither direction changes a verdict: RFC 9110 §8.3.2 says no registered charset name uses braces, and a name carrying `.` or `*` is reported by the registry check unless the registry or `allowed` holds it. Only the wording of the finding differs.\n\n**Scope:** this rule reports only on charsets. A `Content-Type` that does not parse as a `media-type`, and the presence of more than one `Content-Type` field line, are both `content_type_valid`'s findings; everything about an `Accept-Charset` member other than its name — the weight, the empty element, the deprecation — is `accept_charset_valid`'s. It reads every `Content-Type` and every `Accept-Charset` line in the header section of each message, in both directions, and attributes each to whoever wrote it; trailers are not read, since a `Content-Type` there is malformed framing rather than a charset question.\n\n**One silence worth knowing about:** an unbalanced quote in an *earlier* parameter swallows the rest of the value, so `boundary=\"unterminated; charset=bogus` yields no charset finding here. The value is malformed and `content_type_valid` reports it; there is genuinely no parameter list left to read once the quoting breaks."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -139,6 +141,11 @@ allowed = ["utf-8", "iso-8859-1", "us-ascii"]
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/html; charset=\"UTF-8\"\nX-Content-Type-Options: nosniff\n\n<html>...</html>",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("(registered, and on no list a deployment keeps)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/plain; charset=Shift_JIS",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/plain; charset=unknown-charset",
@@ -168,6 +175,19 @@ impl Rule for CharsetRegistered {
         {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
             use crate::helpers::media_type::parse_media_type;
+
+            // Registered, or named by the operator as a name this deployment
+            // uses beyond the registry. An alias counts: the registry lists it
+            // so that a recipient can recognise it.
+            let listed = |name: &str| {
+                crate::registries::charset_registered(name)
+                    || config.allowed.contains(&name.to_ascii_lowercase())
+            };
+            let unregistered = |name: &str, site: &str| {
+                format!(
+                    "Charset '{name}' in {site} is not in the IANA Character Sets registry, and this rule's `allowed` list does not name it"
+                )
+            };
 
             let check_header = |which: &str,
                                 val: &str,
@@ -287,20 +307,18 @@ impl Rule for CharsetRegistered {
                                 ));
                             }
 
-                            // The rule's name says IANA; the code says the
-                            // operator's `allowed` array. The registry is never
-                            // consulted — there is no lookup — and the "ought
-                            // to" that motivates the whole rule is quoted on
-                            // `charset_unregistered`, which is what this
-                            // reports. The fold is the matching rule, not a
+                            // The registry, and then what the operator adds to
+                            // it. The "ought to" that motivates the whole rule
+                            // is quoted on `charset_unregistered`, which is what
+                            // this reports. The fold is the matching rule, not a
                             // convenience, and that sentence stays here because
                             // it is what this comparison does rather than what
                             // the defect is.
                             // cite(RFC 9110 § 8.3.2): "In both cases, charset names are matched case-insensitively."
-                            if !config.allowed.contains(&value.to_ascii_lowercase()) {
+                            if !listed(value) {
                                 return Some(ctx.by(party).report_with(
                                     &CHARSET_UNREGISTERED,
-                                    format!("Unrecognized charset '{}' in {} header", value, which),
+                                    unregistered(value, &format!("the {which} Content-Type")),
                                 ));
                             }
                         }
@@ -357,46 +375,45 @@ impl Rule for CharsetRegistered {
             // charsets nobody registered has three names to correct.
             // cite(RFC 9110 § 12.5.2): "Accept-Charset = #( ( token / "*" ) [ weight ] )"
             // cite(RFC 9110 § 12.5.2): "Charset names are defined in Section 8.3.2."
-            let check_accept_charset = |headers: &hyper::HeaderMap,
-                                        party: crate::lint::Party|
-             -> Vec<Violation> {
-                let mut found = Vec::new();
-                for line in
-                    crate::helpers::headers::field_lines_as_written(headers, "accept-charset")
-                {
-                    for member in crate::helpers::list::sender_list_members(line.as_str()) {
-                        // The primary, which is everything before the weight's
-                        // `;`. What follows it is `accept_charset_valid`'s.
-                        let name = crate::helpers::headers::trim_ows(
-                            member.split(';').next().unwrap_or(""),
-                        );
-                        // Three members this rule has nothing to say about, and
-                        // each is already somebody's finding. The asterisk is
-                        // the production's other alternative rather than a
-                        // charset called `*`; an empty primary and a name that
-                        // is not a `token` are `accept_charset_valid`'s, which
-                        // reads the same members for the same field — and a
-                        // name that does not derive is not a name to look up.
-                        // cite(RFC 9110 § 12.5.2): "The special value "*", if present in the Accept-Charset header field, matches every charset that is not mentioned elsewhere in the field."
-                        if name.is_empty()
-                            || name == "*"
-                            || crate::helpers::token::find_invalid_token_char(name).is_some()
-                        {
-                            continue;
-                        }
-                        // Matched case-insensitively, which is § 8.3.2's
-                        // sentence about charset names wherever they appear.
-                        // cite(RFC 9110 § 8.3.2): "In both cases, charset names are matched case-insensitively."
-                        if !config.allowed.contains(&name.to_ascii_lowercase()) {
-                            found.push(ctx.by(party).report_with(
-                                &CHARSET_UNREGISTERED,
-                                format!("Unrecognized charset '{name}' in Accept-Charset header"),
-                            ));
+            let check_accept_charset =
+                |headers: &hyper::HeaderMap, party: crate::lint::Party| -> Vec<Violation> {
+                    let mut found = Vec::new();
+                    for line in
+                        crate::helpers::headers::field_lines_as_written(headers, "accept-charset")
+                    {
+                        for member in crate::helpers::list::sender_list_members(line.as_str()) {
+                            // The primary, which is everything before the weight's
+                            // `;`. What follows it is `accept_charset_valid`'s.
+                            let name = crate::helpers::headers::trim_ows(
+                                member.split(';').next().unwrap_or(""),
+                            );
+                            // Three members this rule has nothing to say about, and
+                            // each is already somebody's finding. The asterisk is
+                            // the production's other alternative rather than a
+                            // charset called `*`; an empty primary and a name that
+                            // is not a `token` are `accept_charset_valid`'s, which
+                            // reads the same members for the same field — and a
+                            // name that does not derive is not a name to look up.
+                            // cite(RFC 9110 § 12.5.2): "The special value "*", if present in the Accept-Charset header field, matches every charset that is not mentioned elsewhere in the field."
+                            if name.is_empty()
+                                || name == "*"
+                                || crate::helpers::token::find_invalid_token_char(name).is_some()
+                            {
+                                continue;
+                            }
+                            // Matched case-insensitively, which is § 8.3.2's
+                            // sentence about charset names wherever they appear.
+                            // cite(RFC 9110 § 8.3.2): "In both cases, charset names are matched case-insensitively."
+                            if !listed(name) {
+                                found.push(ctx.by(party).report_with(
+                                    &CHARSET_UNREGISTERED,
+                                    unregistered(name, "Accept-Charset"),
+                                ));
+                            }
                         }
                     }
-                }
-                found
-            };
+                    found
+                };
 
             out.extend(check_all(
                 "request",
@@ -431,9 +448,8 @@ static REGISTRATION: &dyn crate::rules::Rule = &CharsetRegistered;
 mod accept_charset_site {
     use super::*;
 
-    /// The shipped `allowed` array, spelled out. `allowed` has no default —
-    /// `prepare` refuses a configuration that omits it — so a helper that only
-    /// enables the rule leaves it unprepared and every finding silently absent.
+    /// The shipped configuration, spelled out: the rule enabled and `allowed`
+    /// empty, so the registry alone decides.
     fn cfg() -> crate::config::Config {
         let mut cfg = crate::config::Config::default();
         cfg.rules.insert(
@@ -441,15 +457,7 @@ mod accept_charset_site {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert(
-                    "allowed".into(),
-                    toml::Value::Array(
-                        ["utf-8", "iso-8859-1", "us-ascii"]
-                            .into_iter()
-                            .map(|s| toml::Value::String(s.into()))
-                            .collect(),
-                    ),
-                );
+                t.insert("allowed".into(), toml::Value::Array(vec![]));
                 t
             }),
         );
@@ -494,14 +502,14 @@ mod accept_charset_site {
     /// charset, and which duplicated line a recipient acts on is undefined.
     #[test]
     fn every_unregistered_member_is_reported() {
-        let found = run("accept-charset", "utf8, latin1;q=0.5, cp1252");
+        let found = run("accept-charset", "utf8, x-sjis;q=0.5, cp1252");
         assert_eq!(
             ids(&found).len(),
             3,
             "{:?}",
             found.iter().map(|v| &v.message).collect::<Vec<_>>()
         );
-        for name in ["utf8", "latin1", "cp1252"] {
+        for name in ["utf8", "x-sjis", "cp1252"] {
             assert!(
                 found.iter().any(|v| v.message.contains(name)),
                 "{name} unreported"
@@ -559,6 +567,21 @@ mod accept_charset_site {
         assert_eq!(found[0].party, Some(crate::lint::Party::Server));
     }
 
+    /// **A registered name is silent under any of its registered spellings.**
+    /// The registry lists a preferred MIME name, a name and aliases for most
+    /// charsets, and a recipient is meant to recognise each; § 12.5.2's own
+    /// example (`iso-8859-5, unicode-1-1`) is two of them. Every one of these
+    /// was reported while a three-name list stood in for the registry.
+    #[rstest::rstest]
+    #[case("iso-8859-5, unicode-1-1;q=0.8")]
+    #[case("Shift_JIS, windows-1252")]
+    #[case("latin1, csISOLatin1, ISO_8859-1:1987")]
+    #[case("EUC-JP, GB2312, Big5, KOI8-R")]
+    fn a_registered_name_is_not_reported(#[case] value: &str) {
+        let found = run("accept-charset", value);
+        assert!(found.is_empty(), "{value}: {found:?}");
+    }
+
     /// Every line of the section, not the first: repeated field lines are one
     /// list, and a name written on the second is a name the sender wrote.
     #[test]
@@ -570,7 +593,7 @@ mod accept_charset_site {
         );
         tx.request.headers.append(
             "accept-charset",
-            hyper::header::HeaderValue::from_static("latin1"),
+            hyper::header::HeaderValue::from_static("x-sjis"),
         );
         let found = crate::test_helpers::run_rule_all(
             &CharsetRegistered,
@@ -967,15 +990,50 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn parse_config_requires_allowed_array() {
+    /// The `Content-Type` site asks the same registry: a registered name in
+    /// either section is silent, an unregistered one is reported about the
+    /// section's writer.
+    #[rstest]
+    #[case("text/html; charset=Shift_JIS", false)]
+    #[case("text/plain; charset=\"windows-1252\"", false)]
+    #[case("text/plain; charset=latin1", false)]
+    #[case("text/plain; charset=utf8", true)]
+    #[case("text/plain; charset=cp1252", true)]
+    fn the_content_type_site_asks_the_registry(#[case] ct: &str, #[case] reported: bool) {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["charset_registered"]);
-        let res = CharsetRegistered.prepare(&cfg);
-        assert!(res.is_err());
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", ct)]);
+        let found = crate::test_helpers::run_rule_all(
+            &CharsetRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(found.len(), usize::from(reported), "{ct}: {found:?}");
+        if reported {
+            assert_eq!(found[0].violation, "charset_unregistered");
+            assert_eq!(found[0].party, Some(crate::lint::Party::Server));
+        }
     }
 
+    /// `allowed` adds to the registry, so leaving it out asks the registry
+    /// alone. It used to be required, and a configuration that only enabled
+    /// the rule left it unprepared.
     #[test]
-    fn parse_config_rejects_empty_allowed_array() {
+    fn parse_config_accepts_an_absent_allowed_array() -> anyhow::Result<()> {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["charset_registered"]);
+        let parsed = CharsetRegistered.prepare(&cfg)?;
+        let parsed: &crate::helpers::rule_config::AllowedList =
+            parsed.state.downcast_ref().expect("allowed list state");
+        assert!(parsed.allowed.is_empty());
+        Ok(())
+    }
+
+    /// And an empty one is the shipped default rather than a rule that would
+    /// report every name: the registry is still there to answer.
+    #[test]
+    fn parse_config_accepts_an_empty_allowed_array() -> anyhow::Result<()> {
         let mut cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["charset_registered"]);
         cfg.rules.insert(
@@ -988,8 +1046,11 @@ mod tests {
             }),
         );
 
-        let res = CharsetRegistered.prepare(&cfg);
-        assert!(res.is_err());
+        let parsed = CharsetRegistered.prepare(&cfg)?;
+        let parsed: &crate::helpers::rule_config::AllowedList =
+            parsed.state.downcast_ref().expect("allowed list state");
+        assert!(parsed.allowed.is_empty());
+        Ok(())
     }
 
     #[test]

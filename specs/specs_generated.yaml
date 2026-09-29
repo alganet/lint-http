@@ -4375,7 +4375,7 @@ sources:
     snippet: it specified a suffix (in that case, "+xml") to be appended to the base subtype name.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_registered.rs
-      line: 209
+      line: 186
   - label: link_header_valid
     section: § 4.2
     snippet: 'Type and subtype names MUST conform to the following ABNF:'
@@ -4383,7 +4383,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 1675
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 228
+      line: 227
   - label: link_header_valid (2)
     section: § 4.2
     snippet: restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT
@@ -4391,9 +4391,9 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 1676
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 242
+      line: 241
     - file: lint-http-rules/src/violations/media_type.rs
-      line: 188
+      line: 189
   - label: link_header_valid (3)
     section: § 4.2
     snippet: restricted-name-chars = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "-" / "^" / "_"
@@ -4407,9 +4407,9 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 1679
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 236
+      line: 235
     - file: lint-http-rules/src/violations/media_type.rs
-      line: 163
+      line: 164
   - label: link_header_valid (5)
     section: § 4.2
     snippet: restricted-name-chars =/ "." ; Characters before first dot always ; specify a facet name
@@ -4427,15 +4427,15 @@ sources:
     snippet: '"+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions.'
     cited_by:
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 278
+      line: 277
     - file: lint-http-rules/src/violations/media_type.rs
-      line: 218
+      line: 219
   - label: media_type_suffix_valid (2)
     section: § 4.2.8
     snippet: By the same token, media types MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ.
     cited_by:
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 279
+      line: 278
 - label: RFC 7231
   url: https://www.rfc-editor.org/rfc/rfc7231.html
   fragments:
@@ -5937,7 +5937,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 306
     - file: lint-http-rules/src/violations/early_data.rs
-      line: 110
+      line: 109
   - label: early_data_header_safe_method (2)
     section: § 5.1
     snippet: A request that is marked with Early-Data was sent in early data on a previous hop.
@@ -5957,7 +5957,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 320
     - file: lint-http-rules/src/violations/early_data.rs
-      line: 130
+      line: 129
   - label: early_data_header_safe_method (5)
     section: § 5.1
     snippet: Early-Data MUST NOT appear in a Connection header field.
@@ -5973,7 +5973,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 337
     - file: lint-http-rules/src/violations/early_data.rs
-      line: 152
+      line: 151
   - label: early_data_header_safe_method (7)
     section: § 5.1
     snippet: Multiple or invalid instances of the header field MUST be treated as equivalent to a single instance with a value of 1 by a server.
@@ -6319,7 +6319,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_charset_valid.rs
       line: 188
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 358
+      line: 376
   - label: accept_charset_valid (4)
     section: § 12.5.2
     snippet: Charset names are defined in Section 8.3.2.
@@ -6327,7 +6327,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_charset_valid.rs
       line: 262
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 359
+      line: 377
   - label: accept_charset_valid (5)
     section: § 12.5.2
     snippet: The "Accept-Charset" header field can be sent by a user agent to indicate its preferences for charsets in textual response content.
@@ -6343,7 +6343,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_charset_valid.rs
       line: 242
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 380
+      line: 397
   - label: accept_encoding_parameter_valid
     section: § 12.5.3
     snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
@@ -6883,13 +6883,7 @@ sources:
     snippet: New and existing authentication schemes are specified independently and ought to be registered
     cited_by:
     - file: lint-http-rules/src/violations/auth_scheme.rs
-      line: 77
-  - label: auth_scheme_registered
-    section: § 16.4.1
-    snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
-    cited_by:
-    - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 188
+      line: 78
   - label: authentication_challenge_valid
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
@@ -7064,16 +7058,10 @@ sources:
       line: 249
   - label: charset
     section: § 8.3.2
-    snippet: Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978].
-    cited_by:
-    - file: lint-http-rules/src/violations/charset.rs
-      line: 67
-  - label: charset (2)
-    section: § 8.3.2
     snippet: In the fields defined by this document, charset names appear either in parameters (Content-Type), or, for Accept-Encoding, in the form of a plain token.
     cited_by:
     - file: lint-http-rules/src/violations/charset.rs
-      line: 48
+      line: 49
   - label: charset_present
     section: § 15.3.6
     snippet: Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response.
@@ -7103,7 +7091,7 @@ sources:
     snippet: 'The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics.'
     cited_by:
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 123
+      line: 125
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 118
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
@@ -7112,16 +7100,6 @@ sources:
       line: 112
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 77
-  - label: charset_registered (2)
-    section: § 8.3.2
-    snippet: In both cases, charset names are matched case-insensitively.
-    cited_by:
-    - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 79
-    - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 299
-    - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 389
   - label: compression_and_transfer_encoding_consistent
     section: § 10.1.4
     snippet: transfer-coding    = token *( OWS ";" OWS transfer-parameter )
@@ -8442,8 +8420,10 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 939
+    - file: lint-http-rules/src/registries/mod.rs
+      line: 30
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 187
+      line: 190
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
       line: 116
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
@@ -8503,7 +8483,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 611
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 232
+      line: 241
     - file: lint-http-rules/src/violations/challenge.rs
       line: 97
   - label: credentials grammar
@@ -8517,7 +8497,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 951
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 269
+      line: 278
     - file: lint-http-rules/src/violations/credentials.rs
       line: 68
     - file: lint-http-rules/src/violations/credentials.rs
@@ -8833,7 +8813,7 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 172
     - file: lint-http-rules/src/violations/content_coding.rs
-      line: 121
+      line: 123
   - label: lint-http-rules/src/helpers/content_length.rs
     section: § 6.4
     snippet: For example, an HTTP/1.1 message body (Section 6 of [HTTP/1.1]) might consist of a stream of data encoded with the chunked transfer coding -- a sequence of data chunks, one zero-length chunk, and a trailer section -- whereas the content of that same message includes only the data stream after the transfer coding has been decoded; it does not include the chunk lengths, chunked framing syntax, nor the trailer fields (Section 6.5).
@@ -9171,13 +9151,13 @@ sources:
     - file: lint-http-rules/src/helpers/shown.rs
       line: 43
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 335
+      line: 353
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 279
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 265
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 300
+      line: 299
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 203
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
@@ -9387,7 +9367,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 259
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 203
+      line: 223
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 291
   - label: lint-http-rules/src/helpers/media_type.rs (4)
@@ -9440,16 +9420,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
       line: 289
+    - file: lint-http-rules/src/registries/mod.rs
+      line: 28
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 307
     - file: lint-http-rules/src/rules/charset_present.rs
       line: 133
     - file: lint-http-rules/src/rules/content_type_registered.rs
-      line: 167
+      line: 145
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 76
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 251
+      line: 250
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 258
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
@@ -9477,7 +9459,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 160
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 212
+      line: 211
     - file: lint-http-rules/src/violations/media_type.rs
       line: 74
     - file: lint-http-rules/src/violations/media_type.rs
@@ -9667,7 +9649,7 @@ sources:
     snippet: The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names.
     cited_by:
     - file: lint-http-rules/src/helpers/rule_config.rs
-      line: 234
+      line: 269
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 46
   - label: lint-http-rules/src/helpers/rule_config.rs (2)
@@ -9675,7 +9657,7 @@ sources:
     snippet: Values to be added to this namespace require IETF Review
     cited_by:
     - file: lint-http-rules/src/helpers/rule_config.rs
-      line: 235
+      line: 270
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 49
   - label: lint-http-rules/src/helpers/same_request.rs
@@ -9874,6 +9856,44 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/word.rs
       line: 207
+  - label: lint-http-rules/src/registries/auth_schemes.rs
+    section: § 16.4.1
+    snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
+    cited_by:
+    - file: lint-http-rules/src/registries/auth_schemes.rs
+      line: 14
+    - file: lint-http-rules/src/rules/auth_scheme_registered.rs
+      line: 191
+  - label: lint-http-rules/src/registries/charsets.rs
+    section: § 8.3.2
+    snippet: Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978].
+    cited_by:
+    - file: lint-http-rules/src/registries/charsets.rs
+      line: 14
+    - file: lint-http-rules/src/violations/charset.rs
+      line: 72
+  - label: lint-http-rules/src/registries/media_types.rs
+    section: § 8.3.1
+    snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
+    cited_by:
+    - file: lint-http-rules/src/registries/media_types.rs
+      line: 23
+    - file: lint-http-rules/src/rules/content_type_registered.rs
+      line: 154
+    - file: lint-http-rules/src/violations/media_type.rs
+      line: 143
+  - label: lint-http-rules/src/registries/mod.rs
+    section: § 8.3.2
+    snippet: In both cases, charset names are matched case-insensitively.
+    cited_by:
+    - file: lint-http-rules/src/registries/mod.rs
+      line: 29
+    - file: lint-http-rules/src/rules/charset_registered.rs
+      line: 82
+    - file: lint-http-rules/src/rules/charset_registered.rs
+      line: 317
+    - file: lint-http-rules/src/rules/charset_registered.rs
+      line: 406
   - label: lint-http/src/proxy/exchange.rs
     section: § 15.2.2
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
@@ -10088,12 +10108,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/media_range.rs
       line: 102
-  - label: media_type
-    section: § 8.3.1
-    snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
-    cited_by:
-    - file: lint-http-rules/src/violations/media_type.rs
-      line: 142
   - label: method
     section: § 9.3.3
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created

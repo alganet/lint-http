@@ -94,7 +94,7 @@ allowed = ["ber", "cbor", "cbor-seq", "cose", "csv", "cwt", "der",
     }
 
     fn description(&self) -> &'static str {
-        "Flags media types — in `Content-Type` on either side of a transaction, or in any member of a request `Accept` — whose subtype ends in a `+suffix` that is not in the list you configure. A suffix names the structured syntax the payload is written in (`+json`, `+xml`), so a misspelled one is a claim about the payload that recipients cannot act on: RFC 6838 §4.2.8 says media types \"MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ\", and that \"+suffix constructs for as-yet unregistered structured syntaxes SHOULD NOT be used\". A subtype ending in a bare `+` is reported too — it appends nothing and so names no syntax — as is one that is *only* a suffix (`application/+json`), which has no base name for the suffix to qualify.\n\n**It does not consult the IANA registry**, despite what its SpecRef points at: there is no lookup, and a suffix is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. Comparison is case-insensitive, because the subtype a suffix lives in is.\n\n**Scope:** only the suffix, and only on a subtype that is a well-formed name. Whether the media type parses at all, whether the subtype's characters are legal, and whether more than one `Content-Type` field line is present are all `content_type_valid`'s findings; whether the full media type is one you allow is `content_type_registered`'s. A subtype carrying characters no name may contain is skipped here rather than reported as a bad suffix — that would name the wrong defect, and say it twice."
+        "Flags media types — in `Content-Type` on either side of a transaction, or in any member of a request `Accept` — whose subtype ends in a `+suffix` that is not in the list you configure. A suffix names the structured syntax the payload is written in (`+json`, `+xml`), so a misspelled one is a claim about the payload that recipients cannot act on: RFC 6838 §4.2.8 says media types \"MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ\", and that \"+suffix constructs for as-yet unregistered structured syntaxes SHOULD NOT be used\". A subtype ending in a bare `+` is reported too — it appends nothing and so names no syntax — as is one that is *only* a suffix (`application/+json`), which has no base name for the suffix to qualify.\n\n**It does not consult the IANA registry**, despite what its SpecRef points at: there is no lookup, and a suffix is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. Comparison is case-insensitive, because the subtype a suffix lives in is.\n\n**Scope:** only the suffix, and only on a subtype that is a well-formed name. Whether the media type parses at all, whether the subtype's characters are legal, and whether more than one `Content-Type` field line is present are all `content_type_valid`'s findings; whether the full media type is registered is `content_type_registered`'s. A subtype carrying characters no name may contain is skipped here rather than reported as a bad suffix — that would name the wrong defect, and say it twice."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -140,12 +140,11 @@ allowed = ["ber", "cbor", "cbor-seq", "cose", "csv", "cwt", "der",
                 label: Some("(+xml)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: image/svg+xml",
             },
-            // Offered rather than served, because the media-type *allowlist*
-            // is a separate question from the suffix and it reads
-            // `Content-Type` only. `application/epub+zip` is not on the
-            // shipped `content_type_registered` array — that array is what a
-            // deployment serves — and putting the suffix claim in an `Accept`
-            // member keeps this example about the one thing it demonstrates.
+            // Offered rather than served: whether the whole media type is
+            // registered is a separate question from the suffix, and
+            // `content_type_registered` asks it of `Content-Type` only, so an
+            // `Accept` member keeps this example about the one thing it
+            // demonstrates.
             Example {
                 compliance: Compliance::Compliant,
                 label: Some("(+zip — a registered suffix outside the two common ones)"),

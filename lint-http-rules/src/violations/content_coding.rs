@@ -111,8 +111,10 @@ defects! {
 
     /// A coding name the deployment does not recognise, matched
     /// case-insensitively because the names are. Measured against the
-    /// operator's `allowed` list and not against IANA's table, the stand-in
-    /// every registry entry in this catalogue makes.
+    /// operator's `allowed` list, which ships as a copy of the registry's
+    /// codings: a registry short enough to mirror in a configuration file,
+    /// where the media type, charset and scheme registries are asked of the
+    /// snapshots in [`crate::registries`].
     ///
     /// `warn`: registration is an *ought to*, and the consequence of an unknown
     /// name is a recipient that cannot decode — which it discovers immediately
