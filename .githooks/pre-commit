@@ -36,4 +36,11 @@ else
     printf '\033[33mnote: apycite not found (.venv or PATH) — skipping citation check\033[0m\n'
 fi
 
+# 3. Cargo.lock carries no `[[patch.unused]]`. That table records a `[patch]`
+#    from a cargo config outside this workspace that nothing here depends on,
+#    so it describes the machine that built the tree, not the tree.
+git diff --cached -U0 -- Cargo.lock | grep -q '^+\[\[patch\.unused\]\]' \
+    && fail "Cargo.lock gains [[patch.unused]] from a cargo config outside the workspace" \
+            "git restore --staged --worktree Cargo.lock"
+
 exit 0
