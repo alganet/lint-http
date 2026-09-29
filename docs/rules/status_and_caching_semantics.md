@@ -12,6 +12,8 @@ Responses with certain status codes are heuristically cacheable (for example: `2
 
 This rule warns when a response status that is not heuristically cacheable says none of those, so no cache may keep it. It stays silent where a lifetime would not help: `no-store` on either message, an interim status, a method that defines no caching semantics, and a `304 (Not Modified)` — RFC 9111 §4.3.4 has a cache *update* stored responses from a 304 rather than keep the 304, and RFC 9110 §15.4.5 is the one sentence that asks a 304 for `Cache-Control` or `Expires`, conditionally on the `200` to the same request having carried one. That condition is `status_304_field_missing`'s to read.
 
+**A `412` or a `416` is not asked either, because there the lifetime is the wrong repair.** Each is a verdict on something only the request carried — its precondition, or its `Range` — and RFC 9111 §4 has a cache select a stored response by target URI, method and the fields `Vary` nominates, which include neither. A `412` stored for a minute answers the next plain `GET` of that URI with *precondition failed*. No sentence forbids storing either status, so nothing is reported whichever the response says.
+
 ## Violations
 
 - [cache_control_freshness_missing](../violations/cache_control_freshness_missing.md) — A status no cache stores by default states no freshness
@@ -66,6 +68,16 @@ Location: https://example.org/
 ```http
 HTTP/1.1 302 Found
 Location: https://example.org/
+```
+
+### ✅ Good (a verdict on this request's precondition; a lifetime would hand it to requests that carried none)
+
+```http
+GET /doc HTTP/1.1
+Host: example.com
+If-Match: "v1"
+
+HTTP/1.1 412 Precondition Failed
 ```
 
 ### ✅ Good (OPTIONS — §9.2.3 defines no caching semantics for it, so no freshness would store it)

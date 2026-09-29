@@ -7540,6 +7540,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 711
+    - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
+      line: 224
   - label: conditional_request_handling (16)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as
@@ -10149,7 +10151,7 @@ sources:
     - file: lint-http-rules/src/rules/status_304_required_fields.rs
       line: 35
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 200
+      line: 207
     - file: lint-http-rules/src/violations/status.rs
       line: 678
   - label: lint-http-rules/src/helpers/status.rs
@@ -10159,7 +10161,7 @@ sources:
     - file: lint-http-rules/src/helpers/status.rs
       line: 18
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 249
+      line: 275
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 945
   - label: 3xx redirection class
@@ -11571,18 +11573,12 @@ sources:
     - file: lint-http-rules/src/violations/status.rs
       line: 1056
   - label: status (9)
-    section: § 15.5.17
-    snippet: The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack).
-    cited_by:
-    - file: lint-http-rules/src/violations/status.rs
-      line: 379
-  - label: status (10)
     section: § 15.5.2
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
       line: 981
-  - label: status (11)
+  - label: status (10)
     section: § 7.8
     snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
     cited_by:
@@ -11766,6 +11762,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 245
+  - label: status_and_caching_semantics
+    section: § 15.5.17
+    snippet: The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack).
+    cited_by:
+    - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
+      line: 225
+    - file: lint-http-rules/src/violations/status.rs
+      line: 379
   - label: status_code_semantics
     section: § 11.6.1
     snippet: A proxy forwarding a response MUST NOT modify any WWW-Authenticate header fields in that response.
@@ -12461,6 +12465,8 @@ sources:
       line: 198
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 117
+    - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
+      line: 226
   - label: cache_validation_chain (2)
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
@@ -12796,7 +12802,7 @@ sources:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 170
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 251
+      line: 277
   - label: lint-http-rules/src/helpers/stored_response.rs (3)
     section: § 3
     snippet: a public response directive
@@ -12804,7 +12810,7 @@ sources:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 196
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 250
+      line: 276
   - label: lint-http-rules/src/helpers/stored_response.rs (4)
     section: § 3
     snippet: a status code that is defined as heuristically cacheable
@@ -12818,7 +12824,7 @@ sources:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 197
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 252
+      line: 278
   - label: lint-http-rules/src/helpers/stored_response.rs (6)
     section: § 3
     snippet: 'if the cache is shared: an s-maxage response directive'
@@ -12834,7 +12840,7 @@ sources:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 255
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 217
+      line: 243
   - label: lint-http-rules/src/helpers/stored_response.rs (8)
     section: § 3
     snippet: the request method is understood by the cache
@@ -12842,7 +12848,7 @@ sources:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 117
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 162
+      line: 169
   - label: lint-http-rules/src/helpers/stored_response.rs (9)
     section: § 3
     snippet: 'the response contains at least one of the following:'
@@ -12856,7 +12862,7 @@ sources:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 168
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 175
+      line: 182
   - label: lint-http-rules/src/helpers/stored_response.rs (11)
     section: § 4
     snippet: the request method associated with the stored response allows it to be used for the presented request
@@ -13102,19 +13108,19 @@ sources:
     snippet: A cache MUST NOT store a response to a request unless
     cited_by:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 260
+      line: 286
   - label: status_and_caching_semantics (2)
     section: § 4.2.2
     snippet: on responses without explicit freshness that have been marked as explicitly cacheable (e.g., with a public response directive)
     cited_by:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 253
+      line: 279
   - label: status_and_caching_semantics (3)
     section: § 4.3.4
     snippet: For each stored response identified, the cache MUST update its header fields with the header fields provided in the 304 (Not Modified) response, as per Section 3.2.
     cited_by:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 199
+      line: 206
   - label: vary
     section: § 4.1
     snippet: Some resources mistakenly omit the Vary header field from their default response (i.e., the one sent when the request does not express any preferences), with the effect of choosing it for subsequent requests to that resource even when more preferable responses are available.

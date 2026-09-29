@@ -61,7 +61,7 @@ impl RuleMeta for StatusAndCachingSemantics {
     }
 
     fn description(&self) -> &'static str {
-        "Responses with certain status codes are heuristically cacheable (for example: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414`, `501`). A response on any other status is stored only if it says something that licenses storing it: explicit freshness (`Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header), or a `public` or `private` directive — which licenses storage on its own and lets a cache calculate the lifetime heuristically.\n\nThis rule warns when a response status that is not heuristically cacheable says none of those, so no cache may keep it. It stays silent where a lifetime would not help: `no-store` on either message, an interim status, a method that defines no caching semantics, and a `304 (Not Modified)` — RFC 9111 §4.3.4 has a cache *update* stored responses from a 304 rather than keep the 304, and RFC 9110 §15.4.5 is the one sentence that asks a 304 for `Cache-Control` or `Expires`, conditionally on the `200` to the same request having carried one. That condition is `status_304_field_missing`'s to read."
+        "Responses with certain status codes are heuristically cacheable (for example: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414`, `501`). A response on any other status is stored only if it says something that licenses storing it: explicit freshness (`Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header), or a `public` or `private` directive — which licenses storage on its own and lets a cache calculate the lifetime heuristically.\n\nThis rule warns when a response status that is not heuristically cacheable says none of those, so no cache may keep it. It stays silent where a lifetime would not help: `no-store` on either message, an interim status, a method that defines no caching semantics, and a `304 (Not Modified)` — RFC 9111 §4.3.4 has a cache *update* stored responses from a 304 rather than keep the 304, and RFC 9110 §15.4.5 is the one sentence that asks a 304 for `Cache-Control` or `Expires`, conditionally on the `200` to the same request having carried one. That condition is `status_304_field_missing`'s to read.\n\n**A `412` or a `416` is not asked either, because there the lifetime is the wrong repair.** Each is a verdict on something only the request carried — its precondition, or its `Range` — and RFC 9111 §4 has a cache select a stored response by target URI, method and the fields `Vary` nominates, which include neither. A `412` stored for a minute answers the next plain `GET` of that URI with *precondition failed*. No sentence forbids storing either status, so nothing is reported whichever the response says."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -108,6 +108,13 @@ impl RuleMeta for StatusAndCachingSemantics {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "HTTP/1.1 302 Found\nLocation: https://example.org/",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(a verdict on this request's precondition; a lifetime would hand it to requests that carried none)",
+                ),
+                snippet: "GET /doc HTTP/1.1\nHost: example.com\nIf-Match: \"v1\"\n\nHTTP/1.1 412 Precondition Failed\n",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -199,6 +206,25 @@ impl Rule for StatusAndCachingSemantics {
             // cite(RFC 9111 § 4.3.4): "For each stored response identified, the cache MUST update its header fields with the header fields provided in the 304 (Not Modified) response, as per Section 3.2."
             // cite(RFC 9110 § 15.4.5): "The server generating a 304 response MUST generate any of the following header fields that would have been sent in a 200 (OK) response to the same request:"
             if status == 304 {
+                return None;
+            }
+
+            // A `412` and a `416` are the two responses where the lifetime this
+            // entry asks for is a repair that makes the response worse. Each is
+            // a verdict on something only this request carried: a `412` on its
+            // precondition, a `416` on its `Range`. § 4 has a cache pick a
+            // stored response by target URI, method and the fields `Vary`
+            // nominates, and neither the precondition fields nor `Range` are
+            // among them unless the origin names them. So a `412` stored with
+            // `max-age` answers the next plain `GET` of the same URI with
+            // "precondition failed", and a stored `416` answers it with "range
+            // not satisfiable". No sentence forbids storing either status; what
+            // is withdrawn is the advice, because following it breaks the next
+            // client that asked something else.
+            // cite(RFC 9110 § 15.5.13): "The 412 (Precondition Failed) status code indicates that one or more conditions given in the request header fields evaluated to false when tested on the server"
+            // cite(RFC 9110 § 15.5.17): "The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack)."
+            // cite(RFC 9111 § 4): "request header fields nominated by the stored response (if any) match those presented (see Section 4.1)"
+            if matches!(status, 412 | 416) {
                 return None;
             }
 
@@ -363,6 +389,15 @@ mod tests {
     // store one that states its own freshness. The rule's own compliant example
     // is a 503 with an `Expires`.
     #[case(503, vec![], true)]
+    // A verdict on this request's own precondition or range: a lifetime would
+    // let a cache hand it to a later request that carried neither, so the
+    // repair the entry names is not one. The `403` above them is the control,
+    // and so is a `412` carrying the lifetime, which is not this entry's to
+    // judge either way.
+    #[case(412, vec![], false)]
+    #[case(416, vec![("content-range", "bytes */1234")], false)]
+    #[case(412, vec![("cache-control", "max-age=60")], false)]
+    #[case(403, vec![], true)]
     fn caching_cases(
         #[case] status: u16,
         #[case] hdrs: Vec<(&str, &str)>,
