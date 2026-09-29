@@ -17,7 +17,10 @@ use crate::rules::{Rule, RuleMeta};
 /// same URI — by computing a simple timestamp from the `Last-Modified` header
 /// (RFC 9110 §8.8.2, the representation's own modification time) or, failing
 /// that, the `Date` header (RFC 9110 §6.6.1, only the message's origination
-/// time, a coarser proxy).  The two are compared only with themselves — a
+/// time, a coarser proxy).  A `Date` names no version, so a response timed by
+/// it alone is reported only when it says a cache served it (`Age`) past a
+/// lifetime it states — see `states_a_lifetime` and the gate in `findings`.
+/// The two are compared only with themselves — a
 /// `Last-Modified` read against a `Date` reports staleness that is an artefact
 /// of which headers the pair of responses carried rather than of the traffic,
 /// for the reason the private `Clock` type records.  Only a GET or HEAD
@@ -127,6 +130,24 @@ fn selects_the_same_representation(
     )
 }
 
+/// Whether a response states the freshness lifetime § 4.2's inequality needs,
+/// rather than leaving a cache to assign one heuristically.
+///
+/// `max-age`, `s-maxage` and `Expires` are the three § 4.2.1 reads, and an
+/// `Expires` counts whatever it holds, because § 5.3 has a cache read one it
+/// cannot parse as already expired. A bare `no-cache` or `no-store` states one
+/// too: nothing may be reused unvalidated under it, which is a lifetime of zero.
+// cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
+fn states_a_lifetime(headers: &hyper::HeaderMap) -> bool {
+    use crate::helpers::cache_control::{
+        forbids_storage_or_reuse, get_cache_control_max_age, get_cache_control_s_maxage,
+    };
+    get_cache_control_max_age(headers).is_some()
+        || get_cache_control_s_maxage(headers).is_some()
+        || headers.contains_key("expires")
+        || forbids_storage_or_reuse(headers)
+}
+
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
@@ -197,7 +218,7 @@ impl RuleMeta for CacheCoherence {
     }
 
     fn description(&self) -> &'static str {
-        "Cache coherence ensures that once a newer representation of a resource is\navailable, earlier (stale) copies are not inadvertently served without\nrevalidation or invalidation.  Misconfigured caches or origin servers may\nreturn an older version of a document after a newer one has been observed.\n\nThis rule reconstructs a simple timeline for each resource observed by the\nclient.  Each response is assigned a timestamp derived from its\n`Last-Modified` header if present, otherwise from the `Date` header.  If a\nsubsequent response for the *same URI* carries a timestamp that is strictly\nolder than one seen previously *on that same header*, we report a violation —\nthe later response appears to be serving a stale representation.\n\nThe two headers are never compared with each other.  `Last-Modified` is when\nthe representation was edited and `Date` is when the message was sent, so the\nfirst is at or before the second in any one response; comparing across them\nreports a page whose siblings simply omit `Last-Modified` as stale.\n\nOnly transactions whose response contains a parseable HTTP-date are\nexamined; missing or unparseable headers are ignored.  Only a 200 or a 206\nanswering a GET or a HEAD joins the timeline, on either side of the\ncomparison.  Those carry the resource; a 3xx, a 4xx, a 5xx, a 204 or a 304\nis generated when the request arrives and so dates the asking, and even a\n200 represents the communication options rather than the resource when it\nanswers an OPTIONS, or our own request when it answers a TRACE.  Reading\none of those as a previous observation raises the timeline to *now* and\nreports every later cache hit — which correctly carries the stored\nresponse's older Date — as stale.\n\nA previous response is compared only when its `Vary` nominates nothing the\ntwo requests wrote differently.  Two encodings of one page are two stored\nentries, and the timestamps of one say nothing about the freshness of the\nother.\n\nA response that carries the terms of §4.2's definition is judged by the\ndefinition rather than by the timeline.  Where `max-age`, `s-maxage` or\n`Expires` gives a freshness lifetime and `Age` or `Date` gives a current\nage, a lifetime that exceeds the age makes the response fresh, and a fresh\nresponse is one every cache on the path was permitted to serve — a cache\nhit under `max-age=600` with `Age: 31` is not stale because a sibling node\nhanded over a newer copy five seconds earlier.  Such a response is not\nreported.  One whose age has run past its lifetime, or one that advertises\nno lifetime at all, is reported by the timeline as before."
+        "Cache coherence ensures that once a newer representation of a resource is\navailable, earlier (stale) copies are not inadvertently served without\nrevalidation or invalidation.  Misconfigured caches or origin servers may\nreturn an older version of a document after a newer one has been observed.\n\nThis rule reconstructs a simple timeline for each resource observed by the\nclient.  Each response is assigned a timestamp derived from its\n`Last-Modified` header if present, otherwise from the `Date` header.  If a\nsubsequent response for the *same URI* carries a timestamp that is strictly\nolder than one seen previously *on that same header*, we report a violation —\ntwo responses disagree about which version of the resource is current.\n\nA `Date` names when a message was sent and no version, so a response timed\nonly by `Date` is reported only when it is stale by its own terms: it carries\n`Age`, which a cache MUST write when it serves a stored response unvalidated,\nand it states a lifetime (`max-age`, `s-maxage`, `Expires`, or a bare\n`no-cache`) that its age has run past.  Without `Age` the response was\ngenerated for its own request, and two of those out of order are two servers'\nclocks; with `Age` and no lifetime, a cache may have assigned one\nheuristically.  The finding says which field it read, quotes both values, and\nsays whether the later response carried `Age`, since a cache holding an old\ncopy and two servers that disagree are two different repairs.\n\nThe two headers are never compared with each other.  `Last-Modified` is when\nthe representation was edited and `Date` is when the message was sent, so the\nfirst is at or before the second in any one response; comparing across them\nreports a page whose siblings simply omit `Last-Modified` as stale.\n\nOnly transactions whose response contains a parseable HTTP-date are\nexamined; missing or unparseable headers are ignored.  Only a 200 or a 206\nanswering a GET or a HEAD joins the timeline, on either side of the\ncomparison.  Those carry the resource; a 3xx, a 4xx, a 5xx, a 204 or a 304\nis generated when the request arrives and so dates the asking, and even a\n200 represents the communication options rather than the resource when it\nanswers an OPTIONS, or our own request when it answers a TRACE.  Reading\none of those as a previous observation raises the timeline to *now* and\nreports every later cache hit — which correctly carries the stored\nresponse's older Date — as stale.\n\nA previous response is compared only when its `Vary` nominates nothing the\ntwo requests wrote differently.  Two encodings of one page are two stored\nentries, and the timestamps of one say nothing about the freshness of the\nother.\n\nA response that carries the terms of §4.2's definition is judged by the\ndefinition rather than by the timeline.  Where `max-age`, `s-maxage` or\n`Expires` gives a freshness lifetime and `Age` or `Date` gives a current\nage, a lifetime that exceeds the age makes the response fresh, and a fresh\nresponse is one every cache on the path was permitted to serve — a cache\nhit under `max-age=600` with `Age: 31` is not stale because a sibling node\nhanded over a newer copy five seconds earlier.  Such a response is not\nreported.  One whose age has run past its lifetime, or one timed by\n`Last-Modified` that advertises no lifetime at all, is reported by the\ntimeline as before."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -237,9 +258,14 @@ impl RuleMeta for CacheCoherence {
                 snippet: "< HTTP/1.1 200 OK\n< Last-Modified: Wed, 21 Oct 2015 08:28:00 GMT\n\n< HTTP/1.1 200 OK\n< Last-Modified: Wed, 21 Oct 2015 09:00:00 GMT",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("— out‑of‑order `Date` from two servers"),
+                snippet: "< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 08:28:00 GMT\n\n< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 08:27:51 GMT    # no Age: another server's clock",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— out‑of‑order `Date`"),
-                snippet: "< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 08:28:00 GMT\n\n< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 07:28:00 GMT    # older than previous",
+                label: Some("— a stored copy past its lifetime, behind a newer `Date`"),
+                snippet: "< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 08:28:00 GMT\n< Cache-Control: max-age=60\n\n< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 07:28:00 GMT\n< Cache-Control: max-age=60\n< Age: 3700    # served from storage, stale",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -277,18 +303,20 @@ impl Rule for CacheCoherence {
 
             // helper to extract a "representation time" from headers.  We prefer
             // Last-Modified but fall back to Date.  Return None if neither can be
-            // parsed.
+            // parsed. The value is returned as the field wrote it too, so the
+            // finding can name the octets an operator will find on the wire.
             fn rep_time(
                 headers: &hyper::HeaderMap,
-            ) -> Option<(chrono::DateTime<chrono::Utc>, Clock)> {
+            ) -> Option<(chrono::DateTime<chrono::Utc>, Clock, &str)> {
                 // Prefer Last-Modified: it timestamps the *representation* itself, so
                 // a decrease directly signals the representation went backwards. The
                 // HTTP-date grammar is owned by the parse helper (§5.6.7).
                 // cite(RFC 9110 § 8.8.2): "The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified"
                 if let Some(hv) = headers.get("last-modified") {
                     if let Ok(s) = hv.to_str() {
-                        if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
-                            return Some((dt, Clock::Representation));
+                        let s = s.trim();
+                        if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s) {
+                            return Some((dt, Clock::Representation, s));
                         }
                     }
                 }
@@ -300,20 +328,40 @@ impl Rule for CacheCoherence {
                 // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
                 if let Some(hv) = headers.get("date") {
                     if let Ok(s) = hv.to_str() {
-                        if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
-                            return Some((dt, Clock::Message));
+                        let s = s.trim();
+                        if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s) {
+                            return Some((dt, Clock::Message, s));
                         }
                     }
                 }
                 None
             }
 
-            let (curr_time, curr_clock) = rep_time(&resp.headers)?; // nothing we can compare
+            let (curr_time, curr_clock, curr_value) = rep_time(&resp.headers)?; // nothing we can compare
+
+            // A `Date` names when a message was sent and no version at all, so on
+            // that clock the order of two responses is evidence of nothing but
+            // the order: only a copy stale by its own terms is left to report.
+            // That takes both halves of § 4.2's inequality on the wire. `Age` is
+            // the one a cache MUST write when it serves a stored response
+            // unvalidated, so a response without it was generated for its own
+            // request, and two of those out of order are two servers' clocks —
+            // a mirror pool whose nodes disagree by seconds produces nothing
+            // else. A lifetime is the other half: with none stated, § 4.2.2 lets
+            // a cache assign one heuristically, and this reader cannot know it.
+            // cite(RFC 9111 § 4): "When a stored response is used to satisfy a request without validation, a cache MUST generate an Age header field (Section 5.1), replacing any present in the response with a value equal to the stored response's current_age; see Section 4.2.3."
+            // cite(RFC 9111 § 4.2.2): "Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time."
+            let served_from_storage = resp.headers.get("age").and_then(|v| v.to_str().ok());
+            if curr_clock == Clock::Message
+                && !(served_from_storage.is_some() && states_a_lifetime(&resp.headers))
+            {
+                return None;
+            }
 
             // Scan previous history entries for the same URI and track the largest
             // timestamp read off THE SAME CLOCK, which is the only comparison that
             // means anything: see `Clock`.
-            let mut max_prev: Option<chrono::DateTime<chrono::Utc>> = None;
+            let mut max_prev: Option<(chrono::DateTime<chrono::Utc>, &str)> = None;
             for (prev, prev_resp) in history.responses() {
                 // The URI half of the cache key is the engine's: this rule is
                 // registered `ByResource`, so every entry here already has this
@@ -331,23 +379,22 @@ impl Rule for CacheCoherence {
                 ) {
                     continue;
                 }
-                if let Some((t, prev_clock)) = rep_time(&prev_resp.headers) {
+                if let Some((t, prev_clock, value)) = rep_time(&prev_resp.headers) {
                     if prev_clock != curr_clock {
                         continue;
                     }
-                    max_prev = Some(match max_prev {
-                        Some(existing) => std::cmp::max(existing, t),
-                        None => t,
-                    });
+                    if max_prev.is_none_or(|(existing, _)| t > existing) {
+                        max_prev = Some((t, value));
+                    }
                 }
             }
 
             // A representation going backwards in time across two responses is the observable
             // form of a cache serving something it should have revalidated. §4.2.4's MUST NOT
-            // is the requirement this heuristic stands in for: we cannot compute §4.2 freshness
-            // (no age or lifetime here), so a strictly-older timestamp is our proxy for "stale".
+            // is the requirement this heuristic stands in for, where the response does not
+            // carry §4.2's terms itself; where it does, they decide, below.
             // cite(RFC 9111 § 4.2.4): "A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server"
-            if let Some(prev_max) = max_prev {
+            if let Some((prev_max, prev_value)) = max_prev {
                 if curr_time < prev_max {
                     // The shape is only a stand-in for the definition, and a response
                     // that carries the definition's terms is judged by them. A cache hit
@@ -363,13 +410,30 @@ impl Rule for CacheCoherence {
                     ) {
                         return None;
                     }
-                    return Some(ctx.report_with(
-                        &CACHE_RESPONSE_CONFLICTING,
-                        format!(
-                            "response for '{}' appears stale ({} < previous {})",
-                            tx.request.uri, curr_time, prev_max
+                    // The sentence names the field, both values as written, and what
+                    // the response says about where it came from, because those
+                    // are what differ between the two repairs: a cache holding an
+                    // old copy, or two servers that disagree.
+                    let uri = &tx.request.uri;
+                    let message = match (curr_clock, served_from_storage) {
+                        (Clock::Message, age) => format!(
+                            "response for '{uri}' was served from storage (Age: {}) past the \
+                             freshness lifetime it states, with a Date of '{curr_value}', \
+                             older than the '{prev_value}' an earlier response for it carried",
+                            age.unwrap_or_default()
                         ),
-                    ));
+                        (Clock::Representation, Some(age)) => format!(
+                            "response for '{uri}' carries Last-Modified '{curr_value}', older \
+                             than the '{prev_value}' an earlier response for it carried, and \
+                             was served from storage (Age: {age})"
+                        ),
+                        (Clock::Representation, None) => format!(
+                            "response for '{uri}' carries Last-Modified '{curr_value}', older \
+                             than the '{prev_value}' an earlier response for it carried, and \
+                             no Age: no cache on the path says it served a stored copy"
+                        ),
+                    };
+                    return Some(ctx.report_with(&CACHE_RESPONSE_CONFLICTING, message));
                 }
             }
 
@@ -428,6 +492,17 @@ mod tests {
         tx
     }
 
+    /// A cached copy stale by its own terms, dated `date`: the only response
+    /// the `Date` clock reports, so a test of what joins that timeline has to
+    /// be written with one or it passes because nothing could fire.
+    fn stale_copy(date: &str) -> [(&str, &str); 3] {
+        [
+            ("date", date),
+            ("cache-control", "max-age=0"),
+            ("age", "300"),
+        ]
+    }
+
     #[test]
     fn no_violation_without_history() {
         let rule = CacheCoherence;
@@ -460,8 +535,38 @@ mod tests {
         assert!(crate::test_helpers::run_rule(&rule, &curr, &history, &cfg,).is_none());
     }
 
+    /// Two `Date`s out of order on responses carrying no `Age` are two
+    /// servers' clocks. A cache serving a stored copy unvalidated MUST write
+    /// `Age`, so neither response came from one, and a `Date` names no version
+    /// for the two to disagree about: a mirror pool whose nodes' clocks differ
+    /// by seconds serves exactly this.
     #[test]
-    fn out_of_order_date_flagged() {
+    fn a_date_out_of_order_without_age_is_two_clocks() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let prev = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[("date", "Sat, 19 Sep 2026 21:50:24 GMT")],
+        );
+        let mut curr = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[
+                ("date", "Sat, 19 Sep 2026 21:50:15 GMT"),
+                ("cache-control", "max-age=0"),
+            ],
+        );
+        curr.timestamp = prev.timestamp + chrono::Duration::seconds(2);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        assert!(crate::test_helpers::run_rule(&rule, &curr, &history, &cfg).is_none());
+    }
+
+    /// A stored copy with an `Age` and no lifetime of its own is one a cache
+    /// may have held under a heuristic lifetime, which the response does not
+    /// carry, so its older `Date` shows nothing stale.
+    #[test]
+    fn a_stored_copy_stating_no_lifetime_may_be_heuristically_fresh() {
         let rule = CacheCoherence;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let prev = make_resp_tx(
@@ -472,15 +577,31 @@ mod tests {
         let mut curr = make_resp_tx(
             "https://example.com/foo",
             200,
-            &[("date", "Wed, 21 Oct 2015 07:28:00 GMT")],
+            &[("date", "Wed, 21 Oct 2015 07:28:00 GMT"), ("age", "3600")],
         );
         curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
-        assert!(v.is_some());
-        let v = v.unwrap();
-        assert_eq!(v.violation, "cache_response_conflicting");
-        assert!(v.message.contains("appears stale"));
+        assert!(crate::test_helpers::run_rule(&rule, &curr, &history, &cfg).is_none());
+    }
+
+    /// Every lifetime § 4.2.1 reads states one, and so does an `Expires` no
+    /// date derives from and a bare `no-cache`; `Age` alone does not.
+    #[rstest]
+    #[case(&[("cache-control", "max-age=60")], true)]
+    #[case(&[("cache-control", "s-maxage=60")], true)]
+    #[case(&[("expires", "0")], true)]
+    #[case(&[("cache-control", "no-cache")], true)]
+    #[case(&[("cache-control", "public")], false)]
+    #[case(&[("age", "60")], false)]
+    fn a_lifetime_is_stated_by_any_term_section_4_2_1_reads(
+        #[case] fields: &[(&str, &str)],
+        #[case] expected: bool,
+    ) {
+        let tx = make_resp_tx("https://example.com/foo", 200, fields);
+        assert_eq!(
+            states_a_lifetime(&tx.response.as_ref().unwrap().headers),
+            expected
+        );
     }
 
     #[test]
@@ -499,8 +620,14 @@ mod tests {
         );
         curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
-        assert!(v.is_some());
+        let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg).expect("a finding");
+        assert_eq!(v.violation, "cache_response_conflicting");
+        assert_eq!(
+            v.message,
+            "response for 'https://example.com/foo' carries Last-Modified 'Wed, 21 Oct 2015 \
+             07:28:00 GMT', older than the 'Wed, 21 Oct 2015 08:28:00 GMT' an earlier response \
+             for it carried, and no Age: no cache on the path says it served a stored copy"
+        );
     }
 
     /// The shape a multi-node CDN serves for a page whose modification time is
@@ -561,10 +688,13 @@ mod tests {
         );
         hit.timestamp = miss.timestamp + chrono::Duration::seconds(5);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![miss]);
-        let v = crate::test_helpers::run_rule(&rule, &hit, &history, &cfg);
-        assert_eq!(
-            v.map(|v| v.violation).as_deref(),
-            Some("cache_response_conflicting")
+        let v = crate::test_helpers::run_rule(&rule, &hit, &history, &cfg).expect("a finding");
+        assert_eq!(v.violation, "cache_response_conflicting");
+        assert!(
+            v.message
+                .ends_with("and was served from storage (Age: 700)"),
+            "{}",
+            v.message
         );
     }
 
@@ -634,10 +764,13 @@ mod tests {
         );
         curr.timestamp = prev.timestamp + chrono::Duration::seconds(9);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
+        let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg).expect("a finding");
+        assert_eq!(v.violation, "cache_response_conflicting");
         assert_eq!(
-            v.map(|v| v.violation).as_deref(),
-            Some("cache_response_conflicting")
+            v.message,
+            "response for 'https://example.com/foo' was served from storage (Age: 350) past the \
+             freshness lifetime it states, with a Date of 'Sun, 30 Aug 2026 01:12:41 GMT', older \
+             than the 'Sun, 30 Aug 2026 01:12:53 GMT' an earlier response for it carried"
         );
     }
 
@@ -722,14 +855,14 @@ mod tests {
         let rule = CacheCoherence;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let stored = "Sat, 29 Aug 2026 23:57:32 GMT";
-        let hit = make_resp_tx("https://example.com/foo", 200, &[("date", stored)]);
+        let hit = make_resp_tx("https://example.com/foo", 200, &stale_copy(stored));
         let mut revalidated = make_resp_tx(
             "https://example.com/foo",
             304,
             &[("date", "Sun, 30 Aug 2026 00:02:09 GMT")],
         );
         revalidated.timestamp = hit.timestamp + chrono::Duration::seconds(1);
-        let mut curr = make_resp_tx("https://example.com/foo", 200, &[("date", stored)]);
+        let mut curr = make_resp_tx("https://example.com/foo", 200, &stale_copy(stored));
         curr.timestamp = hit.timestamp + chrono::Duration::seconds(2);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
             revalidated,
@@ -747,14 +880,14 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         for refused in [405u16, 412, 416, 404, 204, 302] {
             let stored = "Sun, 30 Aug 2026 01:12:41 GMT";
-            let hit = make_resp_tx("https://example.com/foo", 200, &[("date", stored)]);
+            let hit = make_resp_tx("https://example.com/foo", 200, &stale_copy(stored));
             let mut declined = make_resp_tx(
                 "https://example.com/foo",
                 refused,
                 &[("date", "Sun, 30 Aug 2026 01:18:28 GMT")],
             );
             declined.timestamp = hit.timestamp + chrono::Duration::seconds(1);
-            let mut curr = make_resp_tx("https://example.com/foo", 200, &[("date", stored)]);
+            let mut curr = make_resp_tx("https://example.com/foo", 200, &stale_copy(stored));
             curr.timestamp = hit.timestamp + chrono::Duration::seconds(2);
             let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
                 declined, hit,
@@ -781,7 +914,7 @@ mod tests {
         let mut curr = make_resp_tx(
             "https://example.com/foo",
             416,
-            &[("date", "Sun, 30 Aug 2026 01:41:17 GMT")],
+            &stale_copy("Sun, 30 Aug 2026 01:41:17 GMT"),
         );
         curr.timestamp = hit.timestamp + chrono::Duration::seconds(1);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![hit]);
@@ -820,7 +953,7 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         for method in ["OPTIONS", "TRACE", "POST", "PUT"] {
             let stored = "Sat, 29 Aug 2026 23:57:32 GMT";
-            let hit = make_resp_tx("https://example.com/foo", 200, &[("date", stored)]);
+            let hit = make_resp_tx("https://example.com/foo", 200, &stale_copy(stored));
             let mut aside = make_method_tx(
                 method,
                 "https://example.com/foo",
@@ -828,7 +961,7 @@ mod tests {
                 &[("date", "Sun, 30 Aug 2026 00:02:09 GMT")],
             );
             aside.timestamp = hit.timestamp + chrono::Duration::seconds(1);
-            let mut curr = make_resp_tx("https://example.com/foo", 200, &[("date", stored)]);
+            let mut curr = make_resp_tx("https://example.com/foo", 200, &stale_copy(stored));
             curr.timestamp = hit.timestamp + chrono::Duration::seconds(2);
             let history =
                 crate::transaction_history::TransactionHistory::from_transactions(vec![aside, hit]);
@@ -854,7 +987,7 @@ mod tests {
             "OPTIONS",
             "https://example.com/foo",
             200,
-            &[("date", "Sun, 30 Aug 2026 01:07:09 GMT")],
+            &stale_copy("Sun, 30 Aug 2026 01:07:09 GMT"),
         );
         curr.timestamp = hit.timestamp + chrono::Duration::seconds(1);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![hit]);
@@ -969,6 +1102,8 @@ mod tests {
             &[
                 ("vary", "rsc, next-router-prefetch"),
                 ("date", "Sun, 30 Aug 2026 01:12:41 GMT"),
+                ("cache-control", "max-age=0"),
+                ("age", "300"),
             ],
         );
         curr.timestamp = first.timestamp + chrono::Duration::seconds(1);

@@ -18,7 +18,18 @@ client.  Each response is assigned a timestamp derived from its
 `Last-Modified` header if present, otherwise from the `Date` header.  If a
 subsequent response for the *same URI* carries a timestamp that is strictly
 older than one seen previously *on that same header*, we report a violation —
-the later response appears to be serving a stale representation.
+two responses disagree about which version of the resource is current.
+
+A `Date` names when a message was sent and no version, so a response timed
+only by `Date` is reported only when it is stale by its own terms: it carries
+`Age`, which a cache MUST write when it serves a stored response unvalidated,
+and it states a lifetime (`max-age`, `s-maxage`, `Expires`, or a bare
+`no-cache`) that its age has run past.  Without `Age` the response was
+generated for its own request, and two of those out of order are two servers'
+clocks; with `Age` and no lifetime, a cache may have assigned one
+heuristically.  The finding says which field it read, quotes both values, and
+says whether the later response carried `Age`, since a cache holding an old
+copy and two servers that disagree are two different repairs.
 
 The two headers are never compared with each other.  `Last-Modified` is when
 the representation was edited and `Date` is when the message was sent, so the
@@ -48,8 +59,9 @@ age, a lifetime that exceeds the age makes the response fresh, and a fresh
 response is one every cache on the path was permitted to serve — a cache
 hit under `max-age=600` with `Age: 31` is not stale because a sibling node
 handed over a newer copy five seconds earlier.  Such a response is not
-reported.  One whose age has run past its lifetime, or one that advertises
-no lifetime at all, is reported by the timeline as before.
+reported.  One whose age has run past its lifetime, or one timed by
+`Last-Modified` that advertises no lifetime at all, is reported by the
+timeline as before.
 
 ## Violations
 
@@ -103,14 +115,27 @@ enabled = true
 < Last-Modified: Wed, 21 Oct 2015 09:00:00 GMT
 ```
 
-### ❌ Bad — out‑of‑order `Date`
+### ✅ Good — out‑of‑order `Date` from two servers
 
 ```http
 < HTTP/1.1 200 OK
 < Date: Wed, 21 Oct 2015 08:28:00 GMT
 
 < HTTP/1.1 200 OK
-< Date: Wed, 21 Oct 2015 07:28:00 GMT    # older than previous
+< Date: Wed, 21 Oct 2015 08:27:51 GMT    # no Age: another server's clock
+```
+
+### ❌ Bad — a stored copy past its lifetime, behind a newer `Date`
+
+```http
+< HTTP/1.1 200 OK
+< Date: Wed, 21 Oct 2015 08:28:00 GMT
+< Cache-Control: max-age=60
+
+< HTTP/1.1 200 OK
+< Date: Wed, 21 Oct 2015 07:28:00 GMT
+< Cache-Control: max-age=60
+< Age: 3700    # served from storage, stale
 ```
 
 ### ❌ Bad — `Last-Modified` decreases

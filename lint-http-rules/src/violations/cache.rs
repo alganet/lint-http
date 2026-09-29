@@ -51,8 +51,19 @@ defects! {
     /// **The observable shape of a stale response**, which is as close as a
     /// proxy can get to § 4.2.4's MUST NOT where the response carries no
     /// freshness of its own: what stands in for "stale" is a representation
-    /// time that went down, read from `Last-Modified` where the response
-    /// carries one and from `Date` where it does not.
+    /// time that went down, read from `Last-Modified`.
+    ///
+    /// **A `Date` names no version, so on its own it stands in for nothing.**
+    /// It is when a message was sent, and two out of order are evidence of the
+    /// order alone. A cache that serves a stored copy unvalidated MUST write
+    /// `Age`, so a response without one was generated for its own request, and
+    /// two of those out of order are two servers' clocks: every finding this
+    /// entry drew from `Date` on public origins was a mirror pool whose nodes
+    /// disagreed by seconds, carrying no validator, no lifetime and no `Age`.
+    /// With an `Age` and no lifetime stated, § 4.2.2 lets a cache assign one
+    /// heuristically. So a response timed only by `Date` is reported only when
+    /// it was served from storage past a lifetime it states, which is stale by
+    /// the definition whatever the order.
     ///
     /// **Where the response carries § 4.2's terms, the definition outranks
     /// the shape.** "Stale" is defined against a freshness lifetime and a

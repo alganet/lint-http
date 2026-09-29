@@ -6933,7 +6933,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
       line: 134
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 97
+      line: 100
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 191
     - file: lint-http-rules/src/rules/status_206_required_fields.rs
@@ -7149,7 +7149,7 @@ sources:
     snippet: The content sent in a 200 response depends on the request method.
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 88
+      line: 91
     - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
       line: 105
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
@@ -7159,19 +7159,19 @@ sources:
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 98
+      line: 101
   - label: cache_coherence (3)
     section: § 15.5
     snippet: Except when responding to a HEAD request, the server SHOULD send a representation containing an explanation of the error situation, and whether it is a temporary or permanent condition.
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 99
+      line: 102
   - label: cache_coherence (4)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 300
+      line: 328
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 198
   - label: cache_coherence (5)
@@ -7179,7 +7179,7 @@ sources:
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 287
+      line: 314
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 59
   - label: cache_control_directive_valid
@@ -9987,7 +9987,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 429
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 93
+      line: 96
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 120
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
@@ -12204,23 +12204,53 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 221
   - label: cache_coherence
+    section: § 4
+    snippet: When a stored response is used to satisfy a request without validation, a cache MUST generate an Age header field (Section 5.1), replacing any present in the response with a value equal to the stored response's current_age; see Section 4.2.3.
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 352
+  - label: cache_coherence (2)
+    section: § 4.2.2
+    snippet: Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time.
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 353
+    - file: lint-http-rules/src/rules/cache_control_present.rs
+      line: 136
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 898
+  - label: cache_coherence (3)
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 349
+      line: 396
     - file: lint-http-rules/src/violations/cache.rs
       line: 22
     - file: lint-http-rules/src/violations/cache.rs
-      line: 95
-  - label: cache_coherence (2)
+      line: 106
+  - label: cache_coherence (4)
     section: § 4.3.5
     snippet: A response to the HEAD method is identical to what an equivalent request made with a GET would have been, without sending the content.
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 89
+      line: 92
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 114
+  - label: cache_coherence (5)
+    section: § 5.3
+    snippet: A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired").
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 140
+    - file: lint-http-rules/src/rules/cache_control_present.rs
+      line: 153
+    - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
+      line: 264
+    - file: lint-http-rules/src/rules/expires_date_syntax.rs
+      line: 143
+    - file: lint-http-rules/src/violations/expires.rs
+      line: 159
   - label: cache_control
     section: § 5.2.1.1
     snippet: 'This directive uses the token form of the argument syntax: e.g., ''max-age=5'' not ''max-age="5"''. A sender MUST NOT generate the quoted-string form.'
@@ -12383,26 +12413,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_present.rs
       line: 152
-  - label: cache_control_present (3)
-    section: § 4.2.2
-    snippet: Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time.
-    cited_by:
-    - file: lint-http-rules/src/rules/cache_control_present.rs
-      line: 136
-    - file: lint-http-rules/src/violations/cache_control.rs
-      line: 898
-  - label: cache_control_present (4)
-    section: § 5.3
-    snippet: A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired").
-    cited_by:
-    - file: lint-http-rules/src/rules/cache_control_present.rs
-      line: 153
-    - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 264
-    - file: lint-http-rules/src/rules/expires_date_syntax.rs
-      line: 143
-    - file: lint-http-rules/src/violations/expires.rs
-      line: 159
   - label: cache_validation_chain
     section: § 4
     snippet: request header fields nominated by the stored response (if any) match those presented (see Section 4.1)
@@ -12602,7 +12612,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 504
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 359
+      line: 406
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 223
   - label: lint-http-rules/src/helpers/cache_control.rs (4)
