@@ -30,6 +30,7 @@ severity = "warn"
 
 ## Reported By
 
+- [digest_header_syntax](../rules/digest_header_syntax.md)
 - [permissions_policy_directives_valid](../rules/permissions_policy_directives_valid.md)
 - [priority_header_syntax](../rules/priority_header_syntax.md)
 - [structured_headers_valid](../rules/structured_headers_valid.md)

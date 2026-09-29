@@ -16,7 +16,7 @@ use crate::violations::qvalue::{
 };
 use crate::violations::structured_fields::{
     structured_field_defect, RFC_9651_3_2, RFC_9651_4_2_2, RFC_9651_4_2_3_1, RFC_9651_4_2_3_3,
-    STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY,
+    STRUCTURED_FIELD_KEY_DUPLICATED, STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY,
     STRUCTURED_FIELD_VALUE_MALFORMED,
 };
 use crate::violations::token::{
@@ -28,7 +28,7 @@ use base64::Engine;
 
 pub struct DigestHeaderSyntax;
 
-/// Nineteen defects, eleven of them productions this rule borrows and eight
+/// Twenty defects, twelve of them productions this rule borrows and eight
 /// statements the digest documents make — about their own members, and about
 /// the two fields that no longer exist.
 /// `the_census_above_is_the_declared_list` holds the two numbers.
@@ -94,6 +94,7 @@ static DECLARED: &[&ViolationDef] = &[
     &STRUCTURED_FIELD_KEY_MALFORMED,
     &STRUCTURED_FIELD_MEMBER_EMPTY,
     &STRUCTURED_FIELD_VALUE_MALFORMED,
+    &STRUCTURED_FIELD_KEY_DUPLICATED,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -731,6 +732,62 @@ fn legacy_digest_defect(value: &str) -> Vec<Defect> {
     out
 }
 
+/// Which of a digest Dictionary's `key=value` members no recipient reads, in
+/// the order [`key_value_members`] hands them over, and a finding for each key
+/// written more than once.
+///
+/// § 4.2.2 keeps the last member of a repeated key, so an earlier one is text
+/// nobody acts on. Its value is not judged: the Dictionary parsed, so the
+/// grammar holds, and a weight out of range or a type the field does not
+/// define, in a member the parser has already dropped, is not the problem the
+/// sender has, which is the argument
+/// `priority_header_syntax` makes for `u=8, u=3`. The repetition is reported
+/// instead, once per key. It holds only for a Dictionary that parsed: one
+/// that failed is discarded whole, no member is read, and each is judged as
+/// written.
+// cite(RFC 9651 § 4.2.2): "Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored."
+fn superseded(
+    value: &str,
+    members: &[(String, String)],
+    label: &str,
+    out: &mut Vec<Defect>,
+) -> Vec<bool> {
+    let none = vec![false; members.len()];
+    let Ok(parsed) = crate::helpers::structured_fields::parse_dictionary(value) else {
+        return none;
+    };
+    let mut reported: Vec<&str> = Vec::new();
+    for (i, m) in parsed.iter().enumerate() {
+        if parsed[..i].iter().any(|e| e.key == m.key) && !reported.contains(&m.key) {
+            reported.push(m.key);
+            out.push(Defect::named(
+                &STRUCTURED_FIELD_KEY_DUPLICATED,
+                format!(
+                    "{} member key '{}' is written more than once; a recipient keeps the last \
+                     and ignores the others, so the earlier ones have no effect",
+                    label, m.key
+                ),
+            ));
+        }
+    }
+    // The `key=value` members of a Dictionary that parsed are the ones
+    // `key_value_members` kept, since the only member it sets aside there is a
+    // bare key. Matched key by key, so a walk that ever disagrees judges every
+    // member rather than skipping the wrong one.
+    let kept: Vec<(usize, &str)> = parsed
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m.value.is_some())
+        .map(|(i, m)| (i, m.key))
+        .collect();
+    if kept.len() != members.len() || kept.iter().zip(members).any(|((_, k), (a, _))| k != a) {
+        return none;
+    }
+    kept.iter()
+        .map(|(i, key)| parsed[i + 1..].iter().any(|later| later.key == *key))
+        .collect()
+}
+
 /// The RFC 9530 shape: a Dictionary key and a Byte Sequence.
 fn structured_digest_defect(value: &str) -> Vec<Defect> {
     let mut out = Vec::new();
@@ -753,10 +810,17 @@ fn structured_digest_defect(value: &str) -> Vec<Defect> {
         },
     );
     out.extend(member_defects);
+    let dead = superseded(value, &members, "Digest", &mut out);
 
     // As above: a member's own checks are a chain, and the member boundary is
     // not one.
-    for (algorithm, encoded) in members {
+    for ((algorithm, encoded), dead) in members.into_iter().zip(dead) {
+        // Only a Dictionary that parsed has a dropped member, so nothing in
+        // one fails the grammar, and what is left to judge is a digest that no
+        // recipient uses.
+        if dead {
+            continue;
+        }
         // These are Dictionary *keys*, not RFC 3230 tokens: an SF key may not
         // contain uppercase. The distinction matters most on exactly the path a
         // deployment is likely to take — RFC 3230's `digest-algorithm = token`
@@ -844,8 +908,13 @@ fn want_preference_defect(value: &str) -> Vec<Defect> {
         },
     );
     out.extend(member_defects);
+    let dead = superseded(value, &members, "Want", &mut out);
 
-    for (algorithm, weight) in members {
+    for ((algorithm, weight), dead) in members.into_iter().zip(dead) {
+        // As above: a weight no recipient reads.
+        if dead {
+            continue;
+        }
         // Same Dictionary-key rule as the digest fields above.
         if !crate::helpers::structured_fields::is_valid_sf_key(&algorithm) {
             out.push(Defect::named(
@@ -902,7 +971,7 @@ impl RuleMeta for DigestHeaderSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest` (for message content), `Repr-Digest` (for representation data) and their preference counterparts `Want-Content-Digest` / `Want-Repr-Digest`. This rule validates:\n\n- **Legacy** `Digest` (`alg=base64`) and `Want-Digest` (algorithms, each with an optional `;q=` weight) header syntax, and flags their use as obsoleted by RFC 9530.\n- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64. A member's parameters are not part of its value: RFC 9530 defines none and RFC 9651 gives every member room for them, so `sha-256=:BASE64:;x=1` is read as the digest it carries, and only a parameter that is not one is reported.\n- **Integrity preference** fields (`Want-Content-Digest`, `Want-Repr-Digest`) use algorithm=weight pairs where weight is an integer in 0..=10.\n- **Obsolete field**: presence of `Content-MD5` is flagged. It was removed from HTTP by RFC 7231 (not by RFC 9530, which does not mention it); prefer `Content-Digest`.\n\nAlgorithm names in the RFC 9530 fields are structured-field Dictionary keys and so must be lowercase (`sha-256`, not the `SHA-256` spelling used by the obsolete `Digest` field, whose algorithm token is case-insensitive).\n\n`Content-Digest` and `Repr-Digest` are read in the **trailer section** as well as the header section, in either direction: RFC 9530 §2 and §3 each say the field \"can be sent in a trailer section\", which is where a digest computed while the content streams arrives. No other field here is granted the section, and one written there is `trailer_fields_valid`'s finding."
+        "RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest` (for message content), `Repr-Digest` (for representation data) and their preference counterparts `Want-Content-Digest` / `Want-Repr-Digest`. This rule validates:\n\n- **Legacy** `Digest` (`alg=base64`) and `Want-Digest` (algorithms, each with an optional `;q=` weight) header syntax, and flags their use as obsoleted by RFC 9530.\n- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64. A member's parameters are not part of its value: RFC 9530 defines none and RFC 9651 gives every member room for them, so `sha-256=:BASE64:;x=1` is read as the digest it carries, and only a parameter that is not one is reported.\n- **Integrity preference** fields (`Want-Content-Digest`, `Want-Repr-Digest`) use algorithm=weight pairs where weight is an integer in 0..=10.\n- **Obsolete field**: presence of `Content-MD5` is flagged. It was removed from HTTP by RFC 7231 (not by RFC 9530, which does not mention it); prefer `Content-Digest`.\n\nAlgorithm names in the RFC 9530 fields are structured-field Dictionary keys and so must be lowercase (`sha-256`, not the `SHA-256` spelling used by the obsolete `Digest` field, whose algorithm token is case-insensitive).\n\n**A key written twice is the finding, not the member it replaced.** RFC 9651 §4.2.2 keeps the last member of a repeated key, so in `Want-Content-Digest: sha-256=11, sha-256=5` the `11` is text no recipient reads: the repetition is reported, once per key, and only the member kept is judged. A Dictionary that fails to parse is discarded whole, and there every member is judged as written.\n\n`Content-Digest` and `Repr-Digest` are read in the **trailer section** as well as the header section, in either direction: RFC 9530 §2 and §3 each say the field \"can be sent in a trailer section\", which is where a digest computed while the content streams arrives. No other field here is granted the section, and one written there is `trailer_fields_valid`'s finding."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -1249,7 +1318,7 @@ mod tests {
             .iter()
             .filter(|d| d.id.starts_with("digest_") || d.id.starts_with("content_md5_"))
             .count();
-        assert_eq!((DECLARED.len() - own, own), (11, 8));
+        assert_eq!((DECLARED.len() - own, own), (12, 8));
     }
 
     /// An algorithm refused for a character is named with the character
@@ -2949,5 +3018,84 @@ mod tests {
     fn needs_no_response() {
         let rule = DigestHeaderSyntax;
         assert!(!rule.needs_response());
+    }
+
+    /// A digest Dictionary keeps the last member of a repeated key, so the
+    /// repetition is the finding, once per key, and a member the parser drops
+    /// is not judged: its weight or its digest is one no recipient uses. The
+    /// member kept is judged as ever. Every finding, not the first.
+    #[rstest]
+    #[case::a_dead_weight(
+        "want-content-digest",
+        "sha-256=11, sha-256=5",
+        &["structured_field_key_duplicated"]
+    )]
+    #[case::a_live_weight(
+        "want-content-digest",
+        "sha-256=5, sha-256=11",
+        &["structured_field_key_duplicated", "digest_preference_invalid"]
+    )]
+    #[case::a_dead_token_weight(
+        "want-repr-digest",
+        "sha-256=high, sha-512=3, sha-256=1",
+        &["structured_field_key_duplicated"]
+    )]
+    #[case::a_dead_empty_digest(
+        "content-digest",
+        "sha-256=::, sha-256=:YWJj:",
+        &["structured_field_key_duplicated"]
+    )]
+    #[case::a_dead_token_digest(
+        "repr-digest",
+        "sha-256=abc, sha-256=:YWJj:",
+        &["structured_field_key_duplicated"]
+    )]
+    #[case::a_bare_key_kept_last(
+        "want-content-digest",
+        "sha-256=11, sha-256",
+        &["digest_preference_malformed", "structured_field_key_duplicated"]
+    )]
+    #[case::three_times_is_one_finding(
+        "content-digest",
+        "sha-256=:YWJj:, sha-256=:YWJj:, sha-256=:YWJj:",
+        &["structured_field_key_duplicated"]
+    )]
+    #[case::two_keys_repeated(
+        "content-digest",
+        "sha-256=:YWJj:, sha-512=:YWJj:, sha-256=:YWJj:, sha-512=:YWJj:",
+        &["structured_field_key_duplicated", "structured_field_key_duplicated"]
+    )]
+    // A Dictionary that does not parse is discarded whole, so no member is
+    // dropped for a later one and each is judged as written.
+    #[case::a_field_that_fails_to_parse(
+        "content-digest",
+        "sha-256=:YWJj:, SHA-256=:YWJj:, sha-256=::",
+        &["structured_field_key_malformed", "digest_value_empty"]
+    )]
+    fn a_repeated_digest_key_is_the_finding(
+        #[case] field: &str,
+        #[case] value: &str,
+        #[case] expected: &[&str],
+    ) {
+        let rule = DigestHeaderSyntax;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let tx = if field.starts_with("want-") {
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(field, value)]);
+            tx
+        } else {
+            crate::test_helpers::make_test_transaction_with_response(200, &[(field, value)])
+        };
+        let found: Vec<String> = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .into_iter()
+        .map(|v| v.violation)
+        .collect();
+        assert_eq!(found, expected, "{value}");
     }
 }

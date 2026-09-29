@@ -17,6 +17,8 @@ RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest
 
 Algorithm names in the RFC 9530 fields are structured-field Dictionary keys and so must be lowercase (`sha-256`, not the `SHA-256` spelling used by the obsolete `Digest` field, whose algorithm token is case-insensitive).
 
+**A key written twice is the finding, not the member it replaced.** RFC 9651 §4.2.2 keeps the last member of a repeated key, so in `Want-Content-Digest: sha-256=11, sha-256=5` the `11` is text no recipient reads: the repetition is reported, once per key, and only the member kept is judged. A Dictionary that fails to parse is discarded whole, and there every member is judged as written.
+
 `Content-Digest` and `Repr-Digest` are read in the **trailer section** as well as the header section, in either direction: RFC 9530 §2 and §3 each say the field "can be sent in a trailer section", which is where a digest computed while the content streams arrives. No other field here is granted the section, and one written there is `trailer_fields_valid`'s finding.
 
 ## Violations
@@ -31,6 +33,7 @@ Algorithm names in the RFC 9530 fields are structured-field Dictionary keys and 
 - [digest_value_empty](../violations/digest_value_empty.md) — Digest field member carries no digest
 - [digest_value_malformed](../violations/digest_value_malformed.md) — Digest field member's value is not a Byte Sequence
 - [qvalue_malformed](../violations/qvalue_malformed.md) — Weight is not a qvalue
+- [structured_field_key_duplicated](../violations/structured_field_key_duplicated.md) — Structured field gives one Dictionary key more than once
 - [structured_field_key_malformed](../violations/structured_field_key_malformed.md) — Structured field key is not a key production
 - [structured_field_member_empty](../violations/structured_field_member_empty.md) — Structured field writes a comma with no member beside it
 - [structured_field_value_malformed](../violations/structured_field_value_malformed.md) — Structured field value is none of the bare item types
