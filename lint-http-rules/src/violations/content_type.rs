@@ -73,7 +73,8 @@ defects! {
     /// disjunction this field is one arm of: a page may declare its encoding
     /// with a byte order mark or a `<meta charset>` instead, and a header reader
     /// sees neither, so the finding names both rather than claiming the page
-    /// declares nothing.
+    /// declares nothing. The JavaScript types are left out, since RFC 9239 §4
+    /// makes the parameter optional on them in as many words.
     ///
     /// `info`.
     ///

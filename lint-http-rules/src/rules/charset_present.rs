@@ -21,6 +21,12 @@ const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
     note: "`media-type` and the case-insensitivity of its type/subtype tokens, which decides what counts as `text/*` here",
 };
+const RFC_9239_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9239",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9239.html#section-4",
+    note: "The JavaScript types' own registration: the `charset` parameter is optional on them despite BCP 13's recommendation for `text/*`, a module script is UTF-8 whatever it says, and UTF-8 is assumed without it — which is why those types are outside this rule",
+};
 const HTML_SEMANTICS_4_2_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "HTML Semantics",
     section: Some("4.2.5.4"),
@@ -45,7 +51,7 @@ impl RuleMeta for CharsetPresent {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter. Responses only, and the type is matched case-insensitively, so `TEXT/HTML` is in scope.\n\nThe parameter tells a recipient which character encoding the text was written in. Without it the recipient looks to the content itself, and where the content declares nothing either, it decodes by a default or a guess of its own — and text decoded in an encoding it was not written in is garbled. For `text/html` the finding says where else the page may declare it: HTML requires a page with no byte order mark and no `charset` here to carry a `<meta charset>`, and a header reader cannot see which of those a page has.\n\nNo specification requires the parameter — RFC 9110 defines what `charset` means and mandates nothing about sending it — so this rule is a deliberate policy rather than a conformance check. Only the parameter's presence is checked; whether its value names a registered charset is a separate rule's concern.\n\n**A response with no content to render is skipped**: `1xx`, `204`, `205` and `304`. The hazard this rule names is a recipient guessing the encoding of text it is about to render, and none of those messages carries any — the field beside them describes something the recipient is not receiving. A `304` is the case where the advice was not merely idle but contradictory, since §15.4.5 tells the sender not to generate representation metadata on one at all and `status_304_representation_metadata` reports it. **A response to `HEAD` is deliberately not skipped**: §8.2 makes its representation header fields describe the data a `GET` would have enclosed, so a charset absent there is absent from the representation.
+        "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter. Responses only, and the type is matched case-insensitively, so `TEXT/HTML` is in scope.\n\nThe parameter tells a recipient which character encoding the text was written in. Without it the recipient looks to the content itself, and where the content declares nothing either, it decodes by a default or a guess of its own — and text decoded in an encoding it was not written in is garbled. For `text/html` the finding says where else the page may declare it: HTML requires a page with no byte order mark and no `charset` here to carry a `<meta charset>`, and a header reader cannot see which of those a page has.\n\nNo specification requires the parameter — RFC 9110 defines what `charset` means and mandates nothing about sending it — so this rule is a deliberate policy rather than a conformance check. Only the parameter's presence is checked; whether its value names a registered charset is a separate rule's concern.\n\n**The JavaScript types are outside the policy**, because their own registration declines it: RFC 9239 §4 makes the parameter optional on `text/javascript` and the other `text/*` names it registers \"despite the recommendation in BCP 13 [RFC6838] for text/* types\", a module script is decoded as UTF-8 whatever the parameter says, and UTF-8 is assumed without it. The names are the ones RFC 9239 registers — `text/javascript` with its alias names, and `text/ecmascript` with its — so `text/x-javascript`, which browsers run and nothing registers, is still asked.\n\n**A response with no content to render is skipped**: `1xx`, `204`, `205` and `304`. The hazard this rule names is a recipient guessing the encoding of text it is about to render, and none of those messages carries any — the field beside them describes something the recipient is not receiving. A `304` is the case where the advice was not merely idle but contradictory, since §15.4.5 tells the sender not to generate representation metadata on one at all and `status_304_representation_metadata` reports it. **A response to `HEAD` is deliberately not skipped**: §8.2 makes its representation header fields describe the data a `GET` would have enclosed, so a charset absent there is absent from the representation.
 
 The parameter list is read quote-aware, so a `;` inside a quoted value does not start a new parameter and text that merely looks like `charset=` inside another value does not count. If the quoting never closes, the rule declines to judge rather than report a charset missing that the value plainly carries — an unreadable parameter list is `content_type_valid`'s finding, not an absent charset."
     }
@@ -54,6 +60,7 @@ The parameter list is read quote-aware, so a `;` inside a quoted value does not 
         &[
             RFC_9110_8_3_1,
             RFC_9110_8_3_2,
+            RFC_9239_4,
             HTML_SEMANTICS_4_2_5_4,
             MDN_CONTENT_TYPE,
         ]
@@ -79,6 +86,11 @@ The parameter list is read quote-aware, so a `;` inside a quoted value does not 
                 compliance: Compliance::NonCompliant,
                 label: Some("Response"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/html\n# Missing charset parameter",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("JavaScript, whose registration makes the parameter optional"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/javascript",
             },
         ]
     }
@@ -148,7 +160,9 @@ impl Rule for CharsetPresent {
                         parsed.type_.to_ascii_lowercase(),
                         parsed.subtype.to_ascii_lowercase()
                     );
-                    if parsed.type_.eq_ignore_ascii_case("text") {
+                    if parsed.type_.eq_ignore_ascii_case("text")
+                        && !JAVASCRIPT_TEXT_ESSENCES.contains(&essence.as_str())
+                    {
                         // Parameter *names* are case-insensitive too, which is why the
                         // key comparison folds case. Only the name is compared — the
                         // charset value is never inspected here, so this rule takes no
@@ -206,6 +220,36 @@ impl Rule for CharsetPresent {
         Vec::from_iter(finding())
     }
 }
+
+/// The `text/*` names RFC 9239 registers for JavaScript, lowercase: each
+/// registration's own name and the alias names its template lists under it.
+///
+/// **The registration declines this rule's policy for them**, and says why:
+/// the parameter is optional on these types to match what implementations do,
+/// a module script ignores it, and without it UTF-8 is assumed. Asking for it
+/// would ask for something the type's own document chose not to.
+///
+/// Bounded by the registration rather than by what a browser runs, because it
+/// is the registration's sentence the exclusion rests on: `text/x-javascript`
+/// is a name MIME Sniffing counts as JavaScript and RFC 9239 does not list, so
+/// nothing it says makes the parameter optional there.
+// cite(RFC 9239 § 4): "In order to ensure interoperability and align with widespread implementation practices, the charset parameter is optional rather than required, despite the recommendation in BCP 13 [RFC6838] for text/* types."
+// cite(RFC 9239 § 4.1): "The charset parameter is only used when processing a Script goal source; Module goal sources MUST always be processed as UTF-8."
+// cite(RFC 9239 § 4.2): "Else, the character encoding scheme is assumed to be UTF-8."
+// cite(RFC 9239 § 6.1.1): "Deprecated alias names for this type: application/javascript, application/x-javascript, text/javascript1.0"
+const JAVASCRIPT_TEXT_ESSENCES: &[&str] = &[
+    "text/javascript",
+    "text/javascript1.0",
+    "text/javascript1.1",
+    "text/javascript1.2",
+    "text/javascript1.3",
+    "text/javascript1.4",
+    "text/javascript1.5",
+    "text/jscript",
+    "text/livescript",
+    "text/ecmascript",
+    "text/x-ecmascript",
+];
 
 /// The finding, naming the value that drew it and what a recipient does
 /// without the parameter.
@@ -293,6 +337,15 @@ mod tests {
         true,
         Some("Content-Type 'TEXT/HTML' names no charset, so HTML requires the page itself to declare its encoding, with a byte order mark or a `<meta charset>` element, which a reader of the header fields cannot see; naming it here, as in `text/html; charset=utf-8` for a UTF-8 page, declares it without relying on the markup")
     )]
+    // RFC 9239 § 4 makes the parameter optional on the JavaScript types, in
+    // any case, and on the alias names their registrations list.
+    #[case("text/javascript", false, None)]
+    #[case("Text/JavaScript", false, None)]
+    #[case("text/ecmascript", false, None)]
+    #[case("text/javascript1.5", false, None)]
+    #[case("text/x-ecmascript", false, None)]
+    // A name browsers run as JavaScript and RFC 9239 does not register is not
+    // one its sentence speaks for, so it is asked like any other text type.
     #[case(
         "text/x-javascript",
         true,
