@@ -44,6 +44,7 @@ severity = "error"
 - [conditional_etag_syntax](../rules/conditional_etag_syntax.md)
 - [connection_header_tokens_valid](../rules/connection_header_tokens_valid.md)
 - [content_encoding_and_type_consistent](../rules/content_encoding_and_type_consistent.md)
+- [content_security_policy_valid](../rules/content_security_policy_valid.md)
 - [cors_request_header_syntax](../rules/cors_request_header_syntax.md)
 - [cors_response_header_syntax](../rules/cors_response_header_syntax.md)
 - [digest_auth_valid](../rules/digest_auth_valid.md)

@@ -21,6 +21,7 @@ This rule is intentionally conservative: it is not a full CSP grammar validator,
 - [content_security_policy_empty](../violations/content_security_policy_empty.md) — Content-Security-Policy is written with no policy in it
 - [content_security_policy_source_delimiter_missing](../violations/content_security_policy_source_delimiter_missing.md) — A nonce or hash source is written without its single quotes
 - [content_security_policy_source_empty](../violations/content_security_policy_source_empty.md) — A quoted source expression is written with nothing in it
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
 
 ## Specifications
 
@@ -29,6 +30,7 @@ This rule is intentionally conservative: it is not a full CSP grammar validator,
 - [CSP3 §2.3](https://www.w3.org/TR/CSP3/#framework-directives): Directives: `directive-name = 1*( ALPHA / DIGIT / "-" )`, letters, digits and a hyphen and nothing else — where an HTTP `token` also admits `_`, `.` and a dozen other marks
 - [CSP3 §2.3.1](https://www.w3.org/TR/CSP3/#framework-directive-source-list): Source Lists: `source-expression`, the `nonce-source` and `hash-source` productions whose single quotes are written *inside* them, and the `base64-value` both of them carry
 - [CSP3 §3.2](https://www.w3.org/TR/CSP3/#cspro-header): The `Content-Security-Policy-Report-Only` field — `1#serialized-policy`, the same production § 3.1 gives the enforced field, delivered for monitoring rather than enforcement
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 - [MDN Content-Security-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy): Mozilla MDN overview and directive examples
 
 ## Configuration
@@ -64,6 +66,13 @@ Content-Security-Policy: def@ult-src 'self'
 ```http
 HTTP/1.1 200 OK
 Content-Security-Policy: default-src 'self';
+```
+
+### ✅ Good (two policies on one line, each enforced: the form two field lines take once a recipient joins them)
+
+```http
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self', script-src 'none'
 ```
 
 ### ❌ Bad

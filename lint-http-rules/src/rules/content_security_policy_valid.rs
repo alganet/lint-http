@@ -11,19 +11,23 @@ use crate::violations::content_security_policy::{
     CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING, CONTENT_SECURITY_POLICY_SOURCE_EMPTY,
     CSP3_2_2, CSP3_2_3, CSP3_2_3_1, CSP3_3_2,
 };
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::ViolationDef;
 
 /// The policy and directive level of the field, which is what the rule reads
 /// before it reaches a source expression.
 ///
-/// Seven entries. Three are ranked apart where the rule's one severity could
+/// Eight entries. Three are ranked apart where the rule's one severity could
 /// not — a header enforcing nothing at all, a directive a user agent will not
 /// recognise and therefore not apply, and a stray semicolon in a policy that
 /// still works. The four below them are the source expressions, and they sit
 /// at one level: each is a source the user agent will parse as something else
 /// or drop, and in every case the policy stops doing what its author wrote.
+/// The eighth is the list's: a line is `1#serialized-policy`, and a stray comma
+/// in it is the empty element every other `#` field's reader reports.
 static DECLARED: &[&ViolationDef] = &[
     &CONTENT_SECURITY_POLICY_EMPTY,
+    &LIST_MEMBER_EMPTY,
     &CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY,
     &CONTENT_SECURITY_POLICY_DIRECTIVE_NAME_CHARACTER_FORBIDDEN,
     &CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING,
@@ -297,6 +301,7 @@ impl RuleMeta for ContentSecurityPolicyValid {
             CSP3_2_3,
             CSP3_2_3_1,
             CSP3_3_2,
+            RFC_9110_5_6_1_1,
             MDN_CONTENT_SECURITY_POLICY,
         ]
     }
@@ -323,6 +328,11 @@ impl RuleMeta for ContentSecurityPolicyValid {
                 compliance: Compliance::Compliant,
                 label: Some("(a trailing `;` is a zero-directive repetition the production generates)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self';",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(two policies on one line, each enforced: the form two field lines take once a recipient joins them)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self', script-src 'none'",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -382,9 +392,22 @@ impl Rule for ContentSecurityPolicyValid {
                     .into_iter()
                     .map(move |policy| (shown, policy))
             }) {
-                let policy = policy.as_str();
+                // Policies before directives. A field line is a comma-delimited
+                // series of serialized policies, each enforced on its own, and
+                // RFC 9110 § 5.3 lets any recipient join two lines into one
+                // with a comma -- so a `;` split alone read `default-src
+                // 'self', script-src 'none'` as one directive holding an
+                // unclosed `'self',`. The cut is naive and exact: a
+                // `directive-value` admits every visible octet but `;` and
+                // `,`, so no comma is ever data inside a policy.
+                //
+                // cite(CSP3 § 2.2): "a comma-delimited series of serialized CSPs"
+                // cite(CSP3 § 2.2.2): "For each token returned by extracting header list values given Content-Security-Policy and response’s header list"
+                // cite(CSP3 § 2.3): "Directive values may contain whitespace and VCHAR characters, ; excluding ";" and ","."
+                let policies: Vec<&str> =
+                    crate::helpers::list::sender_list_members(&policy).collect();
 
-                if crate::helpers::headers::trim_ows(policy).is_empty() {
+                if policies.iter().all(|p| p.is_empty()) {
                     // The line names no policy at all, so there are no
                     // directives in it to read: this is the whole of what is
                     // wrong with this line, and the next line is its own.
@@ -395,13 +418,31 @@ impl Rule for ContentSecurityPolicyValid {
                     continue;
                 }
 
-                for (position, directive) in policy.split(';').enumerate() {
-                    out.extend(self.directive_defects(
-                        shown,
-                        crate::helpers::headers::trim_ows(directive),
-                        position,
-                        ctx,
+                // A user agent skips a policy with no directives, which is the
+                // recipient's half; the sender's is § 5.6.1.1's, and the empty
+                // member is the evidence the skip erases. Once per line, since
+                // the line is where the sender put the stray comma.
+                // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+                if policies.iter().any(|p| p.is_empty()) {
+                    out.push(ctx.report_with(
+                        &LIST_MEMBER_EMPTY,
+                        format!(
+                            "{shown} '{}' holds an empty policy between its commas, and a \
+                             sender must not generate an empty list element",
+                            crate::helpers::shown::shown_in_finding(&policy)
+                        ),
                     ));
+                }
+
+                for policy in policies.into_iter().filter(|p| !p.is_empty()) {
+                    for (position, directive) in policy.split(';').enumerate() {
+                        out.extend(self.directive_defects(
+                            shown,
+                            crate::helpers::headers::trim_ows(directive),
+                            position,
+                            ctx,
+                        ));
+                    }
                 }
             }
 
@@ -562,6 +603,83 @@ mod tests {
             &make_cfg(),
         );
         assert!(v.is_none(), "{policy:?}: {v:?}");
+    }
+
+    /// **A line is a comma-delimited series of policies, and a recipient may
+    /// have made it one.** RFC 9110 § 5.3 lets any recipient join two field
+    /// lines with a comma, so the two policies an origin sent on two lines
+    /// arrive as one. Read as one policy, the first of these drew
+    /// "Unterminated single-quoted source expression ''self','". The third
+    /// opens its second policy with a `;`, which is that policy's first
+    /// position and not a bracketed repetition of the first policy's.
+    #[rstest]
+    #[case::keyword_before_comma("default-src 'self', script-src 'none'", None)]
+    #[case::no_space("default-src 'self',script-src 'none'", None)]
+    #[case::three("default-src 'self', img-src *, frame-ancestors 'none'", None)]
+    #[case::second_opens_with_semicolon(
+        "default-src 'self', ; script-src 'none'",
+        Some("content_security_policy_directive_empty")
+    )]
+    #[case::defect_in_second(
+        "default-src 'self', def@ult-src 'self'",
+        Some("content_security_policy_directive_name_character_forbidden")
+    )]
+    fn a_line_is_read_one_policy_at_a_time(#[case] line: &str, #[case] expected: Option<&str>) {
+        for key in [
+            "content-security-policy",
+            "content-security-policy-report-only",
+        ] {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().unwrap().headers =
+                crate::test_helpers::make_headers_from_pairs(&[(key, line)]);
+            let found: Vec<_> = crate::test_helpers::run_rule_all(
+                &ContentSecurityPolicyValid,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &make_cfg(),
+            )
+            .into_iter()
+            .map(|v| v.violation)
+            .collect();
+            assert_eq!(found, Vec::from_iter(expected), "{key}: {line:?}");
+        }
+    }
+
+    /// A stray comma is an empty element of `1#serialized-policy`, which a
+    /// user agent skips and a sender must not write. A line of nothing but
+    /// commas names no policy, which is the entry for an empty field.
+    #[rstest]
+    #[case::trailing("default-src 'self',", "list_member_empty")]
+    #[case::leading(", default-src 'self'", "list_member_empty")]
+    #[case::doubled("default-src 'self',, script-src 'none'", "list_member_empty")]
+    #[case::only_commas(" , ,", "content_security_policy_empty")]
+    fn an_empty_policy_in_the_list(#[case] line: &str, #[case] expected: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-security-policy", line)]);
+        let found = crate::test_helpers::run_rule_all(
+            &ContentSecurityPolicyValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            [expected],
+            "{line:?}"
+        );
+        if expected == "list_member_empty" {
+            assert_eq!(
+                found[0].message,
+                format!(
+                    "Content-Security-Policy '{line}' holds an empty policy between its commas, \
+                     and a sender must not generate an empty list element"
+                )
+            );
+        }
     }
 
     /// The one position the production does not bracket.

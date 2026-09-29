@@ -654,6 +654,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
       line: 136
+    - file: lint-http-rules/src/rules/content_security_policy_valid.rs
+      line: 404
   - label: content_security_policy_report_to_named (2)
     section: § 2.2.1
     snippet: Directive names are case-insensitive
@@ -683,25 +685,37 @@ sources:
     - file: lint-http-rules/src/violations/content_security_policy.rs
       line: 364
   - label: content_security_policy_valid
+    section: § 2.2.2
+    snippet: For each token returned by extracting header list values given Content-Security-Policy and response’s header list
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_valid.rs
+      line: 405
+  - label: content_security_policy_valid (2)
+    section: § 2.3
+    snippet: Directive values may contain whitespace and VCHAR characters, ; excluding ";" and ",".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_valid.rs
+      line: 406
+  - label: content_security_policy_valid (3)
     section: § 2.3
     snippet: directive-name = 1*( ALPHA / DIGIT / "-" )
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_valid.rs
-      line: 136
+      line: 140
     - file: lint-http-rules/src/violations/content_security_policy.rs
       line: 179
-  - label: content_security_policy_valid (2)
+  - label: content_security_policy_valid (4)
     section: § 2.3
     snippet: hash-algorithm = "sha256" / "sha384" / "sha512"
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_valid.rs
-      line: 63
-  - label: content_security_policy_valid (3)
+      line: 67
+  - label: content_security_policy_valid (5)
     section: § 3.2
     snippet: Content-Security-Policy-Report-Only = 1#serialized-policy
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_valid.rs
-      line: 379
+      line: 389
 - label: Clear-Site-Data
   url: https://www.w3.org/TR/clear-site-data/
   type: text/html
@@ -8712,6 +8726,8 @@ sources:
       line: 246
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 226
+    - file: lint-http-rules/src/rules/content_security_policy_valid.rs
+      line: 425
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 408
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
