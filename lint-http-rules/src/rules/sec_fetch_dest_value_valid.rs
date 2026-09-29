@@ -9,6 +9,11 @@ use crate::violations::sec_fetch::{
     FETCH_METADATA_2_1, SEC_FETCH_DEST_VALUE_INVALID, SEC_FETCH_VALUE_EMPTY,
     SEC_FETCH_VALUE_MALFORMED,
 };
+use crate::violations::structured_fields::{
+    structured_field_defect, RFC_9651_4_2_2, RFC_9651_4_2_3_1, RFC_9651_4_2_3_3,
+    STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY,
+    STRUCTURED_FIELD_VALUE_MALFORMED,
+};
 use crate::violations::ViolationDef;
 
 /// The one entry a field with no list form always has available: its own
@@ -19,6 +24,9 @@ static DECLARED: &[&ViolationDef] = &[
     &SEC_FETCH_VALUE_EMPTY,
     &SEC_FETCH_VALUE_MALFORMED,
     &SEC_FETCH_DEST_VALUE_INVALID,
+    &STRUCTURED_FIELD_MEMBER_EMPTY,
+    &STRUCTURED_FIELD_KEY_MALFORMED,
+    &STRUCTURED_FIELD_VALUE_MALFORMED,
 ];
 
 /// `Sec-Fetch-Dest` header must be one of the canonical destination tokens
@@ -49,7 +57,13 @@ impl RuleMeta for SecFetchDestValueValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[FETCH_METADATA_2_1, RFC_9110_5_3]
+        &[
+            FETCH_METADATA_2_1,
+            RFC_9110_5_3,
+            RFC_9651_4_2_2,
+            RFC_9651_4_2_3_3,
+            RFC_9651_4_2_3_1,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -142,6 +156,18 @@ impl Rule for SecFetchDestValueValid {
                 ));
             }
 
+            // The field is an Item, so what follows the token at its first `;`
+            // outside a String is the Item's parameters: none is defined for
+            // this field, and RFC 9651 § 2.3 admits them anyway. The token is
+            // what is left, and the parameters are judged after it, in the
+            // order § 4.2.3 parses them. A value that opens on its `;` has no
+            // token for them to follow, and the character check names that `;`.
+            // cite(RFC 9651 § 2.3): "Fields that erroneously defined as another type (e.g., Integer) are assumed to be Items (i.e., they allow Parameters)."
+            let (val, parameters) = match crate::helpers::structured_fields::split_item(val) {
+                ("", _) => (val, None),
+                item => item,
+            };
+
             // Token must not contain invalid token chars. This checks the HTTP `token`
             // grammar, slightly looser than sf-token; the closed value match below is
             // what actually gates acceptance, so the difference only picks which
@@ -153,6 +179,16 @@ impl Rule for SecFetchDestValueValid {
                     format!(
                         "Sec-Fetch-Dest header contains invalid token character: {}",
                         crate::helpers::shown::describe_char(c)
+                    ),
+                ));
+            }
+
+            if let Some(defect) = parameters {
+                return Some(ctx.report_with(
+                    structured_field_defect(defect.kind),
+                    format!(
+                        "Sec-Fetch-Dest header carries a parameter that does not parse: {}",
+                        defect.message
                     ),
                 ));
             }
@@ -195,6 +231,16 @@ mod tests {
 
     #[rstest]
     #[case(Some("audio"), false)]
+    // An Item carries parameters its field never names (RFC 9651 § 2.3), so the
+    // token is what precedes the first `;` outside a String and a comma or a
+    // semicolon inside the String is data; only a parameter that is not one is
+    // reported, and a value that opens on its `;` has no token at all.
+    #[case(Some("empty;x=\"a, b;c\""), false)]
+    #[case(Some("image;x=1;y=?0"), false)]
+    #[case(Some("image;X=1"), true)]
+    #[case(Some("image;"), true)]
+    #[case(Some(";x=1"), true)]
+    #[case(Some("images;x=1"), true)]
     #[case(Some("audioworklet"), false)]
     #[case(Some("document"), false)]
     #[case(Some("embed"), false)]

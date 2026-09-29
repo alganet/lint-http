@@ -18,12 +18,18 @@ Checks the `Origin-Agent-Cluster` response header, whose value is one structured
 - [origin_agent_cluster_empty](../violations/origin_agent_cluster_empty.md) — Origin-Agent-Cluster is written with no boolean on it
 - [origin_agent_cluster_invalid](../violations/origin_agent_cluster_invalid.md) — Origin-Agent-Cluster states the boolean's false value
 - [origin_agent_cluster_malformed](../violations/origin_agent_cluster_malformed.md) — Origin-Agent-Cluster carries something that is not a boolean
+- [structured_field_key_malformed](../violations/structured_field_key_malformed.md) — Structured field key is not a key production
+- [structured_field_member_empty](../violations/structured_field_member_empty.md) — Structured field writes a comma with no member beside it
+- [structured_field_value_malformed](../violations/structured_field_value_malformed.md) — Structured field value is none of the bare item types
 
 ## Specifications
 
 - [HTML §7.1.2](https://html.spec.whatwg.org/multipage/browsers.html#origin-keyed-agent-clusters): `Origin-Agent-Cluster` — a structured-header boolean; only the `?1` true value requests an origin-keyed agent cluster
 - [RFC 9651 §3](https://www.rfc-editor.org/rfc/rfc9651.html#section-3): Structured Headers boolean values (§3–§4)
 - [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
+- [RFC 9651 §4.2.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.2): Parsing a Dictionary: a member is a key and, optionally, an `=` and a value — a bare key carries the Boolean true rather than being a member without one — and the loop fails on a comma with nothing after it
+- [RFC 9651 §4.2.3.3](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.3.3): Parsing a Key: a `key` opens with `lcalpha` or `*` and continues with `lcalpha`, DIGIT, `_`, `-`, `.` or `*` — the production every Dictionary member name and every parameter name is written in, and the one an uppercase letter fails
+- [RFC 9651 §4.2.3.1](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.3.1): Parsing a Bare Item — seven types chosen by the value's first character, and a single step for a value that is none of them
 
 ## Configuration
 

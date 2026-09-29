@@ -9,6 +9,11 @@ use crate::violations::sec_fetch::{
     SEC_FETCH_STORAGE_ACCESS_VALUE_INVALID, SEC_FETCH_VALUE_EMPTY, SEC_FETCH_VALUE_MALFORMED,
     STORAGE_ACCESS_HEADERS_4_1,
 };
+use crate::violations::structured_fields::{
+    structured_field_defect, RFC_9651_4_2_2, RFC_9651_4_2_3_1, RFC_9651_4_2_3_3,
+    STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY,
+    STRUCTURED_FIELD_VALUE_MALFORMED,
+};
 use crate::violations::ViolationDef;
 
 /// The one entry a field with no list form always has available: its own
@@ -19,6 +24,9 @@ static DECLARED: &[&ViolationDef] = &[
     &SEC_FETCH_VALUE_EMPTY,
     &SEC_FETCH_VALUE_MALFORMED,
     &SEC_FETCH_STORAGE_ACCESS_VALUE_INVALID,
+    &STRUCTURED_FIELD_MEMBER_EMPTY,
+    &STRUCTURED_FIELD_KEY_MALFORMED,
+    &STRUCTURED_FIELD_VALUE_MALFORMED,
 ];
 
 /// `Sec-Fetch-Storage-Access` must be one of the three storage access statuses
@@ -53,7 +61,13 @@ impl RuleMeta for SecFetchStorageAccessValueValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[STORAGE_ACCESS_HEADERS_4_1, RFC_9110_5_3]
+        &[
+            STORAGE_ACCESS_HEADERS_4_1,
+            RFC_9110_5_3,
+            RFC_9651_4_2_2,
+            RFC_9651_4_2_3_3,
+            RFC_9651_4_2_3_1,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -143,6 +157,18 @@ impl Rule for SecFetchStorageAccessValueValid {
                 ));
             }
 
+            // The field is an Item, so what follows the token at its first `;`
+            // outside a String is the Item's parameters: none is defined for
+            // this field, and RFC 9651 § 2.3 admits them anyway. The token is
+            // what is left, and the parameters are judged after it, in the
+            // order § 4.2.3 parses them. A value that opens on its `;` has no
+            // token for them to follow, and the character check names that `;`.
+            // cite(RFC 9651 § 2.3): "Fields that erroneously defined as another type (e.g., Integer) are assumed to be Items (i.e., they allow Parameters)."
+            let (val, parameters) = match crate::helpers::structured_fields::split_item(val) {
+                ("", _) => (val, None),
+                item => item,
+            };
+
             // Token must not contain invalid token chars. This checks the HTTP
             // `token` grammar, slightly looser than sf-token; the closed value
             // match below is what actually gates acceptance, so the difference
@@ -155,6 +181,13 @@ impl Rule for SecFetchStorageAccessValueValid {
                         "Sec-Fetch-Storage-Access header contains invalid token character: {}",
                         crate::helpers::shown::describe_char(c)
                     ),
+                ));
+            }
+
+            if let Some(defect) = parameters {
+                return Some(ctx.report_with(
+                    structured_field_defect(defect.kind),
+                    format!("Sec-Fetch-Storage-Access header carries a parameter that does not parse: {}", defect.message),
                 ));
             }
 
@@ -223,6 +256,18 @@ mod tests {
     // Not a token at all, and not the closed set's business.
     #[case(Some("act ive"), Some("sec_fetch_value_malformed"))]
     #[case(Some("\"active\""), Some("sec_fetch_value_malformed"))]
+    // The field is an Item, so a parameter it never names is the Item's and
+    // not the token's (RFC 9651 § 2.3): a comma or a semicolon inside its
+    // String is data, and each way a parameter fails to derive is the entry
+    // every Structured Field answers it with. A value that opens on its `;`
+    // has no token, and the character check names that `;`.
+    #[case(Some("active;x=\"a, b;c\""), None)]
+    #[case(Some("none;x=1;y"), None)]
+    #[case(Some("none;"), Some("structured_field_member_empty"))]
+    #[case(Some("none;X=1"), Some("structured_field_key_malformed"))]
+    #[case(Some("none;x=@"), Some("structured_field_value_malformed"))]
+    #[case(Some("granted;x=1"), Some("sec_fetch_storage_access_value_invalid"))]
+    #[case(Some(";x=1"), Some("sec_fetch_value_malformed"))]
     // Written, and holding nothing.
     #[case(Some(""), Some("sec_fetch_value_empty"))]
     fn storage_access_status_cases(#[case] header: Option<&str>, #[case] expect: Option<&str>) {

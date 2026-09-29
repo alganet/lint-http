@@ -16,11 +16,17 @@ Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specific
 - [sec_fetch_dest_value_invalid](../violations/sec_fetch_dest_value_invalid.md) — Sec-Fetch-Dest names no request destination Fetch defines
 - [sec_fetch_value_empty](../violations/sec_fetch_value_empty.md) — A Sec-Fetch-* field is written with no value on it
 - [sec_fetch_value_malformed](../violations/sec_fetch_value_malformed.md) — A Sec-Fetch-* value holds a character no token admits
+- [structured_field_key_malformed](../violations/structured_field_key_malformed.md) — Structured field key is not a key production
+- [structured_field_member_empty](../violations/structured_field_member_empty.md) — Structured field writes a comma with no member beside it
+- [structured_field_value_malformed](../violations/structured_field_value_malformed.md) — Structured field value is none of the bare item types
 
 ## Specifications
 
 - [Fetch Metadata §2.1](https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest-header): Fetch Metadata (W3C) — `Sec-Fetch-Dest`: an sf-token whose valid values are Fetch's request destinations
 - [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
+- [RFC 9651 §4.2.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.2): Parsing a Dictionary: a member is a key and, optionally, an `=` and a value — a bare key carries the Boolean true rather than being a member without one — and the loop fails on a comma with nothing after it
+- [RFC 9651 §4.2.3.3](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.3.3): Parsing a Key: a `key` opens with `lcalpha` or `*` and continues with `lcalpha`, DIGIT, `_`, `-`, `.` or `*` — the production every Dictionary member name and every parameter name is written in, and the one an uppercase letter fails
+- [RFC 9651 §4.2.3.1](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.3.1): Parsing a Bare Item — seven types chosen by the value's first character, and a single step for a value that is none of them
 
 ## Configuration
 

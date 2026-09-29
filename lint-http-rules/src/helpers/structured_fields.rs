@@ -665,6 +665,26 @@ pub(crate) fn parse_inner_list(head: &str) -> Option<SfDefect> {
     None
 }
 
+/// An Item cut into its bare item and its parameters, with the first defect in
+/// the parameters.
+///
+/// **This is the reader for a field defined as a bare type.** A specification
+/// that says its field's value "is a token" or "is a boolean" has defined an
+/// Item, and an Item carries parameters whether or not the field names any, so
+/// what the definition constrains is the bare item alone. A reader comparing
+/// the whole value against the bare item's alphabet takes a parameter's `;` for
+/// a character the token may not hold, and a reader counting commas takes one
+/// inside a parameter's String for a second value. Neither is anything the
+/// sender wrote wrong.
+///
+/// The bare item comes back unjudged: its type is the caller's question, since
+/// the field's definition is what names it.
+// cite(RFC 9651 § 2.3): "Fields that erroneously defined as another type (e.g., Integer) are assumed to be Items (i.e., they allow Parameters)."
+pub(crate) fn split_item(s: &str) -> (&str, Option<SfDefect>) {
+    let parts = split_semicolons_outside_quotes(s);
+    (parts[0], parse_parameters(&parts[1..]))
+}
+
 /// § 4.2.3 -- a bare Item and its Parameters.
 pub(crate) fn parse_item(s: &str) -> Option<SfDefect> {
     let parts = split_semicolons_outside_quotes(s);

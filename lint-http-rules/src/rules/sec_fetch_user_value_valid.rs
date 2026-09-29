@@ -8,6 +8,11 @@ use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::sec_fetch::{
     FETCH_METADATA_2_4, SEC_FETCH_USER_VALUE_INVALID, SEC_FETCH_VALUE_EMPTY,
 };
+use crate::violations::structured_fields::{
+    structured_field_defect, RFC_9651_4_2_2, RFC_9651_4_2_3_1, RFC_9651_4_2_3_3,
+    STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY,
+    STRUCTURED_FIELD_VALUE_MALFORMED,
+};
 use crate::violations::ViolationDef;
 
 /// The one entry a field with no list form always has available: its own
@@ -17,6 +22,9 @@ static DECLARED: &[&ViolationDef] = &[
     &FIELD_LINE_DUPLICATED,
     &SEC_FETCH_VALUE_EMPTY,
     &SEC_FETCH_USER_VALUE_INVALID,
+    &STRUCTURED_FIELD_MEMBER_EMPTY,
+    &STRUCTURED_FIELD_KEY_MALFORMED,
+    &STRUCTURED_FIELD_VALUE_MALFORMED,
 ];
 
 /// `Sec-Fetch-User` header must be the structured-boolean true (serialized as `?1`) when present.
@@ -43,7 +51,13 @@ impl RuleMeta for SecFetchUserValueValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[FETCH_METADATA_2_4, RFC_9110_5_3]
+        &[
+            FETCH_METADATA_2_4,
+            RFC_9110_5_3,
+            RFC_9651_4_2_2,
+            RFC_9651_4_2_3_3,
+            RFC_9651_4_2_3_1,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -136,6 +150,27 @@ impl Rule for SecFetchUserValueValid {
                 ));
             }
 
+            // One Item, and an Item carries parameters whether or not its field
+            // names any: Fetch Metadata names none for this one, so the boolean
+            // is what precedes the first `;` outside a String, and the parameters
+            // are judged before the value is, in the order § 4.2.3 parses them. A
+            // value that opens on its `;` has no boolean for them to follow, and
+            // the comparison below says so of the whole value.
+            // cite(RFC 9651 § 2.3): "Fields that erroneously defined as another type (e.g., Integer) are assumed to be Items (i.e., they allow Parameters)."
+            let (val, parameters) = match crate::helpers::structured_fields::split_item(val) {
+                ("", _) => (val, None),
+                item => item,
+            };
+            if let Some(defect) = parameters {
+                return Some(ctx.report_with(
+                    structured_field_defect(defect.kind),
+                    format!(
+                        "Sec-Fetch-User header carries a parameter that does not parse: {}",
+                        defect.message
+                    ),
+                ));
+            }
+
             // The canonical serialization for a structured-boolean true is `?1`. `?0` is a
             // well-formed sf-boolean but never a well-formed *Sec-Fetch-User*: the header is
             // only ever sent when it is true, so its presence carrying anything else is wrong.
@@ -168,6 +203,12 @@ mod tests {
     #[rstest]
     #[case(Some("?1"), false)]
     #[case(Some(" ?1 "), false)]
+    // An Item carries parameters its field never names (RFC 9651 § 2.3), so the
+    // boolean is what precedes the first `;` outside a String.
+    #[case(Some("?1;x=\"a, b;c\""), false)]
+    #[case(Some("?1;X=1"), true)]
+    #[case(Some("?0;x=1"), true)]
+    #[case(Some(";x=1"), true)]
     #[case(Some("true"), true)]
     #[case(Some("1"), true)]
     #[case(Some(""), true)]
@@ -223,8 +264,12 @@ mod tests {
         assert!(v.unwrap().message.contains("Unrecognized Sec-Fetch-User"));
     }
 
+    /// `?1;param` is the boolean true carrying one parameter, itself a boolean
+    /// true: an Item, which is what RFC 9651 § 2.3 makes a field "whose value is
+    /// a boolean". This test used to assert the opposite, reading the parameter
+    /// as a suffix that made the value something other than `?1`.
     #[test]
-    fn structured_boolean_with_suffix_reports_violation() {
+    fn a_structured_boolean_with_a_parameter_is_the_boolean() {
         let rule = SecFetchUserValueValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "sec_fetch_user_value_valid",
@@ -240,8 +285,7 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Unrecognized Sec-Fetch-User"));
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[test]

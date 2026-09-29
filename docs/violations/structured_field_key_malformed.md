@@ -31,5 +31,11 @@ severity = "warn"
 ## Reported By
 
 - [digest_header_syntax](../rules/digest_header_syntax.md)
+- [origin_isolated_header_valid](../rules/origin_isolated_header_valid.md)
 - [permissions_policy_directives_valid](../rules/permissions_policy_directives_valid.md)
 - [priority_header_syntax](../rules/priority_header_syntax.md)
+- [sec_fetch_dest_value_valid](../rules/sec_fetch_dest_value_valid.md)
+- [sec_fetch_mode_value_valid](../rules/sec_fetch_mode_value_valid.md)
+- [sec_fetch_site_value_valid](../rules/sec_fetch_site_value_valid.md)
+- [sec_fetch_storage_access_value_valid](../rules/sec_fetch_storage_access_value_valid.md)
+- [sec_fetch_user_value_valid](../rules/sec_fetch_user_value_valid.md)

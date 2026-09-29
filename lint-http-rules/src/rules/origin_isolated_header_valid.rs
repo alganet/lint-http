@@ -9,6 +9,11 @@ use crate::violations::origin_agent_cluster::{
     HTML_7_1_2, ORIGIN_AGENT_CLUSTER_EMPTY, ORIGIN_AGENT_CLUSTER_INVALID,
     ORIGIN_AGENT_CLUSTER_MALFORMED,
 };
+use crate::violations::structured_fields::{
+    structured_field_defect, RFC_9651_4_2_2, RFC_9651_4_2_3_1, RFC_9651_4_2_3_3,
+    STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY,
+    STRUCTURED_FIELD_VALUE_MALFORMED,
+};
 use crate::violations::ViolationDef;
 
 /// One entry every field has available — its own repetition, which § 5.3
@@ -20,6 +25,9 @@ static DECLARED: &[&ViolationDef] = &[
     &ORIGIN_AGENT_CLUSTER_EMPTY,
     &ORIGIN_AGENT_CLUSTER_MALFORMED,
     &ORIGIN_AGENT_CLUSTER_INVALID,
+    &STRUCTURED_FIELD_MEMBER_EMPTY,
+    &STRUCTURED_FIELD_KEY_MALFORMED,
+    &STRUCTURED_FIELD_VALUE_MALFORMED,
 ];
 
 pub struct OriginIsolatedHeaderValid;
@@ -51,7 +59,14 @@ impl RuleMeta for OriginIsolatedHeaderValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[HTML_7_1_2, RFC_9651_3, RFC_9110_5_3]
+        &[
+            HTML_7_1_2,
+            RFC_9651_3,
+            RFC_9110_5_3,
+            RFC_9651_4_2_2,
+            RFC_9651_4_2_3_3,
+            RFC_9651_4_2_3_1,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -143,7 +158,13 @@ impl Rule for OriginIsolatedHeaderValid {
             // separate defects: a line with nothing on it states no
             // preference, a line with two states one the recipient may not
             // resolve.
-            let members = crate::helpers::list::list_members(val).count();
+            // The walk is Structured Fields', not a `#list`'s: a comma inside a
+            // parameter's String separates nothing, and the `#token` split
+            // counted `?1;x="a, b"` as two values.
+            let members = crate::helpers::structured_fields::split_commas_outside_quotes(val)
+                .into_iter()
+                .filter(|member| !member.is_empty())
+                .count();
             if members == 0 {
                 return Some(ctx.report(&ORIGIN_AGENT_CLUSTER_EMPTY));
             }
@@ -158,6 +179,18 @@ impl Rule for OriginIsolatedHeaderValid {
                 ));
             }
 
+            // One Item, and an Item carries parameters whether or not its field
+            // names any: HTML names none for this one, so the boolean is what
+            // precedes the first `;` outside a String, and the parameters are
+            // judged after it, in the order § 4.2.3 parses them. A value that
+            // opens on its `;` has no boolean for them to follow, and the check
+            // below says so of the whole value.
+            // cite(RFC 9651 § 2.3): "Fields that erroneously defined as another type (e.g., Integer) are assumed to be Items (i.e., they allow Parameters)."
+            let (val, parameters) = match crate::helpers::structured_fields::split_item(val) {
+                ("", _) => (val, None),
+                item => item,
+            };
+
             // What is written is one thing; the question left is whether it is
             // a boolean. `?1` and `?0` are the only two strings that parse as
             // one, and the reader every structured field shares says so — this
@@ -171,6 +204,16 @@ impl Rule for OriginIsolatedHeaderValid {
                         "Origin-Agent-Cluster value '{}' is not a structured-field boolean; the \
                          field carries `?1` or `?0` and nothing else",
                         crate::helpers::shown::shown_in_finding(val)
+                    ),
+                ));
+            }
+
+            if let Some(defect) = parameters {
+                return Some(ctx.report_with(
+                    structured_field_defect(defect.kind),
+                    format!(
+                        "Origin-Agent-Cluster carries a parameter that does not parse: {}",
+                        defect.message
                     ),
                 ));
             }
@@ -203,6 +246,13 @@ mod tests {
     #[rstest]
     #[case(Some("?1"), false)]
     #[case(Some(" ?1 "), false)]
+    // An Item carries parameters its field never names (RFC 9651 § 2.3), and a
+    // comma inside a parameter's String separates nothing.
+    #[case(Some("?1;x=\"a, b;c\""), false)]
+    #[case(Some("?1;x=1"), false)]
+    #[case(Some("?1;X=1"), true)]
+    #[case(Some("?1;x=1, ?1"), true)]
+    #[case(Some(";x=1"), true)]
     #[case(Some("?0"), true)]
     #[case(Some("1"), true)]
     #[case(Some("?1, ?1"), true)]
