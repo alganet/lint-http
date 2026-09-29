@@ -279,9 +279,9 @@ defects! {
     }
 
     /// A response whose `X-Frame-Options` and whose `frame-ancestors` say
-    /// different things about who may embed it: `DENY` beside a policy that
-    /// permits framing, `SAMEORIGIN` beside `'none'`, an `ALLOW-FROM` naming an
-    /// origin the policy does not list.
+    /// different things about who may embed it: `DENY` beside `'self'`,
+    /// `SAMEORIGIN` beside `'none'`, an `ALLOW-FROM` naming an origin the
+    /// policy does not list.
     ///
     /// **One entry over five shapes, because the claim, the sender and the
     /// repair are one.** A server wrote two framing policies into one response
@@ -301,6 +301,18 @@ defects! {
     /// header that loses is the legacy one, so a `DENY` that a policy overrides
     /// is a framing restriction the deployment believes it has and does not.
     ///
+    /// **Not a finding: `DENY` beside a policy naming any origin but
+    /// `'self'`.** HTML § 7.7 gives the older header two conforming values,
+    /// `DENY` and `SAMEORIGIN`, and `ALLOW-FROM` is "not to be implemented" —
+    /// so no `X-Frame-Options` states a policy that lists a partner, and the
+    /// only way left to agree is to drop the header, after which a user agent
+    /// that predates `frame-ancestors` permits embedding by anyone. `DENY`
+    /// there is the fallback that permits that user agent nothing the policy
+    /// forbids, which is the backwards-compatible deployment § 6.4.2.2 names
+    /// as the reason the override exists. `SAMEORIGIN` beside such a policy is
+    /// not reported either, for the same reason.
+    ///
+    // cite(HTML Speculative Loading § 7.7, label: two conforming X-Frame-Options values): "For web developers and conformance checkers, its value ABNF is:"
     // cite(CSP3 § 6.4.2): "The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed."
     // cite(CSP3 § 6.4.2.2, label: frame-ancestors overrides X-Frame-Options): "In order to allow backwards-compatible deployment, the frame-ancestors directive overrides the"
     CONTENT_SECURITY_POLICY_FRAME_ANCESTORS_CONFLICTING = {

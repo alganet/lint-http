@@ -10,6 +10,8 @@ SPDX-License-Identifier: ISC
 
 Detect contradictory framing directives between `Content-Security-Policy` (the `frame-ancestors` directive) and `X-Frame-Options`. These headers express framing restrictions; when they conflict, they create ambiguity that may cause different user agents to allow or block framing inconsistently.
 
+A `DENY` beside a policy that names any origin other than `'self'` is not reported: no conforming `X-Frame-Options` value states such a policy, and `DENY` is the fallback that permits a user agent predating `frame-ancestors` nothing the policy forbids.
+
 Note: this check considers only enforceable header-delivered CSP policies (`Content-Security-Policy`); `Content-Security-Policy-Report-Only` is ignored because it does not itself change framing enforcement.
 
 ## Violations
@@ -41,6 +43,12 @@ Content-Security-Policy: frame-ancestors 'none'
 ```http
 Content-Security-Policy: frame-ancestors https://example.com
 X-Frame-Options: ALLOW-FROM https://example.com
+```
+
+```http
+Content-Security-Policy: frame-ancestors 'self' https://cms.example
+X-Frame-Options: DENY
+# No X-Frame-Options value states a list of origins, so DENY is the fallback for user agents that predate frame-ancestors
 ```
 
 ### ❌ Bad

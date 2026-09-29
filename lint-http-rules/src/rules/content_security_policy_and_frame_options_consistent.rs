@@ -11,7 +11,7 @@ use crate::violations::ViolationDef;
 
 /// One entry for five shapes of the same disagreement.
 ///
-/// `DENY` beside a policy that permits framing, `SAMEORIGIN` beside `'none'`,
+/// `DENY` beside `'self'`, `SAMEORIGIN` beside `'none'`,
 /// and three ways an `ALLOW-FROM` origin can fall outside what
 /// `frame-ancestors` lists are one claim with one repair: a server wrote two
 /// framing policies into one response and they do not agree. Which of the five
@@ -97,11 +97,6 @@ impl FrameAncestors {
         }
 
         named.then_some(policy)
-    }
-
-    /// Whether the policy permits framing by anyone at all.
-    fn permits_framing(&self) -> bool {
-        self.own_origin || !self.origins.is_empty()
     }
 
     /// Whether the policy lists this serialized origin.
@@ -208,7 +203,7 @@ impl RuleMeta for ContentSecurityPolicyAndFrameOptionsConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "Detect contradictory framing directives between `Content-Security-Policy` (the `frame-ancestors` directive) and `X-Frame-Options`. These headers express framing restrictions; when they conflict, they create ambiguity that may cause different user agents to allow or block framing inconsistently.\n\nNote: this check considers only enforceable header-delivered CSP policies (`Content-Security-Policy`); `Content-Security-Policy-Report-Only` is ignored because it does not itself change framing enforcement."
+        "Detect contradictory framing directives between `Content-Security-Policy` (the `frame-ancestors` directive) and `X-Frame-Options`. These headers express framing restrictions; when they conflict, they create ambiguity that may cause different user agents to allow or block framing inconsistently.\n\nA `DENY` beside a policy that names any origin other than `'self'` is not reported: no conforming `X-Frame-Options` value states such a policy, and `DENY` is the fallback that permits a user agent predating `frame-ancestors` nothing the policy forbids.\n\nNote: this check considers only enforceable header-delivered CSP policies (`Content-Security-Policy`); `Content-Security-Policy-Report-Only` is ignored because it does not itself change framing enforcement."
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -235,6 +230,11 @@ impl RuleMeta for ContentSecurityPolicyAndFrameOptionsConsistent {
                 compliance: Compliance::Compliant,
                 label: None,
                 snippet: "Content-Security-Policy: frame-ancestors https://example.com\nX-Frame-Options: ALLOW-FROM https://example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Security-Policy: frame-ancestors 'self' https://cms.example\nX-Frame-Options: DENY\n# No X-Frame-Options value states a list of origins, so DENY is the fallback for user agents that predate frame-ancestors",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -289,10 +289,20 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
                 crate::helpers::headers::get_header_str(&resp.headers, "x-frame-options")?.trim();
 
             match FrameOptions::of(xfo) {
-                // DENY forbids framing, so it contradicts a policy that permits any.
-                FrameOptions::Deny => (!csp.none && csp.permits_framing()).then(|| {
-                    ctx.report_with(&CONTENT_SECURITY_POLICY_FRAME_ANCESTORS_CONFLICTING, "X-Frame-Options: DENY contradicts Content-Security-Policy frame-ancestors which permits framing".into())
-                }),
+                // DENY forbids framing, so it contradicts a policy that permits
+                // any -- but only a policy of `'self'` alone has an
+                // `X-Frame-Options` that states it. HTML gives the header two
+                // conforming values, so a policy naming any other origin has
+                // none, and `DENY` is the fallback that permits nothing the
+                // policy forbids to a user agent that predates it: the
+                // backwards-compatible deployment the override exists for.
+                // cite(HTML Speculative Loading § 7.7): "X-Frame-Options = "DENY" / "SAMEORIGIN""
+                // cite(CSP3 § 6.4.2.2): "In order to allow backwards-compatible deployment, the frame-ancestors directive overrides the ``X-Frame-Options`` header."
+                FrameOptions::Deny => {
+                    (!csp.none && csp.own_origin && csp.origins.is_empty()).then(|| {
+                        ctx.report_with(&CONTENT_SECURITY_POLICY_FRAME_ANCESTORS_CONFLICTING, "X-Frame-Options: DENY forbids the same-origin framing Content-Security-Policy frame-ancestors 'self' permits; SAMEORIGIN states the same policy as 'self'".into())
+                    })
+                }
                 // SAMEORIGIN permits same-origin framing, so only an outright
                 // 'none' contradicts it.
                 FrameOptions::SameOrigin => csp.none.then(|| {
@@ -358,6 +368,11 @@ mod tests {
     #[case("frame-ancestors https://a", "ALLOW-FROM https://b", true)]
     #[case("frame-ancestors https://a https://b", "ALLOW-FROM https://b", false)]
     #[case("frame-ancestors 'none'", "DENY", false)]
+    // No `X-Frame-Options` states a policy naming another origin, so `DENY`
+    // is the nearest fallback for a user agent that predates the directive.
+    #[case("frame-ancestors 'self' https://a https://*.b", "DENY", false)]
+    #[case("frame-ancestors https://partner", "DENY", false)]
+    #[case("frame-ancestors 'self' https://a", "SAMEORIGIN", false)]
     #[case("frame-ancestors 'self'", "ALLOW-FROM https://example", true)]
     fn consistency_cases(#[case] csp: &str, #[case] xfo: &str, #[case] expect_violation: bool) {
         let rule = ContentSecurityPolicyAndFrameOptionsConsistent;
@@ -509,7 +524,7 @@ mod tests {
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut headers = crate::test_helpers::make_headers_from_pairs(&[
-            ("content-security-policy", "frame-ancestors https://a"),
+            ("content-security-policy", "frame-ancestors 'self'"),
             ("x-frame-options", "DENY"),
         ]);
         // add a second XFO header to simulate duplicates
