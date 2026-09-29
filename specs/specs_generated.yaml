@@ -50,7 +50,7 @@ sources:
     - file: lint-http-rules/src/rules/cross_origin_resource_policy_valid.rs
       line: 153
     - file: lint-http-rules/src/violations/cross_origin.rs
-      line: 140
+      line: 159
   - label: cross_origin_resource_policy_valid (2)
     section: § 3.7
     snippet: If policy is neither `same-origin`, `same-site`, nor `cross-origin`, then set policy to null.
@@ -207,17 +207,47 @@ sources:
     snippet: An embedder policy value is one of three strings that controls the fetching of cross-origin resources without explicit permission from resource owners.
     cited_by:
     - file: lint-http-rules/src/rules/cross_origin_embedder_policy_valid.rs
-      line: 162
+      line: 194
     - file: lint-http-rules/src/violations/cross_origin.rs
-      line: 97
+      line: 116
+  - label: cross_origin_embedder_policy_valid (2)
+    section: § 7.1.4.1
+    snippet: The processing model fails open (by defaulting to "unsafe-none") in the presence of a header that cannot be parsed as a token.
+    cited_by:
+    - file: lint-http-rules/src/rules/cross_origin_embedder_policy_valid.rs
+      line: 170
+  - label: cross_origin_embedder_policy_valid (3)
+    section: § 7.1.4.1
+    snippet: The token may also have attached parameters; of these, the "report-to" parameter can have a valid URL string identifying an appropriate reporting endpoint.
+    cited_by:
+    - file: lint-http-rules/src/rules/cross_origin_embedder_policy_valid.rs
+      line: 169
   - label: cross_origin_opener_policy_valid
     section: § 7.1.3.1
     snippet: Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list.
     cited_by:
     - file: lint-http-rules/src/rules/cross_origin_opener_policy_valid.rs
-      line: 165
+      line: 196
     - file: lint-http-rules/src/violations/cross_origin.rs
-      line: 76
+      line: 91
+  - label: cross_origin_opener_policy_valid (2)
+    section: § 7.1.3.1
+    snippet: Likewise, user agents will ignore this header if the value cannot be parsed as a token.
+    cited_by:
+    - file: lint-http-rules/src/rules/cross_origin_opener_policy_valid.rs
+      line: 173
+  - label: cross_origin_opener_policy_valid (3)
+    section: § 7.1.3.1
+    snippet: Per the processing model described below, user agents will ignore this header if it contains an invalid value.
+    cited_by:
+    - file: lint-http-rules/src/rules/cross_origin_opener_policy_valid.rs
+      line: 197
+  - label: cross_origin_opener_policy_valid (4)
+    section: § 7.1.3.1
+    snippet: The token may also have attached parameters; of these, the "report-to" parameter can have a valid URL string identifying an appropriate reporting endpoint.
+    cited_by:
+    - file: lint-http-rules/src/rules/cross_origin_opener_policy_valid.rs
+      line: 172
   - label: Origin-Agent-Cluster is a boolean
     section: § 7.1.2
     snippet: This header is a structured header whose value must be a boolean.

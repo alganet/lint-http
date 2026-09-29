@@ -12,11 +12,20 @@
 //! [`access_control_allow_origin`](crate::violations::access_control_allow_origin)
 //! settled for a field of the same shape.
 //!
-//! **The sets are not compared the same way, and that is the documents'
-//! doing**: Fetch writes `Cross-Origin-Resource-Policy`'s ABNF with `%s`
-//! literals and the words *case-sensitive*, while HTML's two are structured
-//! field tokens read case-insensitively here. A `SAME-ORIGIN` is a finding and
-//! a `REQUIRE-CORP` is not.
+//! **All three sets are compared as written, by two routes.** Fetch writes
+//! `Cross-Origin-Resource-Policy`'s ABNF with `%s` literals and the words
+//! *case-sensitive*. HTML's two are Structured Field Items whose token the
+//! processing model compares with "is", and a token keeps the case it was
+//! written in, so `REQUIRE-CORP` parses and matches no branch. This paragraph
+//! said HTML's two were read case-insensitively and called that the documents'
+//! doing; it was this crate's, and it told a deployment writing `Same-Origin`
+//! that a protection was on while a browser gave the document `unsafe-none`.
+//!
+//! **HTML's two carry parameters, and CORP does not.** An Item is a token and
+//! the parameters after it, and HTML names `report-to` for a reporting
+//! endpoint, so `same-origin; report-to="coop"` is the header as deployed. An
+//! Item that does not parse is ignored the way an unknown token is, and lands
+//! on the same entry.
 //!
 //! **One entry in this subject is not the document's judgment but this
 //! crate's**, and it says so: `unsafe-none` is a perfectly valid embedder
@@ -70,8 +79,14 @@ defects! {
     /// embedder policy, so a server writing it directly has written a value the
     /// parse does not know.
     ///
-    /// `_invalid`: the token derives and the closed set written past it is what
-    /// refuses the value.
+    /// **A parameter is not part of the value**: `same-origin;
+    /// report-to="coop"` names `same-origin`, and the endpoint beside it is one
+    /// the algorithm reads. An Item that does not parse at all — `same-origin;`
+    /// — is refused here too, because the header is then ignored exactly as a
+    /// token outside the set is.
+    ///
+    /// `_invalid`: the Item derives, or fails to, and the closed set of tokens
+    /// written past it is what refuses the value.
     ///
     // cite(HTML § 7.1.3.1): "Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list."
     CROSS_ORIGIN_OPENER_POLICY_INVALID = {
@@ -86,7 +101,11 @@ defects! {
     /// policy strings.
     ///
     /// The comma case lands here for the reason it lands on the opener entry:
-    /// the field carries one value and a list produces none of the three.
+    /// the field carries one value and a list produces none of the three. So
+    /// does an Item that does not parse, and so does a token in any other case
+    /// — `Require-Corp` — because the processing model asks whether the token
+    /// *is* one of the strings. A `report-to` parameter beside a valid token is
+    /// not part of the value.
     ///
     /// **Separate from [`CROSS_ORIGIN_EMBEDDER_POLICY_ISOLATION_MISSING`]
     /// beside it, and the separation is the point of both.** That entry is

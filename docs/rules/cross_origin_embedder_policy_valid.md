@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-This rule checks the `Cross-Origin-Embedder-Policy` response header value and ensures it uses one of the secure tokens that enable cross-origin isolation: **`require-corp`** or **`credentialless`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `unsafe-none` is a valid COEP token per the specification, but it does not enable cross-origin isolation; this rule rejects it intentionally to encourage more secure configurations. The rule applies to server responses.
+This rule checks the `Cross-Origin-Embedder-Policy` response header value and ensures it uses one of the secure tokens that enable cross-origin isolation: **`require-corp`** or **`credentialless`**. The value is a structured-field token, compared as written — a browser reading `Require-Corp` isolates nothing — and it may carry parameters, of which HTML names `report-to` for a reporting endpoint. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `unsafe-none` is a valid COEP token per the specification, but it does not enable cross-origin isolation; this rule rejects it intentionally to encourage more secure configurations. The rule applies to server responses.
 
 ## Violations
 
@@ -38,11 +38,18 @@ HTTP/1.1 200 OK
 Cross-Origin-Embedder-Policy: require-corp
 ```
 
-### ✅ Good (case-insensitive, whitespace tolerated)
+### ✅ Good (with a reporting endpoint, and surrounding whitespace tolerated)
 
 ```http
 HTTP/1.1 200 OK
-Cross-Origin-Embedder-Policy:  CREDENTIALLESS  
+Cross-Origin-Embedder-Policy:  credentialless; report-to="coep"  
+```
+
+### ❌ Bad (a token is compared as written, and a browser ignores this one)
+
+```http
+HTTP/1.1 200 OK
+Cross-Origin-Embedder-Policy: Require-Corp
 ```
 
 ### ❌ Bad (valid but insecure value)

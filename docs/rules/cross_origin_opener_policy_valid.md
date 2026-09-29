@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-This rule checks the `Cross-Origin-Opener-Policy` response header value and ensures it is one of the allowed tokens: **`same-origin`**, **`same-origin-allow-popups`**, **`noopener-allow-popups`**, or **`unsafe-none`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `same-origin-plus-COEP` is an opener policy value, but the HTML Standard states it cannot be set directly through this header — it results from combining `same-origin` with a compatible `Cross-Origin-Embedder-Policy` — so a response carrying it is flagged. This header is response-only; the rule applies to server responses.
+This rule checks the `Cross-Origin-Opener-Policy` response header value and ensures it is one of the allowed tokens: **`same-origin`**, **`same-origin-allow-popups`**, **`noopener-allow-popups`**, or **`unsafe-none`**. The value is a structured-field token, compared as written — a browser reading `Same-Origin` ignores the header — and it may carry parameters, of which HTML names `report-to` for a reporting endpoint. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `same-origin-plus-COEP` is an opener policy value, but the HTML Standard states it cannot be set directly through this header — it results from combining `same-origin` with a compatible `Cross-Origin-Embedder-Policy` — so a response carrying it is flagged. This header is response-only; the rule applies to server responses.
 
 ## Violations
 
@@ -38,11 +38,18 @@ HTTP/1.1 200 OK
 Cross-Origin-Opener-Policy: same-origin
 ```
 
-### ✅ Good (case-insensitive, whitespace tolerated)
+### ✅ Good (with a reporting endpoint, and surrounding whitespace tolerated)
 
 ```http
 HTTP/1.1 200 OK
-Cross-Origin-Opener-Policy:  SAME-ORIGIN-ALLOW-POPUPS  
+Cross-Origin-Opener-Policy:  same-origin-allow-popups; report-to="coop"  
+```
+
+### ❌ Bad (a token is compared as written, and a browser ignores this one)
+
+```http
+HTTP/1.1 200 OK
+Cross-Origin-Opener-Policy: SAME-ORIGIN-ALLOW-POPUPS
 ```
 
 ### ❌ Bad (unsupported value)

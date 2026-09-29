@@ -47,7 +47,7 @@ impl RuleMeta for CrossOriginEmbedderPolicyValid {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks the `Cross-Origin-Embedder-Policy` response header value and ensures it uses one of the secure tokens that enable cross-origin isolation: **`require-corp`** or **`credentialless`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `unsafe-none` is a valid COEP token per the specification, but it does not enable cross-origin isolation; this rule rejects it intentionally to encourage more secure configurations. The rule applies to server responses."
+        "This rule checks the `Cross-Origin-Embedder-Policy` response header value and ensures it uses one of the secure tokens that enable cross-origin isolation: **`require-corp`** or **`credentialless`**. The value is a structured-field token, compared as written — a browser reading `Require-Corp` isolates nothing — and it may carry parameters, of which HTML names `report-to` for a reporting endpoint. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `unsafe-none` is a valid COEP token per the specification, but it does not enable cross-origin isolation; this rule rejects it intentionally to encourage more secure configurations. The rule applies to server responses."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -72,8 +72,13 @@ impl RuleMeta for CrossOriginEmbedderPolicyValid {
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("(case-insensitive, whitespace tolerated)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy:  CREDENTIALLESS  ",
+                label: Some("(with a reporting endpoint, and surrounding whitespace tolerated)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy:  credentialless; report-to=\"coep\"  ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a token is compared as written, and a browser ignores this one)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: Require-Corp",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -131,10 +136,10 @@ impl Rule for CrossOriginEmbedderPolicyValid {
                 ));
             }
 
-            // Read as the octets the sender wrote. The value is one of three
-            // strings, all of them inside visible US-ASCII, so a value the string
-            // reader refuses is a value none of the three spell — which is what
-            // the finding below says, with the value in hand.
+            // Read as the octets the sender wrote. The value is a structured-field
+            // item whose three policy tokens are all inside visible US-ASCII, so
+            // a value the string reader refuses is a value none of them spell —
+            // which is what the finding below says, with the value in hand.
             let hv = headers
                 .get_all("cross-origin-embedder-policy")
                 .iter()
@@ -143,8 +148,10 @@ impl Rule for CrossOriginEmbedderPolicyValid {
             let line = crate::helpers::headers::field_line_as_written(hv);
             let val = crate::helpers::headers::trim_ows(&line);
 
-            // Must not be a comma-separated list
-            if crate::helpers::list::list_members(val).count() != 1 {
+            // Must not be a comma-separated list. The split respects quotes
+            // because a parameter's String may hold a comma: `report-to="a,b"`
+            // is one Item.
+            if crate::helpers::structured_fields::split_commas_outside_quotes(val).len() != 1 {
                 // A comma yields none of the three embedder policy strings, so
                 // it is the same finding a typo makes rather than a list defect
                 // in a field that has no list.
@@ -154,15 +161,38 @@ impl Rule for CrossOriginEmbedderPolicyValid {
                 ));
             }
 
-            // Acceptable values for our correctness check: require-corp or credentialless
-            // (case-insensitive). `unsafe-none` is rejected on purpose, and the quote below is
-            // why: it is a *valid* value, and it is the one that turns the protection off. This
-            // rule is stricter than the grammar by choice, which is a thing a linter may be —
-            // as long as it says so, which is what this cite makes it do.
+            // The value is an Item: a token, and parameters after it. HTML
+            // names one of them — `report-to`, the endpoint violations are sent
+            // to — and the algorithm reads it, so `require-corp;
+            // report-to="coep"` is the header as deployed. An Item that does not
+            // parse fails open: the document gets `unsafe-none`.
+            // cite(HTML § 7.1.4.1): "The token may also have attached parameters; of these, the "report-to" parameter can have a valid URL string identifying an appropriate reporting endpoint."
+            // cite(HTML § 7.1.4.1): "The processing model fails open (by defaulting to "unsafe-none") in the presence of a header that cannot be parsed as a token."
+            if let Some(defect) = crate::helpers::structured_fields::parse_item(val) {
+                return Some(ctx.report_with(
+                    &CROSS_ORIGIN_EMBEDDER_POLICY_INVALID,
+                    format!(
+                        "Cross-Origin-Embedder-Policy '{}' does not parse as a structured-field item ({}), so a browser ignores it and the document gets 'unsafe-none' (use 'require-corp' or 'credentialless')",
+                        crate::helpers::shown::shown_in_finding(val),
+                        defect.message
+                    ),
+                ));
+            }
+            let token = crate::helpers::headers::trim_ows(
+                crate::helpers::structured_fields::split_semicolons_outside_quotes(val)[0],
+            );
+
+            // Acceptable values for our correctness check: require-corp or
+            // credentialless, compared as written. The processing model asks
+            // whether the token *is* one of the policy strings, and a Structured
+            // Field token keeps the case it was written in, so `Require-Corp`
+            // parses and isolates nothing. `unsafe-none` is rejected on purpose,
+            // and the quote below is why: it is a *valid* value, and it is the
+            // one that turns the protection off. This rule is stricter than the
+            // grammar by choice, which is a thing a linter may be — as long as
+            // it says so, which is what this cite makes it do.
             // cite(HTML § 7.1.4): "An embedder policy value is one of three strings that controls the fetching of cross-origin resources without explicit permission from resource owners."
-            if val.eq_ignore_ascii_case("require-corp")
-                || val.eq_ignore_ascii_case("credentialless")
-            {
+            if matches!(token, "require-corp" | "credentialless") {
                 return None;
             }
 
@@ -171,13 +201,13 @@ impl Rule for CrossOriginEmbedderPolicyValid {
             // at all. They are two things to silence: a deployment that chose
             // `unsafe-none` made a decision, and a deployment that wrote
             // `require_corp` made a typo.
-            if val.eq_ignore_ascii_case("unsafe-none") {
+            if token == "unsafe-none" {
                 return Some(ctx.report(&CROSS_ORIGIN_EMBEDDER_POLICY_ISOLATION_MISSING));
             }
 
             Some(ctx.report_with(&CROSS_ORIGIN_EMBEDDER_POLICY_INVALID, format!(
-                    "Cross-Origin-Embedder-Policy value '{}' is none of the three embedder policy strings, so it enables no cross-origin isolation (use 'require-corp' or 'credentialless')",
-                    crate::helpers::shown::shown_in_finding(val)
+                    "Cross-Origin-Embedder-Policy token '{}' is none of the three embedder policy strings (compared as written), so it enables no cross-origin isolation (use 'require-corp' or 'credentialless')",
+                    crate::helpers::shown::shown_in_finding(token)
                 )))
         };
         Vec::from_iter(finding())
@@ -195,11 +225,48 @@ mod tests {
 
     use crate::test_helpers::make_test_transaction;
 
+    /// HTML reads the header as a structured-field Item and asks whether its
+    /// token *is* one of the three strings, so a parameter beside a known
+    /// token is the deployed form — `report-to` is the one the algorithm
+    /// reads — and a token in any other case isolates nothing. Every finding,
+    /// with its id: a parameterized `unsafe-none` is still the preference
+    /// entry's, not a value none of the strings spell.
+    #[rstest]
+    #[case::report_to(r#"require-corp; report-to="coep""#, &[])]
+    #[case::report_to_unspaced(r#"credentialless;report-to="a,b""#, &[])]
+    #[case::unsafe_none_with_report_to(
+        r#"unsafe-none; report-to="coep""#,
+        &["cross_origin_embedder_policy_isolation_missing"]
+    )]
+    #[case::miscased("Require-Corp", &["cross_origin_embedder_policy_invalid"])]
+    #[case::miscased_unsafe_none("UNSAFE-NONE", &["cross_origin_embedder_policy_invalid"])]
+    #[case::a_string_is_no_token(r#""require-corp""#, &["cross_origin_embedder_policy_invalid"])]
+    #[case::an_empty_parameter("require-corp;", &["cross_origin_embedder_policy_invalid"])]
+    fn the_value_is_the_item_html_parses(#[case] value: &str, #[case] expected: &[&str]) {
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("cross-origin-embedder-policy", value)],
+        );
+        let found: Vec<String> = crate::test_helpers::run_rule_all(
+            &CrossOriginEmbedderPolicyValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cross_origin_embedder_policy_valid",
+            ]),
+        )
+        .into_iter()
+        .map(|v| v.violation)
+        .collect();
+        assert_eq!(found, expected, "{value}");
+    }
+
     #[rstest]
     #[case(Some("require-corp"), false)]
     #[case(Some("credentialless"), false)]
-    #[case(Some(" REQUIRE-CORP "), false)]
+    #[case(Some(" require-corp "), false)]
     // invalid
+    #[case(Some(" REQUIRE-CORP "), true)]
     #[case(Some(""), true)]
     #[case(Some("unsafe-none"), true)]
     #[case(Some("other"), true)]
@@ -310,7 +377,7 @@ mod tests {
         );
         assert_eq!(
             v.expect("a finding").message,
-            "Cross-Origin-Embedder-Policy value 'ÿ' is none of the three embedder policy strings, so it enables no cross-origin isolation (use 'require-corp' or 'credentialless')"
+            "Cross-Origin-Embedder-Policy 'ÿ' does not parse as a structured-field item (invalid item 'ÿ'), so a browser ignores it and the document gets 'unsafe-none' (use 'require-corp' or 'credentialless')"
         );
     }
 
@@ -390,8 +457,11 @@ mod tests {
     }
 
     #[test]
-    fn validate_rules_with_valid_config_case_insensitive() -> anyhow::Result<()> {
-        // Ensure rule validates configuration and accepts case-insensitive header values
+    fn validate_rules_with_valid_config_and_refuse_a_miscased_value() -> anyhow::Result<()> {
+        // Ensure rule validates configuration, and that a token is compared as
+        // written: this test asserted the opposite, which is the reading that
+        // told a deployment writing `CrEdEntIalLess` it was isolated while a
+        // browser gave the document `unsafe-none`.
         let rule = CrossOriginEmbedderPolicyValid;
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
@@ -404,7 +474,7 @@ mod tests {
         // validate configuration parsing still succeeds
         rule.prepare(&cfg)?;
 
-        // Mixed-case header value must be accepted (case-insensitive)
+        // A mixed-case token parses and matches none of the three strings.
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
             &[("cross-origin-embedder-policy", "CrEdEntIalLess")],
@@ -415,7 +485,11 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_none(), "expected no violation for mixed-case value");
+        assert_eq!(
+            v.map(|v| v.violation),
+            Some("cross_origin_embedder_policy_invalid".into()),
+            "a mixed-case token is none of the embedder policy strings"
+        );
 
         Ok(())
     }

@@ -46,7 +46,7 @@ impl RuleMeta for CrossOriginOpenerPolicyValid {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks the `Cross-Origin-Opener-Policy` response header value and ensures it is one of the allowed tokens: **`same-origin`**, **`same-origin-allow-popups`**, **`noopener-allow-popups`**, or **`unsafe-none`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `same-origin-plus-COEP` is an opener policy value, but the HTML Standard states it cannot be set directly through this header — it results from combining `same-origin` with a compatible `Cross-Origin-Embedder-Policy` — so a response carrying it is flagged. This header is response-only; the rule applies to server responses."
+        "This rule checks the `Cross-Origin-Opener-Policy` response header value and ensures it is one of the allowed tokens: **`same-origin`**, **`same-origin-allow-popups`**, **`noopener-allow-popups`**, or **`unsafe-none`**. The value is a structured-field token, compared as written — a browser reading `Same-Origin` ignores the header — and it may carry parameters, of which HTML names `report-to` for a reporting endpoint. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `same-origin-plus-COEP` is an opener policy value, but the HTML Standard states it cannot be set directly through this header — it results from combining `same-origin` with a compatible `Cross-Origin-Embedder-Policy` — so a response carrying it is flagged. This header is response-only; the rule applies to server responses."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -76,8 +76,13 @@ impl RuleMeta for CrossOriginOpenerPolicyValid {
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("(case-insensitive, whitespace tolerated)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy:  SAME-ORIGIN-ALLOW-POPUPS  ",
+                label: Some("(with a reporting endpoint, and surrounding whitespace tolerated)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy:  same-origin-allow-popups; report-to=\"coop\"  ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a token is compared as written, and a browser ignores this one)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: SAME-ORIGIN-ALLOW-POPUPS",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -133,8 +138,8 @@ impl Rule for CrossOriginOpenerPolicyValid {
             }
 
             // Read as the octets the sender wrote. The value is a structured-field
-            // item whose four accepted spellings are all inside visible US-ASCII,
-            // so a value the string reader refuses is a value none of them spell —
+            // item whose four accepted tokens are all inside visible US-ASCII, so
+            // a value the string reader refuses is a value none of them spell —
             // which is what the finding below says, with the value in hand.
             let hv = headers
                 .get_all("cross-origin-opener-policy")
@@ -144,8 +149,10 @@ impl Rule for CrossOriginOpenerPolicyValid {
             let line = crate::helpers::headers::field_line_as_written(hv);
             let val = crate::helpers::headers::trim_ows(&line);
 
-            // Must not be a comma-separated list
-            if crate::helpers::list::list_members(val).count() != 1 {
+            // Must not be a comma-separated list. The split respects quotes
+            // because a parameter's String may hold a comma: `report-to="a,b"`
+            // is one Item.
+            if crate::helpers::structured_fields::split_commas_outside_quotes(val).len() != 1 {
                 // Not a list defect: the field has no list form, so a comma
                 // produces a value the item parse does not yield — which is the
                 // same place a typo leaves the browsing context group.
@@ -155,27 +162,54 @@ impl Rule for CrossOriginOpenerPolicyValid {
                 ));
             }
 
-            // Acceptable values: same-origin, same-origin-allow-popups, unsafe-none (case-insensitive)
-            // `noopener-allow-popups` was added to the opener policy values and was missing
-            // here — a valid, deployable header this rule used to reject. `same-origin-plus-COEP`
-            // is deliberately absent: the parsing algorithm produces it only from the `same-origin`
-            // token combined with a compatible COEP, never from a token of its own, so a response
-            // literally carrying `same-origin-plus-COEP` *is* wrong. The header value is a single
-            // structured-field item (token), which is also why the list check above applies.
+            // The value is an Item: a token, and parameters after it. HTML
+            // names one of them — `report-to`, the endpoint violations are sent
+            // to — and the algorithm reads it, so a parameterized value is the
+            // header as deployed rather than a longer spelling of a wrong one.
+            // An Item that does not parse is ignored outright, and the context
+            // gets `unsafe-none`, the policy the sender was writing the header
+            // to leave.
+            // cite(HTML § 7.1.3.1): "The token may also have attached parameters; of these, the "report-to" parameter can have a valid URL string identifying an appropriate reporting endpoint."
+            // cite(HTML § 7.1.3.1): "Likewise, user agents will ignore this header if the value cannot be parsed as a token."
+            if let Some(defect) = crate::helpers::structured_fields::parse_item(val) {
+                return Some(ctx.report_with(
+                    &CROSS_ORIGIN_OPENER_POLICY_INVALID,
+                    format!(
+                        "Cross-Origin-Opener-Policy '{}' does not parse as a structured-field item ({}), so a browser ignores it and the document gets 'unsafe-none'",
+                        crate::helpers::shown::shown_in_finding(val),
+                        defect.message
+                    ),
+                ));
+            }
+            let token = crate::helpers::headers::trim_ows(
+                crate::helpers::structured_fields::split_semicolons_outside_quotes(val)[0],
+            );
+
+            // Compared byte for byte: the processing model asks whether the
+            // token *is* "same-origin", and a Structured Field token keeps the
+            // case it was written in, so `Same-Origin` parses and matches none
+            // of the branches — the same place a typo leaves the context.
+            // `same-origin-plus-COEP` is deliberately absent: the algorithm
+            // produces it only from the `same-origin` token combined with a
+            // compatible COEP, never from a token of its own, so a response
+            // literally carrying it *is* wrong.
             // cite(HTML § 7.1.3.1): "Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list."
-            if val.eq_ignore_ascii_case("same-origin")
-                || val.eq_ignore_ascii_case("same-origin-allow-popups")
-                || val.eq_ignore_ascii_case("noopener-allow-popups")
-                || val.eq_ignore_ascii_case("unsafe-none")
-            {
+            // cite(HTML § 7.1.3.1): "Per the processing model described below, user agents will ignore this header if it contains an invalid value."
+            if matches!(
+                token,
+                "same-origin"
+                    | "same-origin-allow-popups"
+                    | "noopener-allow-popups"
+                    | "unsafe-none"
+            ) {
                 return None;
             }
 
             Some(ctx.report_with(
                 &CROSS_ORIGIN_OPENER_POLICY_INVALID,
                 format!(
-                    "Cross-Origin-Opener-Policy contains unsupported value: '{}'",
-                    crate::helpers::shown::shown_in_finding(val)
+                    "Cross-Origin-Opener-Policy token '{}' is none of the four a browser acts on ('same-origin', 'same-origin-allow-popups', 'noopener-allow-popups', 'unsafe-none', compared as written), so the header is ignored and the document gets 'unsafe-none'",
+                    crate::helpers::shown::shown_in_finding(token)
                 ),
             ))
         };
@@ -199,8 +233,9 @@ mod tests {
     #[case(Some("same-origin-allow-popups"), false)]
     #[case(Some("noopener-allow-popups"), false)]
     #[case(Some("unsafe-none"), false)]
-    #[case(Some(" SAME-ORIGIN "), false)]
+    #[case(Some(" same-origin "), false)]
     // invalid
+    #[case(Some(" SAME-ORIGIN "), true)]
     #[case(Some(""), true)]
     #[case(Some("other"), true)]
     // A real opener policy value, but not one this header can carry: it results from
@@ -233,6 +268,45 @@ mod tests {
                 v
             );
         }
+    }
+
+    /// HTML reads the header as a structured-field Item and asks whether its
+    /// token *is* one of the four, so a parameter beside a known token is the
+    /// deployed form — `report-to` is the one the algorithm reads — and a
+    /// token in any other case is ignored. Every finding, with its id.
+    #[rstest]
+    #[case::report_to(r#"same-origin; report-to="coop""#, &[])]
+    #[case::report_to_unspaced(r#"same-origin-allow-popups;report-to="gws""#, &[])]
+    #[case::a_comma_inside_the_string(r#"unsafe-none; report-to="a,b""#, &[])]
+    #[case::a_parameter_html_does_not_name("noopener-allow-popups; foo", &[])]
+    #[case::miscased("Same-Origin", &["cross_origin_opener_policy_invalid"])]
+    #[case::miscased_with_report_to(
+        r#"SAME-ORIGIN; report-to="coop""#,
+        &["cross_origin_opener_policy_invalid"]
+    )]
+    #[case::a_string_is_no_token(r#""same-origin""#, &["cross_origin_opener_policy_invalid"])]
+    #[case::an_empty_parameter("same-origin;", &["cross_origin_opener_policy_invalid"])]
+    #[case::a_parameter_with_no_value(
+        "same-origin; report-to=",
+        &["cross_origin_opener_policy_invalid"]
+    )]
+    fn the_value_is_the_item_html_parses(#[case] value: &str, #[case] expected: &[&str]) {
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("cross-origin-opener-policy", value)],
+        );
+        let found: Vec<String> = crate::test_helpers::run_rule_all(
+            &CrossOriginOpenerPolicyValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cross_origin_opener_policy_valid",
+            ]),
+        )
+        .into_iter()
+        .map(|v| v.violation)
+        .collect();
+        assert_eq!(found, expected, "{value}");
     }
 
     #[test]
@@ -312,7 +386,7 @@ mod tests {
         );
         assert_eq!(
             v.expect("a finding").message,
-            "Cross-Origin-Opener-Policy contains unsupported value: 'ÿ'"
+            "Cross-Origin-Opener-Policy 'ÿ' does not parse as a structured-field item (invalid item 'ÿ'), so a browser ignores it and the document gets 'unsafe-none'"
         );
     }
 
@@ -367,8 +441,8 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
         .unwrap();
-        assert!(v.message.contains("unsupported value"));
-        assert!(v.message.contains("other"));
+        assert!(v.message.contains("none of the four a browser acts on"));
+        assert!(v.message.contains("'other'"));
     }
 
     #[test]
