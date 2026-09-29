@@ -1679,6 +1679,11 @@ severity = "info"
 # SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
+[violations.cookie_attribute_duplicated]
+# Set-Cookie writes one attribute name more than once
+# SHOULD obliges the sender, so this defaults to warn.
+severity = "warn"
+
 [violations.cookie_domain_empty]
 # Set-Cookie Domain attribute is empty
 severity = "warn"
@@ -1721,6 +1726,11 @@ severity = "warn"
 
 [violations.cookie_max_age_missing]
 # Set-Cookie Max-Age attribute carries no value
+# SHOULD obliges the sender, so this defaults to warn.
+severity = "warn"
+
+[violations.cookie_name_duplicated]
+# One response sets the same cookie-name on more than one Set-Cookie line
 # SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 

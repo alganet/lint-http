@@ -7,9 +7,10 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::DRAFT_IETF_HTTPBIS_RFC6265BIS;
 use crate::violations::cookie::{
-    COOKIE_DOMAIN_MISSING, COOKIE_DOMAIN_MISSING_WORDING, COOKIE_EXPIRES_MALFORMED,
-    COOKIE_EXPIRES_MISSING, COOKIE_FLAG_VALUE_FORBIDDEN, COOKIE_MAX_AGE_MALFORMED,
-    COOKIE_MAX_AGE_MISSING, COOKIE_PAIR_EQUALS_MISSING, COOKIE_PAIR_MISSING, COOKIE_PATH_EMPTY,
+    COOKIE_ATTRIBUTE_DUPLICATED, COOKIE_DOMAIN_MISSING, COOKIE_DOMAIN_MISSING_WORDING,
+    COOKIE_EXPIRES_MALFORMED, COOKIE_EXPIRES_MISSING, COOKIE_FLAG_VALUE_FORBIDDEN,
+    COOKIE_MAX_AGE_MALFORMED, COOKIE_MAX_AGE_MISSING, COOKIE_NAME_DUPLICATED,
+    COOKIE_PAIR_EQUALS_MISSING, COOKIE_PAIR_MISSING, COOKIE_PATH_EMPTY,
     COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING, COOKIE_PATH_MISSING_WORDING,
     COOKIE_SAME_SITE_INVALID, COOKIE_SAME_SITE_MISSING, COOKIE_SECURE_MISSING,
     COOKIE_VALUE_CHARACTER_FORBIDDEN, RFC_6265_4_1_1, RFC_6265_5_1_1, RFC_6265_5_2_2,
@@ -50,7 +51,9 @@ pub struct CookieAttributeConsistent;
 ///
 /// What is left in the rule's own words is the shape of the field line and the
 /// attributes nothing else reads — `SameSite`, `Max-Age`, the two flags, and
-/// the pairing that makes a `SameSite=None` cookie disappear.
+/// the pairing that makes a `SameSite=None` cookie disappear — and § 4.1.1's
+/// two repetitions: an attribute name a line writes twice, and a cookie-name a
+/// response sets on two lines.
 static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
     &HTTP_DATE_EMPTY,
@@ -60,6 +63,8 @@ static DECLARED: &[&ViolationDef] = &[
     &COOKIE_PAIR_EQUALS_MISSING,
     &COOKIE_VALUE_CHARACTER_FORBIDDEN,
     &COOKIE_FLAG_VALUE_FORBIDDEN,
+    &COOKIE_ATTRIBUTE_DUPLICATED,
+    &COOKIE_NAME_DUPLICATED,
     &COOKIE_SECURE_MISSING,
     &COOKIE_SAME_SITE_MISSING,
     &COOKIE_SAME_SITE_INVALID,
@@ -139,8 +144,22 @@ impl CookieAttributeConsistent {
 
         let mut secure_present = false;
         let mut same_site: Option<String> = None;
+        // Every attribute as written, under its folded name, so a name the
+        // line gives twice is seen whatever case each occurrence is spelled in.
+        let mut written: Vec<(String, Vec<String>)> = Vec::new();
         for attribute in attributes {
             out.extend(self.attribute_defect(&attribute, cookie, ctx));
+            if !attribute.name.is_empty() {
+                let folded = attribute.name.to_ascii_lowercase();
+                let as_written = match attribute.value {
+                    Some(value) => format!("{}={value}", attribute.name),
+                    None => attribute.name.to_string(),
+                };
+                match written.iter_mut().find(|(name, _)| *name == folded) {
+                    Some((_, occurrences)) => occurrences.push(as_written),
+                    None => written.push((folded, vec![as_written])),
+                }
+            }
             // What the sender asked for, whether or not the asking was well
             // formed. A `SameSite` whose value no algorithm recognises is
             // still a `SameSite` the sender wrote, and the pairing below is
@@ -164,7 +183,71 @@ impl CookieAttributeConsistent {
                 about("Set-Cookie with 'SameSite=None' must also set 'Secure'"),
             ));
         }
+
+        // One finding per name written more than once, quoting each
+        // occurrence: whether they agree is what the operator needs to know,
+        // and a user agent reads only one of them.
+        // cite(RFC 6265 § 4.1.1): "To maximize compatibility with user agents, servers SHOULD NOT produce two attributes with the same name in the same set-cookie-string."
+        for (_, occurrences) in written.iter().filter(|(_, o)| o.len() > 1) {
+            let quoted = occurrences
+                .iter()
+                .map(|o| format!("'{o}'"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            out.push(ctx.report_with(
+                &COOKIE_ATTRIBUTE_DUPLICATED,
+                about(&format!(
+                    "Set-Cookie writes one attribute {} times: {quoted}",
+                    occurrences.len()
+                )),
+            ));
+        }
         out
+    }
+
+    /// One finding per cookie-name the response sets on more than one line.
+    ///
+    /// The name is compared exactly, since § 5.3 stores `a` and `A` as two
+    /// cookies, and a line with no name to compare is the pair reading's
+    /// finding and not a cookie of this one's. Each line's value is quoted:
+    /// under one scope the last replaces the others, and which one that was is
+    /// what the operator reads next.
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT include more than one Set-Cookie header field in the same response with the same cookie-name."
+    fn cookie_names_repeated(
+        lines: &[String],
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        let mut by_name: Vec<(&str, Vec<&str>)> = Vec::new();
+        for line in lines {
+            let Some((name, value)) = crate::helpers::cookie::set_cookie_pair(line) else {
+                continue;
+            };
+            if name.is_empty() {
+                continue;
+            }
+            match by_name.iter_mut().find(|(n, _)| *n == name) {
+                Some((_, values)) => values.push(value),
+                None => by_name.push((name, vec![value])),
+            }
+        }
+        by_name
+            .into_iter()
+            .filter(|(_, values)| values.len() > 1)
+            .map(|(name, values)| {
+                let quoted = values
+                    .iter()
+                    .map(|v| format!("'{v}'"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                ctx.report_with(
+                    &COOKIE_NAME_DUPLICATED,
+                    format!(
+                        "The response sets cookie '{name}' on {} Set-Cookie lines, with the values {quoted}",
+                        values.len()
+                    ),
+                )
+            })
+            .collect()
     }
 
     /// What is wrong with the `cookie-pair`, if anything.
@@ -506,7 +589,7 @@ impl RuleMeta for CookieAttributeConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Set-Cookie` attributes for syntactic correctness and common security consistency rules. This rule parses `Set-Cookie` header values and flags:\n\n- Invalid cookie-name tokens.\n- Malformed attributes (e.g., `Max-Age` non-numeric, `Expires` not an HTTP-date).\n- `Path` values that don't start with `/`.\n- `Domain` values that are empty or contain spaces.\n- `SameSite` values other than `Strict`, `Lax`, or `None`.\n- `SameSite=None` cookies that are not marked `Secure` (browser behaviour / compatibility requirement).\n- `Secure` and `HttpOnly` attributes that incorrectly include a value (they must be flags)."
+        "Validate `Set-Cookie` attributes for syntactic correctness and common security consistency rules. This rule parses `Set-Cookie` header values and flags:\n\n- Invalid cookie-name tokens.\n- Malformed attributes (e.g., `Max-Age` non-numeric, `Expires` not an HTTP-date).\n- `Path` values that don't start with `/`.\n- `Domain` values that are empty or contain spaces.\n- `SameSite` values other than `Strict`, `Lax`, or `None`.\n- `SameSite=None` cookies that are not marked `Secure` (browser behaviour / compatibility requirement).\n- `Secure` and `HttpOnly` attributes that incorrectly include a value (they must be flags).\n- One attribute name written twice on a line, compared case-insensitively (`Path=/; path=/`).\n- One cookie-name set on more than one `Set-Cookie` line of a response, compared exactly."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -608,6 +691,23 @@ impl RuleMeta for CookieAttributeConsistent {
                 label: Some("— a comma is outside cookie-octet"),
                 snippet: "Set-Cookie: SID=abc,def",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "— one attribute in two spellings: attribute names fold, so this is Path written twice",
+                ),
+                snippet: "Set-Cookie: SID=1; Path=/; Max-Age=3600; path=/",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— one cookie set on two lines of one response"),
+                snippet: "HTTP/1.1 200 OK\nSet-Cookie: SID=1; Path=/\nSet-Cookie: SID=2; Path=/",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a cookie-name does not fold: these are two cookies"),
+                snippet: "HTTP/1.1 200 OK\nSet-Cookie: sid=1; Path=/\nSet-Cookie: SID=2; Path=/",
+            },
         ]
     }
 }
@@ -633,17 +733,22 @@ impl Rule for CookieAttributeConsistent {
         // reported the first and was silent about the second. Collecting the
         // lines left the same silence one level down, inside a line: the
         // attributes of one cookie are a repetition too.
-        resp.headers
+        // Read as octets, one field line at a time: `Set-Cookie` is not a
+        // list, and § 4.1.1's grammar stops at `CHAR`, so an octet above %x7F
+        // is the attribute reader's finding rather than a verdict about the
+        // field's encoding.
+        let lines: Vec<String> = resp
+            .headers
             .get_all("set-cookie")
             .iter()
-            // Read as octets, one field line at a time: `Set-Cookie` is
-            // not a list, and § 4.1.1's grammar stops at `CHAR`, so an
-            // octet above %x7F is the attribute reader's finding rather
-            // than a verdict about the field's encoding.
-            .flat_map(|line| {
-                self.set_cookie_defects(&crate::helpers::headers::field_line_as_written(line), ctx)
-            })
-            .collect()
+            .map(crate::helpers::headers::field_line_as_written)
+            .collect();
+        let mut out: Vec<Violation> = lines
+            .iter()
+            .flat_map(|line| self.set_cookie_defects(line, ctx))
+            .collect();
+        out.extend(Self::cookie_names_repeated(&lines, ctx));
+        out
     }
 }
 
@@ -1333,6 +1438,105 @@ mod tests {
                 v.message
             );
         }
+    }
+
+    /// Every finding a response's `Set-Cookie` lines draw, as ids.
+    fn ids_for_lines(lines: &[&str]) -> Vec<String> {
+        use crate::test_helpers::make_test_transaction_with_response;
+        let headers: Vec<(&str, &str)> = lines.iter().map(|l| ("set-cookie", *l)).collect();
+        let tx = make_test_transaction_with_response(200, &headers);
+        let rule = CookieAttributeConsistent;
+        crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .into_iter()
+        .map(|v| v.violation)
+        .collect()
+    }
+
+    /// A name the line gives twice, whatever case each occurrence is spelled
+    /// in and whether or not the name is one § 4.1.1 defines; and the lines
+    /// that give each name once.
+    #[rstest]
+    #[case::two_spellings("a=b; Path=/; Max-Age=60; path=/", 1)]
+    #[case::values_differ("a=b; Max-Age=0; Max-Age=3600", 1)]
+    #[case::a_flag("a=b; HttpOnly; httponly", 1)]
+    #[case::an_extension("a=b; Priority=High; Priority=Low", 1)]
+    #[case::three_times_is_one_finding("a=b; Path=/; Path=/; PATH=/", 1)]
+    #[case::two_names_twice("a=b; Path=/; Secure; path=/x; secure", 2)]
+    #[case::each_once("a=b; Path=/; Max-Age=60; Secure; HttpOnly; SameSite=Lax", 0)]
+    #[case::expires_and_max_age("a=b; Expires=Sun, 06 Nov 2044 08:49:37 GMT; Max-Age=60", 0)]
+    #[case::stray_semicolons("a=b; ; Path=/;", 0)]
+    fn an_attribute_name_written_twice(#[case] line: &str, #[case] findings: usize) {
+        let ids = ids_for_lines(&[line]);
+        let drawn = ids
+            .iter()
+            .filter(|id| *id == "cookie_attribute_duplicated")
+            .count();
+        assert_eq!(drawn, findings, "{line}: {ids:?}");
+    }
+
+    #[test]
+    fn a_repeated_attribute_is_quoted_as_written() {
+        let found = all_set_cookie("lmd=1; Path=/; max-age=60; path=/");
+        let v = found
+            .iter()
+            .find(|v| v.violation == "cookie_attribute_duplicated")
+            .expect("Path written twice");
+        assert_eq!(
+            v.message,
+            "Set-Cookie writes one attribute 2 times: 'Path=/', 'path=/' (cookie 'lmd')"
+        );
+    }
+
+    /// A cookie-name set on two lines, under one scope or two; and names that
+    /// differ, including only in case, which are two cookies.
+    #[rstest]
+    #[case::same_scope(&["a=1; Path=/", "a=2; Path=/"], 1)]
+    #[case::two_paths(&["a=1; Path=/", "a=2; Path=/x"], 1)]
+    #[case::three_lines_one_finding(&["a=1", "a=2", "a=3"], 1)]
+    #[case::two_names_each_twice(&["a=1", "b=1", "a=2", "b=2"], 2)]
+    #[case::two_names(&["a=1; Path=/", "b=2; Path=/"], 0)]
+    #[case::names_differ_in_case(&["a=1; Path=/", "A=2; Path=/"], 0)]
+    #[case::no_name_to_compare(&["=1", "=2"], 0)]
+    fn a_cookie_name_on_more_than_one_line(#[case] lines: &[&str], #[case] findings: usize) {
+        let ids = ids_for_lines(lines);
+        let drawn = ids
+            .iter()
+            .filter(|id| *id == "cookie_name_duplicated")
+            .count();
+        assert_eq!(drawn, findings, "{lines:?}: {ids:?}");
+    }
+
+    #[test]
+    fn a_repeated_cookie_name_quotes_each_value() {
+        use crate::test_helpers::make_test_transaction_with_response;
+        let tx = make_test_transaction_with_response(
+            200,
+            &[
+                ("set-cookie", "is_gdpr_b=CPLgFhD1nAMoAg==; Path=/"),
+                ("set-cookie", "other=1"),
+                ("set-cookie", "is_gdpr_b=CPLgFhD1nAM=; Path=/"),
+            ],
+        );
+        let rule = CookieAttributeConsistent;
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let v = found
+            .iter()
+            .find(|v| v.violation == "cookie_name_duplicated")
+            .expect("is_gdpr_b set twice");
+        assert_eq!(
+            v.message,
+            "The response sets cookie 'is_gdpr_b' on 2 Set-Cookie lines, with the values 'CPLgFhD1nAMoAg==', 'CPLgFhD1nAM='"
+        );
     }
 
     #[test]

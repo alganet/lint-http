@@ -273,11 +273,20 @@ impl Attribute<'_> {
 /// alone, because a finding naming `cookie ''` names nothing.
 // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
 pub fn set_cookie_name(line: &str) -> &str {
-    let (pair, _) = split_set_cookie(line);
-    match pair.split_once('=') {
-        Some((name, _)) => crate::helpers::headers::trim_ows(name),
-        None => "",
-    }
+    set_cookie_pair(line).map_or("", |(name, _)| name)
+}
+
+/// The cookie-name and cookie-value one `Set-Cookie` line sets, split the way
+/// § 5.2 stores them: at the first `=`, each side stripped of the whitespace
+/// HTTP writes around it. `None` for a line with no `=`, which § 5.2 ignores
+/// entirely.
+// cite(RFC 6265 § 5.2): "If the name-value-pair string lacks a %x3D ("=") character, ignore the set-cookie-string entirely."
+pub fn set_cookie_pair(line: &str) -> Option<(&str, &str)> {
+    let (name, value) = split_set_cookie(line).0.split_once('=')?;
+    Some((
+        crate::helpers::headers::trim_ows(name),
+        crate::helpers::headers::trim_ows(value),
+    ))
 }
 
 /// What a finding claims, and then which cookie it claims it of.
@@ -611,11 +620,7 @@ pub fn pairs_handed(
             crate::helpers::headers::field_lines_as_written(&resp.headers, "set-cookie")
         })
         .filter_map(|line| {
-            let (name, value) = split_set_cookie(&line).0.split_once('=')?;
-            Some((
-                crate::helpers::headers::trim_ows(name).to_string(),
-                crate::helpers::headers::trim_ows(value).to_string(),
-            ))
+            set_cookie_pair(&line).map(|(name, value)| (name.to_string(), value.to_string()))
         })
         .collect()
 }

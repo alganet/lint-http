@@ -17,15 +17,19 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 - `SameSite` values other than `Strict`, `Lax`, or `None`.
 - `SameSite=None` cookies that are not marked `Secure` (browser behaviour / compatibility requirement).
 - `Secure` and `HttpOnly` attributes that incorrectly include a value (they must be flags).
+- One attribute name written twice on a line, compared case-insensitively (`Path=/; path=/`).
+- One cookie-name set on more than one `Set-Cookie` line of a response, compared exactly.
 
 ## Violations
 
+- [cookie_attribute_duplicated](../violations/cookie_attribute_duplicated.md) — Set-Cookie writes one attribute name more than once
 - [cookie_domain_missing](../violations/cookie_domain_missing.md) — Set-Cookie Domain attribute carries no value
 - [cookie_expires_malformed](../violations/cookie_expires_malformed.md) — Set-Cookie Expires is readable but derives from no HTTP-date
 - [cookie_expires_missing](../violations/cookie_expires_missing.md) — Set-Cookie Expires attribute carries no value
 - [cookie_flag_value_forbidden](../violations/cookie_flag_value_forbidden.md) — Set-Cookie writes a value on a flag attribute
 - [cookie_max_age_malformed](../violations/cookie_max_age_malformed.md) — Set-Cookie Max-Age is not a number a user agent will read
 - [cookie_max_age_missing](../violations/cookie_max_age_missing.md) — Set-Cookie Max-Age attribute carries no value
+- [cookie_name_duplicated](../violations/cookie_name_duplicated.md) — One response sets the same cookie-name on more than one Set-Cookie line
 - [cookie_pair_equals_missing](../violations/cookie_pair_equals_missing.md) — A Cookie pair is written without its '='
 - [cookie_pair_missing](../violations/cookie_pair_missing.md) — Set-Cookie carries no cookie-pair
 - [cookie_path_empty](../violations/cookie_path_empty.md) — Set-Cookie Path attribute is empty
@@ -142,4 +146,26 @@ Set-Cookie: SID
 
 ```http
 Set-Cookie: SID=abc,def
+```
+
+### ❌ Bad — one attribute in two spellings: attribute names fold, so this is Path written twice
+
+```http
+Set-Cookie: SID=1; Path=/; Max-Age=3600; path=/
+```
+
+### ❌ Bad — one cookie set on two lines of one response
+
+```http
+HTTP/1.1 200 OK
+Set-Cookie: SID=1; Path=/
+Set-Cookie: SID=2; Path=/
+```
+
+### ✅ Good — a cookie-name does not fold: these are two cookies
+
+```http
+HTTP/1.1 200 OK
+Set-Cookie: sid=1; Path=/
+Set-Cookie: SID=2; Path=/
 ```

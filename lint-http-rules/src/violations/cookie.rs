@@ -476,6 +476,70 @@ defects! {
         strength: Strength::Should,
     }
 
+    /// One `Set-Cookie` line writing the same attribute name twice:
+    /// `Max-Age=0; Max-Age=3600`, or `Path=/; path=/`.
+    ///
+    /// **The names are folded before they are compared.** A user agent matches
+    /// every attribute name case-insensitively (§ 5.2), and the ABNF literals
+    /// the grammar spells them with are case-insensitive too, so `Path=/` and
+    /// `path=/` are two `path-av`s; 6265bis puts a note saying so beside the
+    /// same sentence. That is also the form this takes on real traffic: one
+    /// spelling written by the application and another appended further along
+    /// the line by something that did not look.
+    ///
+    /// **A user agent keeps one of them, and the sentence exists because they
+    /// did not all keep the same one.** § 5.3 now has the last `Expires`,
+    /// `Max-Age`, `Domain` and `Path` win, and 6265bis the last `SameSite`; a
+    /// server that meant the first has written a cookie that lives, or is
+    /// scoped, differently from what it reads in its own code. The finding
+    /// quotes every occurrence so the operator sees whether they agree.
+    ///
+    /// **Any attribute name, `extension-av` included.** § 5.2 splits every
+    /// `cookie-av` at its first `=` into a name and a value whether or not the
+    /// name is one it knows, and the sentence counts attributes rather than the
+    /// six it defines.
+    ///
+    /// `warn`, from the keyword. 6265bis raises it to MUST NOT, and the
+    /// catalogue reads § 4.1.1 from RFC 6265 as every sibling here does.
+    ///
+    // cite(RFC 6265 § 4.1.1): "To maximize compatibility with user agents, servers SHOULD NOT produce two attributes with the same name in the same set-cookie-string."
+    // cite(draft-ietf-httpbis-rfc6265bis § 4.1.1, label: attribute names fold): "Note: The name of an attribute-value pair is not case-sensitive."
+    COOKIE_ATTRIBUTE_DUPLICATED = {
+        id: "cookie_attribute_duplicated",
+        title: "Set-Cookie writes one attribute name more than once",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_6265_4_1_1],
+        strength: Strength::Should,
+    }
+
+    /// One response setting the same cookie-name on more than one `Set-Cookie`
+    /// line.
+    ///
+    /// **The name is compared exactly.** A cookie-name is a `token` a user
+    /// agent stores and matches as written — § 5.3 replaces a stored cookie
+    /// only when name, domain and path are all the same — so `a` and `A` are
+    /// two cookies and not one written twice.
+    ///
+    /// **Whatever the lines' `Path` or `Domain`.** Two lines naming `a` under
+    /// different paths do store two cookies, and the sentence still counts
+    /// them: it is about the response, and a later request that carries both
+    /// gives the server two values under one name to choose between. Under the
+    /// same scope the second line simply replaces the first, and the finding
+    /// quotes each line's value so the operator sees which one survived.
+    ///
+    /// `warn`, from the keyword; 6265bis raises this one to MUST NOT as well.
+    ///
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT include more than one Set-Cookie header field in the same response with the same cookie-name."
+    COOKIE_NAME_DUPLICATED = {
+        id: "cookie_name_duplicated",
+        title: "One response sets the same cookie-name on more than one Set-Cookie line",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_6265_4_1_1],
+        strength: Strength::Should,
+    }
+
     /// `SameSite=None` on a cookie that is not `Secure`. The two attributes are
     /// each unremarkable and the pairing is what fails: a user agent asked to
     /// send a cookie cross-site over an insecure connection ignores the cookie

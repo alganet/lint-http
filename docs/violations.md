@@ -160,6 +160,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [content_transfer_encoding_forbidden](violations/content_transfer_encoding_forbidden.md) — A MIME field HTTP does not use survived into an HTTP message
 - [content_type_charset_missing](violations/content_type_charset_missing.md) — A text media type does not say which character encoding it used
 - [content_type_missing](violations/content_type_missing.md) — A message carries content and does not say what it is
+- [cookie_attribute_duplicated](violations/cookie_attribute_duplicated.md) — Set-Cookie writes one attribute name more than once
 - [cookie_domain_empty](violations/cookie_domain_empty.md) — Set-Cookie Domain attribute is empty
 - [cookie_domain_ipv4_address_forbidden](violations/cookie_domain_ipv4_address_forbidden.md) — Set-Cookie Domain attribute is an IPv4 address
 - [cookie_domain_ipv6_literal_forbidden](violations/cookie_domain_ipv6_literal_forbidden.md) — Set-Cookie Domain attribute is an IPv6 literal
@@ -170,6 +171,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [cookie_flag_value_forbidden](violations/cookie_flag_value_forbidden.md) — Set-Cookie writes a value on a flag attribute
 - [cookie_max_age_malformed](violations/cookie_max_age_malformed.md) — Set-Cookie Max-Age is not a number a user agent will read
 - [cookie_max_age_missing](violations/cookie_max_age_missing.md) — Set-Cookie Max-Age attribute carries no value
+- [cookie_name_duplicated](violations/cookie_name_duplicated.md) — One response sets the same cookie-name on more than one Set-Cookie line
 - [cookie_pair_equals_missing](violations/cookie_pair_equals_missing.md) — A Cookie pair is written without its '='
 - [cookie_pair_missing](violations/cookie_pair_missing.md) — Set-Cookie carries no cookie-pair
 - [cookie_path_control_character_forbidden](violations/cookie_path_control_character_forbidden.md) — Set-Cookie Path attribute holds a control character
