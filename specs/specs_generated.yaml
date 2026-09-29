@@ -10467,7 +10467,7 @@ sources:
     - file: lint-http-rules/src/violations/status.rs
       line: 1214
     - file: lint-http/src/proxy/websocket/handshake.rs
-      line: 167
+      line: 168
   - label: no_body_for_1xx_204_304 (2)
     section: § 15.3.5
     snippet: A 204 response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -13230,6 +13230,12 @@ sources:
     cited_by:
     - file: lint-http/src/proxy/http.rs
       line: 364
+  - label: lint-http/src/proxy/websocket/handshake.rs
+    section: § 3.2.1
+    snippet: If the target URI's path component is empty, the client MUST send "/" as the path within the origin-form of request-target.
+    cited_by:
+    - file: lint-http/src/proxy/websocket/handshake.rs
+      line: 307
   - label: no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -13350,6 +13356,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 515
+    - file: lint-http/src/proxy/websocket/handshake.rs
+      line: 306
   - label: origin-form
     section: § 3.2.1
     snippet: origin-form    = absolute-path [ "?" query ]

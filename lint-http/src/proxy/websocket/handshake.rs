@@ -28,7 +28,8 @@ use super::relay::relay_websocket;
 /// Everything the transport front half hands the WebSocket upgrade path.
 pub(in crate::proxy) struct WsUpgradeRequest {
     pub facts: RequestFacts,
-    /// Absolute URI used for the upstream request line and dial.
+    /// The target URI: dialled as it stands, and sent to the origin as the
+    /// origin-form request-target [`origin_form`] builds from it.
     pub uri: Uri,
     /// Scheme used only when the URI itself carries none (origin-form
     /// requests).
@@ -92,30 +93,30 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
     // accepted extension pass through it as readily as any others, and an
     // intermediary that can carry an extension's frames has no business
     // silencing its negotiation.
-    let upstream_req =
-        match upstream_request_builder(&facts.method, &uri, &facts.headers, &shared, false)
+    let upstream_req = match origin_form(&uri).and_then(|target| {
+        upstream_request_builder(&facts.method, &target, &facts.headers, &shared, false)
             .body(Full::new(body_bytes.clone()))
-        {
-            Ok(r) => r,
-            Err(e) => {
-                error!("failed to build upstream request: {}", e);
-                record_error_transaction(
-                    &shared,
-                    &facts,
-                    ErrorFacts {
-                        status: 500,
-                        duration_ms: started.elapsed().as_millis() as u64,
-                        req_body: Some(body_bytes.clone()),
-                        ..Default::default()
-                    },
-                )
-                .await;
-                return Ok(into_response(error_response(
-                    500,
-                    format!("request build error: {}", e),
-                )));
-            }
-        };
+    }) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("failed to build upstream request: {}", e);
+            record_error_transaction(
+                &shared,
+                &facts,
+                ErrorFacts {
+                    status: 500,
+                    duration_ms: started.elapsed().as_millis() as u64,
+                    req_body: Some(body_bytes.clone()),
+                    ..Default::default()
+                },
+            )
+            .await;
+            return Ok(into_response(error_response(
+                500,
+                format!("request build error: {}", e),
+            )));
+        }
+    };
 
     // Connect directly to upstream with upgrade support, reusing the shared
     // outbound TLS config (loaded once at startup).
@@ -291,6 +292,29 @@ async fn record_handshake_failure(
         },
     )
     .await;
+}
+
+/// The request-target the origin is sent: the target URI's path and query, in
+/// origin-form.
+///
+/// The pooled client on the ordinary path makes this conversion itself. This
+/// path drives a bare HTTP/1.1 connection, which writes whatever URI it is
+/// handed onto the request line, and it was handed the absolute target URI --
+/// so every handshake reached the origin in absolute-form, the form a client
+/// uses with a proxy, and the origin answered a request-line the client never
+/// wrote.
+// cite(RFC 9112 § 3.2.1): "When making a request directly to an origin server, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send only the absolute path and query components of the target URI as the request-target."
+// cite(RFC 9112 § 3.2.1): "If the target URI's path component is empty, the client MUST send "/" as the path within the origin-form of request-target."
+fn origin_form(uri: &Uri) -> Result<Uri, hyper::http::Error> {
+    let path = match uri.path() {
+        "" => "/",
+        path => path,
+    };
+    let target = match uri.query() {
+        Some(query) => format!("{path}?{query}"),
+        None => path.to_string(),
+    };
+    Uri::builder().path_and_query(target).build()
 }
 
 /// Open a direct TCP (or TLS) connection to the upstream host and perform
@@ -513,6 +537,81 @@ mod tests {
         let _ = server_task.await;
         let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())
+    }
+
+    /// What reaches the origin is an origin-form request-line, whatever form
+    /// the target URI the proxy holds is in. The origin here reads the head,
+    /// hands its first line back, and refuses the upgrade.
+    #[tokio::test]
+    async fn handle_websocket_upgrade_sends_the_origin_an_origin_form_target() -> anyhow::Result<()>
+    {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let port = listener.local_addr()?.port();
+        let (line_tx, line_rx) = tokio::sync::oneshot::channel::<String>();
+
+        let server_task = tokio::spawn(async move {
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            if let Ok((mut socket, _)) = listener.accept().await {
+                let mut head = Vec::new();
+                let mut buf = [0u8; 1024];
+                while !head.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match socket.read(&mut buf).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => head.extend_from_slice(&buf[..n]),
+                    }
+                }
+                let text = String::from_utf8_lossy(&head);
+                let _ = line_tx.send(text.lines().next().unwrap_or_default().to_string());
+                let _ = socket
+                    .write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n")
+                    .await;
+            }
+        });
+
+        let cfg = StdArc::new(crate::config::Config::default());
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
+
+        let uri: Uri = format!("http://127.0.0.1:{}/ws?room=1", port).parse()?;
+        let fake_on_upgrade = hyper::upgrade::on(
+            Request::builder()
+                .method("GET")
+                .uri("http://fake/")
+                .body(Full::new(Bytes::new()).boxed())
+                .unwrap(),
+        );
+        let resp = handle_websocket_upgrade(
+            WsUpgradeRequest {
+                facts: test_facts(&uri, hyper::HeaderMap::new()),
+                uri: uri.clone(),
+                fallback_scheme: hyper::http::uri::Scheme::HTTP,
+                body: Bytes::new(),
+                trailers: None,
+                client_on_upgrade: fake_on_upgrade,
+            },
+            shared,
+            Instant::now(),
+        )
+        .await?;
+
+        assert_eq!(resp.status().as_u16(), 400);
+        assert_eq!(line_rx.await?, "GET /ws?room=1 HTTP/1.1");
+        let _ = server_task.await;
+        let _ = tokio::fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[rstest::rstest]
+    #[case("http://example.com/ws", "/ws")]
+    #[case("https://example.com/ws?a=1&b=2", "/ws?a=1&b=2")]
+    #[case("http://example.com", "/")]
+    #[case("http://example.com?a=1", "/?a=1")]
+    fn origin_form_keeps_path_and_query_and_nothing_else(
+        #[case] target: &str,
+        #[case] expected: &str,
+    ) {
+        let uri: Uri = target.parse().unwrap();
+        assert_eq!(origin_form(&uri).unwrap().to_string(), expected);
     }
 
     #[tokio::test]
