@@ -133,14 +133,14 @@ impl Rule for CookieDomainValid {
         resp.headers
             .get_all("set-cookie")
             .iter()
-            .filter_map(|hv| {
+            .flat_map(|hv| {
                 // Read as octets, one field line at a time. `Set-Cookie` is
                 // not a list -- § 5.3's recombination does not apply to it, so
                 // the lines are never joined -- and § 4.1.1's grammar stops at
                 // `CHAR`, %x01-7F, so an octet above that is a character the
                 // production does not admit rather than a verdict about the
                 // field's encoding. The readers below have an entry for it.
-                self.line_defect(
+                self.line_defects(
                     crate::helpers::headers::field_line_as_written(hv).as_str(),
                     ctx,
                 )
@@ -150,37 +150,41 @@ impl Rule for CookieDomainValid {
 }
 
 impl CookieDomainValid {
-    /// What is wrong with the `Domain` of one cookie, if anything.
-    fn line_defect(&self, s: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+    /// What is wrong with each `Domain` of one cookie.
+    ///
+    /// One finding per `Domain` the line writes, not one per line: a second
+    /// `Domain` is its own `domain-av` and owes the grammar as much as the
+    /// first does. The line writing it twice is
+    /// `cookie_attribute_duplicated`'s, drawn by another rule.
+    fn line_defects(&self, s: &str, ctx: &crate::rules::RuleContext<'_>) -> Vec<Violation> {
+        let mut out = Vec::new();
         let cookie = crate::helpers::cookie::set_cookie_name(s);
         let about = |sentence: &str| crate::helpers::cookie::about_cookie(cookie, sentence);
 
-        // Split into cookie-pair and attributes — § 5.2's own parsing
-        // algorithm, which is the reading this rule does before any
-        // defect exists. The defects' sentences are at the sites below,
-        // because each has to name the cookie it is about.
+        // The attributes as § 5.2 cuts them, from the reader every cookie
+        // rule shares -- the reading this rule does before any defect exists.
+        // It kept its own copy, trimmed with `str::trim`, so a `Domain` ending
+        // in the octet %xA0 was judged without it. The defects' sentences are
+        // at the sites below, because each has to name the cookie it is about.
         //
         // cite(RFC 6265 § 5.2): "Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character."
-        let parts = s.split(';').map(|p| p.trim()).collect::<Vec<_>>();
-        for attr in parts.iter().skip(1) {
-            if attr.is_empty() {
-                continue;
-            }
-            let mut av = attr.splitn(2, '=');
-            let key = av.next().unwrap().trim();
-            let val = av.next().map(|v| v.trim()).unwrap_or("");
+        for attribute in crate::helpers::cookie::split_set_cookie(s).1 {
+            let val = attribute.value.unwrap_or("");
             // cite(RFC 6265 § 5.2.3): "If the attribute-name case-insensitively matches the string "Domain", the user agent MUST process the cookie-av as follows."
-            if key.eq_ignore_ascii_case("domain") {
+            if attribute.is("domain") {
                 if val.is_empty() {
-                    return Some(ctx.report_with(
-                        &COOKIE_DOMAIN_MISSING,
-                        about(COOKIE_DOMAIN_MISSING_WORDING),
-                    ));
+                    out.push(
+                        ctx.report_with(
+                            &COOKIE_DOMAIN_MISSING,
+                            about(COOKIE_DOMAIN_MISSING_WORDING),
+                        ),
+                    );
+                    continue;
                 }
                 match crate::helpers::domain::validate_cookie_domain(val) {
                     Ok(()) => {
                         if val.starts_with('.') {
-                            return Some(ctx.report_with(
+                            out.push(ctx.report_with(
                                 &COOKIE_DOMAIN_LEADING_DOT_OBSOLETE,
                                 about(
                                     "Set-Cookie 'Domain' attribute uses a leading '.' which is \
@@ -190,7 +194,7 @@ impl CookieDomainValid {
                         }
                     }
                     Err(e) => {
-                        return Some(ctx.report_with(
+                        out.push(ctx.report_with(
                             domain_defect(e),
                             about(&format!(
                                 "Invalid Set-Cookie Domain attribute '{}': {}",
@@ -202,7 +206,7 @@ impl CookieDomainValid {
                 }
             }
         }
-        None
+        out
     }
 }
 
@@ -290,6 +294,50 @@ mod tests {
         assert_eq!(v.rule, "cookie_domain_valid");
         assert_eq!(v.violation, violation);
         assert_eq!(v.severity, severity);
+    }
+
+    /// Each `Domain` a line writes is judged, and a defective second one is
+    /// not hidden behind a first.
+    #[rstest::rstest]
+    #[case::two_defective("a=1; Domain=.example.com; Domain=192.0.2.1", &["cookie_domain_leading_dot_obsolete", "cookie_domain_ipv4_address_forbidden"])]
+    #[case::one_defective_second("a=1; Domain=example.com; Domain=", &["cookie_domain_missing"])]
+    #[case::both_conforming("a=1; Domain=example.com; Domain=example.org", &[])]
+    fn every_domain_on_a_line_is_judged(#[case] line: &str, #[case] expected: &[&str]) {
+        let tx =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("set-cookie", line)]);
+        let rule = CookieDomainValid;
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, expected, "{line}");
+    }
+
+    /// An octet `str::trim` takes for whitespace and § 5.2's WSP does not is
+    /// the attribute's last octet, and the value is judged with it.
+    #[test]
+    fn an_obs_text_octet_ending_the_domain_is_read() -> anyhow::Result<()> {
+        use hyper::header::HeaderValue;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers.append(
+            "set-cookie",
+            HeaderValue::from_bytes(b"a=1; Domain=example.com\xa0")?,
+        );
+        let rule = CookieDomainValid;
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(
+            v.map(|v| v.violation),
+            Some("domain_label_character_forbidden".to_string())
+        );
+        Ok(())
     }
 
     /// A response is allowed to set many cookies, and this rule answers for

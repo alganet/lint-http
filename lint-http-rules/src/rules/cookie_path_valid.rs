@@ -146,14 +146,14 @@ impl Rule for CookiePathValid {
         resp.headers
             .get_all("set-cookie")
             .iter()
-            .filter_map(|hv| {
+            .flat_map(|hv| {
                 // Read as octets, one field line at a time. `Set-Cookie` is
                 // not a list -- § 5.3's recombination does not apply to it, so
                 // the lines are never joined -- and § 4.1.1's grammar stops at
                 // `CHAR`, %x01-7F, so an octet above that is a character the
                 // production does not admit rather than a verdict about the
                 // field's encoding. The readers below have an entry for it.
-                self.line_defect(
+                self.line_defects(
                     crate::helpers::headers::field_line_as_written(hv).as_str(),
                     ctx,
                 )
@@ -163,39 +163,38 @@ impl Rule for CookiePathValid {
 }
 
 impl CookiePathValid {
-    /// What is wrong with the `Path` of one cookie, if anything.
-    fn line_defect(&self, s: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+    /// What is wrong with each `Path` of one cookie.
+    ///
+    /// One finding per `Path` the line writes, not one per line: a second
+    /// `Path` is its own `path-av` and owes the grammar as much as the first
+    /// does, so `Path=nope; Path=/x` with a control octet after the `x` is two
+    /// defects in two places. The line writing it twice is
+    /// `cookie_attribute_duplicated`'s, drawn by another rule.
+    fn line_defects(&self, s: &str, ctx: &crate::rules::RuleContext<'_>) -> Vec<Violation> {
+        let mut out = Vec::new();
         let cookie = crate::helpers::cookie::set_cookie_name(s);
         let about = |sentence: &str| crate::helpers::cookie::about_cookie(cookie, sentence);
 
-        // Split into cookie-pair and attribute segments. The `;` and
-        // the trim are § 5.2's own parsing algorithm, which is what
-        // this rule enforces of its own accord — the defects it
-        // reports are elsewhere, and so are their sentences.
+        // The attributes as § 5.2 cuts them, from the reader every cookie
+        // rule shares. This rule kept its own copy, trimmed with `str::trim`,
+        // so a `Path` ending in the octet %xA0 was judged without it.
         //
         // cite(RFC 6265 § 5.2): "Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character."
-        let parts = s.split(';').map(|p| p.trim()).collect::<Vec<_>>();
-        for attr in parts.iter().skip(1) {
-            if attr.is_empty() {
-                continue;
-            }
-            let mut av = attr.splitn(2, '=');
-            let key = av.next().unwrap().trim();
-            let val_opt = av.next().map(|v| v.trim());
-
+        for attribute in crate::helpers::cookie::split_set_cookie(s).1 {
             // cite(RFC 6265 § 5.2): "If the attribute-name case-insensitively matches the string "Path", the user agent MUST process the cookie-av as follows."
-            if key.eq_ignore_ascii_case("path") {
-                let Some(v) = val_opt else {
-                    return Some(
+            if attribute.is("path") {
+                let Some(v) = attribute.value else {
+                    out.push(
                         ctx.report_with(&COOKIE_PATH_MISSING, about(COOKIE_PATH_MISSING_WORDING)),
                     );
+                    continue;
                 };
 
                 if let Err(defect) = crate::helpers::cookie::validate_cookie_path(v) {
                     // The message stays here, where its argument is;
                     // which defect it is comes from the helper's own
                     // answer, named in `violations::cookie`.
-                    return Some(ctx.report_with(
+                    out.push(ctx.report_with(
                         path_defect(&defect),
                         about(&format!(
                             "Set-Cookie attribute 'Path' invalid: {}",
@@ -205,7 +204,7 @@ impl CookiePathValid {
                 }
             }
         }
-        None
+        out
     }
 }
 
@@ -227,6 +226,51 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// Each `Path` a line writes is judged, and a defective second one is
+    /// not hidden behind a first.
+    #[rstest::rstest]
+    #[case::two_defective("a=1; Path=nope; Path=", &["cookie_path_leading_slash_missing", "cookie_path_empty"])]
+    #[case::one_defective_second("a=1; Path=/; Path=nope", &["cookie_path_leading_slash_missing"])]
+    #[case::both_conforming("a=1; Path=/; Path=/x", &[])]
+    fn every_path_on_a_line_is_judged(#[case] line: &str, #[case] expected: &[&str]) {
+        let tx =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("set-cookie", line)]);
+        let rule = CookiePathValid;
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, expected, "{line}");
+    }
+
+    /// An octet `str::trim` takes for whitespace and § 5.2's WSP does not is
+    /// the attribute's last octet, and the value is judged with it.
+    #[test]
+    fn an_obs_text_octet_ending_the_path_is_read() -> anyhow::Result<()> {
+        use hyper::header::HeaderValue;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response
+            .as_mut()
+            .unwrap()
+            .headers
+            .append("set-cookie", HeaderValue::from_bytes(b"a=1; Path=/x\xa0")?);
+        let rule = CookiePathValid;
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(
+            v.map(|v| v.violation),
+            Some("cookie_path_non_ascii_character_forbidden".to_string())
+        );
+        Ok(())
     }
 
     /// A response is allowed to set many cookies, and this rule answers for
