@@ -12,6 +12,8 @@ Detect contradictory framing directives between `Content-Security-Policy` (the `
 
 A `DENY` beside a policy that names any origin other than `'self'` is not reported: no conforming `X-Frame-Options` value states such a policy, and `DENY` is the fallback that permits a user agent predating `frame-ancestors` nothing the policy forbids.
 
+**An `ALLOW-FROM` origin is matched the way CSP matches it**, not compared as text: a user agent parses the ancestor's origin into a URL and asks whether any source expression matches it (CSP3 §6.4.2.1, §6.7.2.8). So a wildcard host (`https://*.example.com`), a source with no scheme, a scheme alone (`https:`), `*`, a default port written out on either side, and a `'self'` whose `http` origin the `https` origin upgrades are all agreement, while a source carrying a path never matches an origin, whose path is `/`. `'self'` is the request target's origin; where the target does not state its scheme, a disagreement is reported only if it holds under both `http` and `https`.
+
 Note: this check considers only enforceable header-delivered CSP policies (`Content-Security-Policy`); `Content-Security-Policy-Report-Only` is ignored because it does not itself change framing enforcement.
 
 ## Violations
@@ -43,6 +45,12 @@ Content-Security-Policy: frame-ancestors 'none'
 ```http
 Content-Security-Policy: frame-ancestors https://example.com
 X-Frame-Options: ALLOW-FROM https://example.com
+```
+
+```http
+Content-Security-Policy: frame-ancestors https://*.example.com
+X-Frame-Options: ALLOW-FROM https://cms.example.com
+# The wildcard host matches the origin ALLOW-FROM names, so both policies permit it
 ```
 
 ```http

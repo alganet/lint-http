@@ -325,15 +325,15 @@ sources:
     snippet: The `X-Frame-Options` HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 121
+      line: 115
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 292
+      line: 540
   - label: content_security_policy_and_frame_options_consistent (2)
     section: § 7.7
     snippet: X-Frame-Options = "DENY" / "SAMEORIGIN"
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 311
+      line: 559
     - file: lint-http-rules/src/violations/x_frame_options.rs
       line: 60
   - label: refresh_header_syntax
@@ -647,7 +647,7 @@ sources:
     snippet: a comma-delimited series of serialized CSPs
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 70
+      line: 71
     - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
       line: 136
     - file: lint-http-rules/src/rules/content_security_policy_valid.rs
@@ -657,7 +657,7 @@ sources:
     snippet: directive set contains a directive whose name is directive name
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 71
+      line: 72
     - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
       line: 169
   - label: content_security_policy_and_frame_options_consistent (3)
@@ -665,23 +665,143 @@ sources:
     snippet: The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 58
+      line: 59
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 291
+      line: 539
     - file: lint-http-rules/src/violations/content_security_policy.rs
       line: 316
   - label: content_security_policy_and_frame_options_consistent (4)
+    section: § 6.4.2.1
+    snippet: If § 6.7.2.7 Does url match source list in origin with redirect count? returns Does Not Match when executed upon origin, this directive’s value, self-origin, and 0, return "Blocked".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 169
+  - label: content_security_policy_and_frame_options_consistent (5)
+    section: § 6.4.2.1
+    snippet: Let origin be the result of executing the URL parser on the ASCII serialization of document’s origin.
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 168
+  - label: content_security_policy_and_frame_options_consistent (6)
     section: § 6.4.2.2
     snippet: In order to allow backwards-compatible deployment, the frame-ancestors directive overrides the ``X-Frame-Options`` header.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 312
-  - label: content_security_policy_and_frame_options_consistent (5)
+      line: 560
+  - label: content_security_policy_and_frame_options_consistent (7)
     section: § 6.4.2.2
     snippet: the frame-ancestors directive overrides the ``X-Frame-Options`` header.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 290
+      line: 538
+  - label: content_security_policy_and_frame_options_consistent (8)
+    section: § 6.7.2.10
+    snippet: If host is not a domain, return "Does Not Match".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 392
+  - label: content_security_policy_and_frame_options_consistent (9)
+    section: § 6.7.2.10
+    snippet: Let remaining be pattern with the leading U+002A (*) removed and ASCII lowercased.
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 393
+  - label: content_security_policy_and_frame_options_consistent (10)
+    section: § 6.7.2.11
+    snippet: If input is equal to "*", return "Matches".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 412
+  - label: content_security_policy_and_frame_options_consistent (11)
+    section: § 6.7.2.11
+    snippet: If normalizedInput equals defaultPort, return "Matches".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 414
+  - label: content_security_policy_and_frame_options_consistent (12)
+    section: § 6.7.2.11
+    snippet: If normalizedInput equals url’s port, return "Matches".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 413
+  - label: content_security_policy_and_frame_options_consistent (13)
+    section: § 6.7.2.12
+    snippet: If path A is the empty string, return "Matches".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 432
+  - label: content_security_policy_and_frame_options_consistent (14)
+    section: § 6.7.2.12
+    snippet: If path list A has more items than path list B, return "Does Not Match".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 434
+  - label: content_security_policy_and_frame_options_consistent (15)
+    section: § 6.7.2.12
+    snippet: Let exact match be false if the final character of path A is the U+002F SOLIDUS character (/), and true otherwise.
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 433
+  - label: content_security_policy_and_frame_options_consistent (16)
+    section: § 6.7.2.8
+    snippet: If expression does not have a scheme-part, and origin’s scheme does not scheme-part match url’s scheme, return "Does Not Match".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 330
+  - label: content_security_policy_and_frame_options_consistent (17)
+    section: § 6.7.2.8
+    snippet: If expression has a scheme-part, and it does not scheme-part match url’s scheme, return "Does Not Match".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 328
+  - label: content_security_policy_and_frame_options_consistent (18)
+    section: § 6.7.2.8
+    snippet: 'If expression is the string "*", return "Matches" if one or more of the following conditions is met:'
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 327
+  - label: content_security_policy_and_frame_options_consistent (19)
+    section: § 6.7.2.8
+    snippet: If expression matches the scheme-source grammar, return "Matches".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 329
+  - label: content_security_policy_and_frame_options_consistent (20)
+    section: § 6.7.2.8
+    snippet: If expression’s host-part does not host-part match url’s host, return "Does Not Match".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 331
+  - label: content_security_policy_and_frame_options_consistent (21)
+    section: § 6.7.2.8
+    snippet: If port-part does not port-part match url, return "Does Not Match".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 332
+  - label: content_security_policy_and_frame_options_consistent (22)
+    section: § 6.7.2.8
+    snippet: origin and url’s origin are same origin
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 304
+  - label: content_security_policy_and_frame_options_consistent (23)
+    section: § 6.7.2.8
+    snippet: 'origin’s host is the same as url’s host, origin’s port and url’s port are either the same or the default ports for their respective schemes, and one or more of the following conditions is met:'
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 305
+  - label: content_security_policy_and_frame_options_consistent (24)
+    section: § 6.7.2.8
+    snippet: origin’s scheme is "http" and url’s scheme is "http" or "ws"
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 306
+  - label: content_security_policy_and_frame_options_consistent (25)
+    section: § 6.7.2.9
+    snippet: A is an ASCII case-insensitive match for "http", and B is an ASCII case-insensitive match for "https".
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 382
   - label: content_security_policy_report_to_named
     section: § 2.2.1
     snippet: Directive names are case-insensitive
