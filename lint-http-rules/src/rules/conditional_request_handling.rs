@@ -186,6 +186,26 @@ fn listed_tags(headers: &hyper::HeaderMap, name: &str) -> Vec<String> {
         .collect()
 }
 
+/// Whether § 8.8.3.2's comparisons are defined over these values: the
+/// resource's tag and every listed member an `entity-tag`.
+///
+/// § 13.1.1 and § 13.1.2 give a condition for two field values, `*` and "a
+/// list of entity tags", and both comparisons are over `opaque-tag`s. A member
+/// with no DQUOTE, or a resource tag with none, is neither, and nothing says
+/// whether it matches, so there is no outcome for a response to have ignored.
+/// A strict evaluator finds no entity tag in `If-None-Match: abc` and answers
+/// `200`, which is what a finding here would have accused it of. The value is
+/// the defect, and it is reported where it was written: `etag_syntax` on the
+/// response that handed it out, `conditional_etag_syntax` on a request that
+/// wrote it. § 13.1.4's date condition declines the same way below, where
+/// the section says so in words.
+// cite(RFC 9110 § 13.1.2): "If-None-Match = "*" / #entity-tag"
+// cite(RFC 9110 § 8.8.3.2): "two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as"
+fn comparable(listed: &[String], current: &str) -> bool {
+    use crate::helpers::validator::check_entity_tag;
+    check_entity_tag(current).is_ok() && listed.iter().all(|t| check_entity_tag(t).is_ok())
+}
+
 fn is_weak(tag: &str) -> bool {
     tag.len() >= 2 && tag[..2].eq_ignore_ascii_case("W/")
 }
@@ -202,6 +222,9 @@ fn if_match_failed(headers: &hyper::HeaderMap, seen: &LastSeen) -> Option<Failed
         return None;
     }
     let current = seen.etag.as_deref()?;
+    if !comparable(&listed, current) {
+        return None;
+    }
     let value = listed.join(", ");
     let reason = if is_weak(current) {
         format!(
@@ -263,6 +286,9 @@ fn if_none_match_failed(headers: &hyper::HeaderMap, seen: &LastSeen) -> Option<F
             .then(|| failed("a representation was current: the resource had answered the earlier request with one".into()));
     }
     let current = seen.etag.as_deref()?;
+    if !comparable(&listed, current) {
+        return None;
+    }
     let matched = listed
         .iter()
         .find(|t| crate::helpers::validator::inm_matches_known(t, current))?;
@@ -532,6 +558,9 @@ impl ConditionalRequestHandling {
         // an octet at or above %x80 answers "the response offered no validator"
         // about a response that offered a legal one.
         let etag = crate::helpers::validator::extract_validators_from_response(&resp.headers).0?;
+        if !comparable(&listed, &etag) {
+            return None;
+        }
         let matched = listed
             .iter()
             .find(|tag| crate::helpers::validator::inm_matches_known(tag, &etag))?;
@@ -744,6 +773,13 @@ impl RuleMeta for ConditionalRequestHandling {
                     "— `*` asks whether a representation is current, and this 200 is one",
                 ),
                 snippet: "> GET /resource HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n\n> GET /resource HTTP/1.1\n> If-None-Match: *\n\n< 200 OK  HTTP/1.1\n< Content-Type: text/html",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "— an unquoted tag echoed back is no entity tag, so no condition failed; the tag is the response's defect, not the 200",
+                ),
+                snippet: "> GET /resource HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: 0x8DD2F82FA585D1E\n\n> GET /resource HTTP/1.1\n> If-None-Match: 0x8DD2F82FA585D1E\n\n< 200 OK  HTTP/1.1\n< ETag: 0x8DD2F82FA585D1E",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -1548,6 +1584,54 @@ mod tests {
             .filter(|id| id.starts_with("status_412_"))
             .collect();
         assert_eq!(drawn, Vec::from_iter(expected), "{ids:?}");
+    }
+
+    /// § 8.8.3.2 compares `opaque-tag`s, so a value with no DQUOTE, on the
+    /// request or as the tag the resource was seen with, is a condition with
+    /// no outcome, and no answer to it failed one. Each row has its quoted
+    /// control, which is the same exchange with a condition that did fail.
+    #[rstest]
+    #[case::inm_echoing_an_unquoted_tag(&[("etag", "v2")], &[("if-none-match", "v2")], None)]
+    #[case::inm_echoing_the_tag_quoted(&[("etag", "\"v2\"")], &[("if-none-match", "\"v2\"")], Some("status_412_missing"))]
+    #[case::if_match_written_unquoted(&[("etag", "\"v2\"")], &[("if-match", "v1")], None)]
+    #[case::if_match_against_an_unquoted_tag(&[("etag", "v2")], &[("if-match", "\"v1\"")], None)]
+    #[case::if_match_both_quoted(&[("etag", "\"v2\"")], &[("if-match", "\"v1\"")], Some("status_412_missing"))]
+    #[case::if_match_one_member_unquoted(&[("etag", "\"v2\"")], &[("if-match", "\"v1\", v0")], None)]
+    fn a_value_that_is_no_entity_tag_fails_no_precondition(
+        #[case] seen: &[(&str, &str)],
+        #[case] req: &[(&str, &str)],
+        #[case] expected: Option<&str>,
+    ) {
+        let ids = story(seen, "GET", 200, "PUT", req, 200, &[("etag", "\"v3\"")]);
+        let drawn: Vec<&str> = ids
+            .iter()
+            .map(String::as_str)
+            .filter(|id| id.starts_with("status_412_"))
+            .collect();
+        assert_eq!(drawn, Vec::from_iter(expected), "{ids:?}");
+    }
+
+    /// The `304` side of the same reading. api.nuget.org hands out
+    /// `0x8DD2F82FA585D1E` unquoted and answers the revalidation with `200`,
+    /// which is what an evaluator that finds no entity tag in the field does;
+    /// the tag is `etag_syntax`'s finding on that response.
+    #[rstest]
+    #[case::both_unquoted("0x8DD2F82FA585D1E", "0x8DD2F82FA585D1E", false)]
+    #[case::both_quoted("\"0x8DD2F82FA585D1E\"", "\"0x8DD2F82FA585D1E\"", true)]
+    #[case::a_quoted_member_beside_an_unquoted_one("\"a\", b", "\"a\"", false)]
+    #[case::the_response_tag_unquoted("\"a\"", "a", false)]
+    fn a_304_is_owed_only_where_the_tags_compare(
+        #[case] inm: &str,
+        #[case] etag: &str,
+        #[case] owed: bool,
+    ) {
+        let found = conditional_get(inm, &[("etag", etag)]);
+        assert_eq!(
+            found.iter().any(|v| v.violation == "status_304_missing"),
+            owed,
+            "{inm} against {etag}: {:?}",
+            found.iter().map(|v| &v.violation).collect::<Vec<_>>()
+        );
     }
 
     /// The date form: `If-Unmodified-Since` is false where the resource was

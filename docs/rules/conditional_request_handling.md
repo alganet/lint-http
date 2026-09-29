@@ -121,6 +121,21 @@ enabled = true
 < Content-Type: text/html
 ```
 
+### ✅ Good — an unquoted tag echoed back is no entity tag, so no condition failed; the tag is the response's defect, not the 200
+
+```http
+> GET /resource HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: 0x8DD2F82FA585D1E
+
+> GET /resource HTTP/1.1
+> If-None-Match: 0x8DD2F82FA585D1E
+
+< 200 OK  HTTP/1.1
+< ETag: 0x8DD2F82FA585D1E
+```
+
 ### ✅ Good — the tag the PUT conditioned on was the current one, so the method was performed
 
 ```http
