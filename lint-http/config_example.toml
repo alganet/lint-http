@@ -1341,7 +1341,7 @@ severity = "warn"
 severity = "info"
 
 [violations.cache_control_missing]
-# A 200 leaves its freshness lifetime to be guessed
+# A heuristically cacheable response leaves its freshness lifetime to be guessed
 severity = "info"
 
 [violations.cache_control_must_revalidate_ignored]

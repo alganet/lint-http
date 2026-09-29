@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-This rule reports a `200 OK` response a cache could store that carries neither `Cache-Control` nor `Expires`. With neither, RFC 9111 §4.2.2 lets every cache assign the response a heuristic freshness lifetime of its own, estimated from other fields such as `Last-Modified`, so how long the response is reused is decided by each cache separately rather than by the origin.
+This rule reports a response a cache could store that carries neither `Cache-Control` nor `Expires`, on any status RFC 9110 §15.1 defines as heuristically cacheable: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414` and `501`. With neither, RFC 9111 §4.2.2 lets every cache assign the response a heuristic freshness lifetime of its own, estimated from other fields such as `Last-Modified`, so how long the response is reused is decided by each cache separately rather than by the origin.
 
 The `Cache-Control` header is the primary mechanism for defining the caching policies of a resource. Even if a resource should not be cached, it is best practice to explicitly state this (e.g., `Cache-Control: no-store`) rather than relying on default browser behaviors or heuristic caching.
 
@@ -16,7 +16,7 @@ An `Expires` on its own is not reported. §4.2.1 takes `Expires` minus `Date` as
 
 ## Violations
 
-- [cache_control_missing](../violations/cache_control_missing.md) — A 200 leaves its freshness lifetime to be guessed
+- [cache_control_missing](../violations/cache_control_missing.md) — A heuristically cacheable response leaves its freshness lifetime to be guessed
 
 ## Specifications
 
@@ -56,6 +56,13 @@ Content-Type: application/json
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
+```
+
+### ❌ Bad (`404` — §15.1 lists it as heuristically cacheable, so a cache may keep the miss for as long as it guesses)
+
+```http
+HTTP/1.1 404 Not Found
+Content-Type: text/html
 ```
 
 ### ✅ Good (OPTIONS — §9.3.7: no cache stores it, so none guesses at it)

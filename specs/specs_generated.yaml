@@ -10185,7 +10185,7 @@ sources:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 285
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 953
+      line: 961
   - label: 3xx redirection class
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
@@ -10235,7 +10235,7 @@ sources:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 234
     - file: lint-http-rules/src/rules/cache_control_present.rs
-      line: 121
+      line: 126
     - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
       line: 106
   - label: lint-http-rules/src/helpers/token.rs
@@ -12276,9 +12276,9 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 353
     - file: lint-http-rules/src/rules/cache_control_present.rs
-      line: 136
+      line: 141
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 898
+      line: 906
   - label: cache_coherence (3)
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
@@ -12452,13 +12452,19 @@ sources:
     snippet: If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_present.rs
-      line: 151
+      line: 163
   - label: cache_control_present (2)
     section: § 4.2.1
     snippet: Otherwise, no explicit expiration time is present in the response. A heuristic freshness lifetime might be applicable; see Section 4.2.2.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_present.rs
-      line: 152
+      line: 164
+  - label: cache_control_present (3)
+    section: § 4.2.2
+    snippet: Because of the requirements in Section 3, heuristics can only be used on responses without explicit freshness whose status codes are defined as "heuristically cacheable" (e.g., see Section 15.1 of [HTTP])
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_control_present.rs
+      line: 154
   - label: cache_validation_chain
     section: § 4
     snippet: request header fields nominated by the stored response (if any) match those presented (see Section 4.1)
@@ -13000,7 +13006,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 140
     - file: lint-http-rules/src/rules/cache_control_present.rs
-      line: 153
+      line: 165
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 264
     - file: lint-http-rules/src/rules/expires_date_syntax.rs

@@ -38,7 +38,7 @@ impl RuleMeta for CacheControlPresent {
     }
 
     fn description(&self) -> &'static str {
-        "This rule reports a `200 OK` response a cache could store that carries neither `Cache-Control` nor `Expires`. With neither, RFC 9111 §4.2.2 lets every cache assign the response a heuristic freshness lifetime of its own, estimated from other fields such as `Last-Modified`, so how long the response is reused is decided by each cache separately rather than by the origin.\n\nThe `Cache-Control` header is the primary mechanism for defining the caching policies of a resource. Even if a resource should not be cached, it is best practice to explicitly state this (e.g., `Cache-Control: no-store`) rather than relying on default browser behaviors or heuristic caching.\n\nAn `Expires` on its own is not reported. §4.2.1 takes `Expires` minus `Date` as an explicit freshness lifetime, and §5.3 has a recipient read an invalid `Expires` — the value `0` among them — as a time already past, so a response carrying one has specified its lifetime and left nothing to guess."
+        "This rule reports a response a cache could store that carries neither `Cache-Control` nor `Expires`, on any status RFC 9110 §15.1 defines as heuristically cacheable: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414` and `501`. With neither, RFC 9111 §4.2.2 lets every cache assign the response a heuristic freshness lifetime of its own, estimated from other fields such as `Last-Modified`, so how long the response is reused is decided by each cache separately rather than by the origin.\n\nThe `Cache-Control` header is the primary mechanism for defining the caching policies of a resource. Even if a resource should not be cached, it is best practice to explicitly state this (e.g., `Cache-Control: no-store`) rather than relying on default browser behaviors or heuristic caching.\n\nAn `Expires` on its own is not reported. §4.2.1 takes `Expires` minus `Date` as an explicit freshness lifetime, and §5.3 has a recipient read an invalid `Expires` — the value `0` among them — as a time already past, so a response carrying one has specified its lifetime and left nothing to guess."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -70,6 +70,11 @@ impl RuleMeta for CacheControlPresent {
                 compliance: Compliance::NonCompliant,
                 label: Some("Response with no Cache-Control field line"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: application/json",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(`404` \u{2014} \u{a7}15.1 lists it as heuristically cacheable, so a cache may keep the miss for as long as it guesses)"),
+                snippet: "HTTP/1.1 404 Not Found\nContent-Type: text/html",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -135,11 +140,18 @@ impl Rule for CacheControlPresent {
                 // sentence that makes it advice worth taking.
                 // cite(RFC 9111 § 4.2.2): "Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time."
                 //
-                // Scoped to 200 by choice, not by the spec. §4.2.2 permits heuristics on any
-                // status "defined as heuristically cacheable (e.g., see Section 15.1 of
-                // [HTTP])" — 203, 204, 206, 300, 301, 308, 404, 410, 451 among them — so the
-                // same advice applies to those too. 200 is the overwhelmingly common case and
-                // the least noisy to flag; widening the set is a behavior change, left out.
+                // **Every status § 15.1 lists, not a `200`.** § 4.2.2 permits the
+                // heuristic on any status "defined as heuristically cacheable", and
+                // a `404` guessed fresh is the one an operator notices: the page
+                // that now exists stays missing for as long as a cache decided.
+                // This entry asked only a `200`, which left a `404`, `206` or `301`
+                // with no lifetime unreported by it and by
+                // `cache_control_freshness_missing` alike, since that entry asks
+                // the statuses outside the list. The status is read by the
+                // storability gate above: with neither field below present, the
+                // heuristically cacheable status is the only licence § 3's last
+                // term has left, so the two entries partition the final statuses.
+                // cite(RFC 9111 § 4.2.2): "Because of the requirements in Section 3, heuristics can only be used on responses without explicit freshness whose status codes are defined as "heuristically cacheable" (e.g., see Section 15.1 of [HTTP])"
                 //
                 // The heuristic is the branch § 4.2.1 falls to when the response
                 // specifies no explicit time, and `Expires` is one of the ways it
@@ -151,11 +163,16 @@ impl Rule for CacheControlPresent {
                 // cite(RFC 9111 § 4.2.1): "If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or"
                 // cite(RFC 9111 § 4.2.1): "Otherwise, no explicit expiration time is present in the response. A heuristic freshness lifetime might be applicable; see Section 4.2.2."
                 // cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
-                if resp.status == 200
-                    && !resp.headers.contains_key("cache-control")
+                if !resp.headers.contains_key("cache-control")
                     && !resp.headers.contains_key("expires")
                 {
-                    return Some(ctx.report(&CACHE_CONTROL_MISSING));
+                    return Some(ctx.report_with(
+                        &CACHE_CONTROL_MISSING,
+                        format!(
+                            "Response {} carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own",
+                            resp.status
+                        ),
+                    ));
                 }
             }
             None
@@ -200,7 +217,45 @@ mod tests {
     #[case("GET", 200, Some(("expires", "Thu, 01 Jan 2099 00:00:00 GMT")), false, None)]
     #[case("GET", 200, Some(("expires", "0")), false, None)]
     #[case("HEAD", 200, Some(("expires", "-1")), false, None)]
-    #[case("GET", 404, None, false, None)]
+    // Every status § 15.1 lists is one a cache may guess a lifetime for, and
+    // the message names the one that was sent.
+    #[case(
+        "GET",
+        404,
+        None,
+        true,
+        Some("Response 404 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own")
+    )]
+    #[case(
+        "GET",
+        206,
+        None,
+        true,
+        Some("Response 206 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own")
+    )]
+    #[case(
+        "GET",
+        301,
+        None,
+        true,
+        Some("Response 301 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own")
+    )]
+    #[case(
+        "HEAD",
+        410,
+        None,
+        true,
+        Some("Response 410 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own")
+    )]
+    #[case("GET", 404, Some(("cache-control", "max-age=60")), false, None)]
+    #[case("GET", 404, Some(("expires", "0")), false, None)]
+    // Outside the list nothing is stored without a licence, which is the other
+    // entry's finding, and an unregistered status is not in the list.
+    #[case("GET", 302, None, false, None)]
+    #[case("GET", 403, None, false, None)]
+    #[case("GET", 500, None, false, None)]
+    #[case("GET", 250, None, false, None)]
+    #[case("POST", 404, None, false, None)]
     #[case("OPTIONS", 200, None, false, None)]
     #[case("TRACE", 200, None, false, None)]
     #[case("POST", 200, None, false, None)]

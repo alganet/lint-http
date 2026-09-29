@@ -83,7 +83,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [cache_control_freshness_missing](violations/cache_control_freshness_missing.md) — A status no cache stores by default states no freshness
 - [cache_control_immutable_ignored](violations/cache_control_immutable_ignored.md) — A still-fresh immutable response is revalidated anyway
 - [cache_control_immutable_redundant](violations/cache_control_immutable_redundant.md) — immutable sits on a response with no freshness lifetime
-- [cache_control_missing](violations/cache_control_missing.md) — A 200 leaves its freshness lifetime to be guessed
+- [cache_control_missing](violations/cache_control_missing.md) — A heuristically cacheable response leaves its freshness lifetime to be guessed
 - [cache_control_must_revalidate_ignored](violations/cache_control_must_revalidate_ignored.md) — A stale must-revalidate response is re-requested without its validator
 - [cache_control_no_cache_argument_empty](violations/cache_control_no_cache_argument_empty.md) — Cache-Control no-cache is qualified by no field name
 - [cache_control_no_cache_ignored](violations/cache_control_no_cache_ignored.md) — A no-cache response is re-requested without its validator

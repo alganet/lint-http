@@ -6,11 +6,11 @@ SPDX-License-Identifier: ISC
 
 # cache_control_missing
 
-A 200 leaves its freshness lifetime to be guessed
+A heuristically cacheable response leaves its freshness lifetime to be guessed
 
 ## Message
 
-Response 200 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 
@@ -24,7 +24,7 @@ Response 200 carries neither Cache-Control nor Expires, so every cache that stor
 
 ```toml
 [violations.cache_control_missing]
-# A 200 leaves its freshness lifetime to be guessed
+# A heuristically cacheable response leaves its freshness lifetime to be guessed
 severity = "info"
 ```
 

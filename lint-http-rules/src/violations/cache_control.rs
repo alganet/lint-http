@@ -875,7 +875,15 @@ defects! {
         strength: Strength::Should,
     }
 
-    /// A `200` carrying no `Cache-Control` at all, and no `Expires` either.
+    /// A response a cache could store, on a status RFC 9110 § 15.1 defines as
+    /// heuristically cacheable, carrying no `Cache-Control` at all and no
+    /// `Expires` either.
+    ///
+    /// **Every status in the list, not a `200` alone.** The entry asked only a
+    /// `200` by choice, so a `404`, a `206` or a `301` with no lifetime drew
+    /// nothing from it, and nothing from the entry below, which asks the
+    /// statuses outside the list. The two now partition the final statuses, and
+    /// the message names the one that was sent.
     ///
     /// **Nothing requires the field**, and the entry is about what its absence
     /// hands to somebody else: § 4.2.2 lets a cache assign an expiration time
@@ -898,8 +906,8 @@ defects! {
     // cite(RFC 9111 § 4.2.2): "Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time."
     CACHE_CONTROL_MISSING = {
         id: "cache_control_missing",
-        title: "A 200 leaves its freshness lifetime to be guessed",
-        message: "Response 200 carries neither Cache-Control nor Expires, so every cache that stores it may assign a heuristic freshness lifetime of its own",
+        title: "A heuristically cacheable response leaves its freshness lifetime to be guessed",
+        message: "",
         default_severity: Severity::Info,
         spec: &[RFC_9111_4_2_2],
         strength: Strength::Unstated,
