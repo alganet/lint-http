@@ -169,7 +169,7 @@ sources:
     snippet: If values[0] is an ASCII case-insensitive match for "nosniff", then return true.
     cited_by:
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
-      line: 248
+      line: 253
     - file: lint-http-rules/src/violations/x_content_type_options.rs
       line: 70
   - label: x_content_type_options_present (2)
@@ -177,13 +177,13 @@ sources:
     snippet: The `X-Content-Type-Options` response header can be used to require checking of a response’s `Content-Type` header against the destination of a request.
     cited_by:
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
-      line: 272
+      line: 277
   - label: x_content_type_options_present (3)
     section: § 3.6
     snippet: X-Content-Type-Options = "nosniff" ; case-insensitive
     cited_by:
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
-      line: 247
+      line: 252
     - file: lint-http-rules/src/violations/x_content_type_options.rs
       line: 50
   - label: x_content_type_options_present (4)
@@ -191,13 +191,23 @@ sources:
     snippet: If destination is "style" and mimeType is failure or its essence is not "text/css", then return blocked.
     cited_by:
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
-      line: 103
+      line: 107
+    - file: lint-http-rules/src/rules/x_content_type_options_present.rs
+      line: 343
   - label: x_content_type_options_present (5)
+    section: § 3.6.1
+    snippet: If destination is script-like and mimeType is failure or is not a JavaScript MIME type, then return blocked.
+    cited_by:
+    - file: lint-http-rules/src/rules/x_content_type_options_present.rs
+      line: 106
+    - file: lint-http-rules/src/rules/x_content_type_options_present.rs
+      line: 342
+  - label: x_content_type_options_present (6)
     section: § 3.6.1
     snippet: Only request destinations that are script-like or "style" are considered as any exploits pertain to them.
     cited_by:
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
-      line: 285
+      line: 289
 - label: HTML
   url: https://html.spec.whatwg.org/multipage/browsers.html
   type: text/html
@@ -540,6 +550,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/refresh_header_syntax.rs
       line: 125
+- label: MIME Sniffing
+  url: https://mimesniff.spec.whatwg.org/
+  type: text/html
+  fragments:
+  - label: x_content_type_options_present
+    section: § 4.6
+    snippet: 'A JavaScript MIME type is any MIME type whose essence is one of the following:'
+    cited_by:
+    - file: lint-http-rules/src/rules/x_content_type_options_present.rs
+      line: 313
 - label: CSP3
   url: https://www.w3.org/TR/CSP3/
   type: text/html
@@ -9133,7 +9153,7 @@ sources:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
       line: 269
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
-      line: 221
+      line: 226
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
       line: 122
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs

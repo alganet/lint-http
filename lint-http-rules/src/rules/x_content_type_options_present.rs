@@ -79,27 +79,31 @@ impl RuleMeta for XContentTypeOptionsPresent {
         "x_content_type_options_present"
     }
 
-    /// The list stands in for a request destination, and Fetch names two.
+    /// The types a deployment wants refused to a page that loads them as
+    /// something they are not.
     ///
-    /// § 3.6.1 blocks a response for a script-like destination whose type is
-    /// not a JavaScript MIME type, and for a `"style"` destination whose
-    /// essence is not `text/css`. A proxy sees no destination, so these are the
-    /// types a deployment serves to those two — `text/javascript` and
-    /// `application/javascript` for the first, `text/css` for the second.
+    /// **The field protects a response from the destination whose type it is
+    /// not.** § 3.6.1 blocks a script-like destination any type that is not a
+    /// JavaScript MIME type, and a `"style"` destination any essence that is
+    /// not `text/css`. So the field never refuses a script its own type, or a
+    /// stylesheet its own: `text/javascript` loaded as a script is allowed
+    /// with or without it, and what it guards is that response loaded as a
+    /// stylesheet. `text/css` is the mirror: guarded against a script load,
+    /// and allowed as a stylesheet either way.
     ///
-    /// **The two halves are not the same kind of list.** `text/css` is the
-    /// whole of what `"style"` accepts: the sentence names one essence and
-    /// there is no second. *JavaScript MIME type* is a defined set with more
-    /// members than the two here, and a deployment serving one of the older
-    /// spellings — `application/x-javascript` among them — is serving script
-    /// this list says nothing about. Those two are the spellings in use, not
-    /// the set; add the one you serve.
+    /// `text/html` and `application/json` are refused to both destinations,
+    /// and they are the types a cross-site page most wants to read as script:
+    /// a document or an API answer carrying the user's data. That is the case
+    /// the field exists for, and the reason no type is on this list for being
+    /// what a script or a stylesheet is served as.
     ///
-    /// `text/html` and `application/json` are neither, and are here on the
-    /// wider ground the field's own prose states: `nosniff` stops a recipient
-    /// sniffing *away* from the declared type at all, and those two are the
-    /// types a deployment least wants re-read as something else.
+    /// Every type is refused to at least one of the two, so the list is a
+    /// choice of which responses to ask about rather than a set the
+    /// specification closes. A deployment serving another type it would not
+    /// want read as script — `text/plain`, or whatever type its uploads are
+    /// served as — adds it.
     ///
+    // cite(Fetch § 3.6.1): "If destination is script-like and mimeType is failure or is not a JavaScript MIME type, then return blocked."
     // cite(Fetch § 3.6.1): "If destination is "style" and mimeType is failure or its essence is not "text/css", then return blocked."
     fn config_example(&self) -> &'static str {
         r#"enabled = true
@@ -150,10 +154,11 @@ content_types = ["text/html", "text/javascript", "application/javascript", "appl
                 label: Some("Response"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/javascript\n# Missing X-Content-Type-Options header",
             },
-            // The `"style"` half, published because it is the half a reader
-            // would not guess from the two above: a stylesheet is the other
-            // destination Fetch § 3.6.1 blocks for, and `text/css` the only
-            // essence it accepts.
+            // The mirror of the two above, published because it is the half a
+            // reader would not guess from them: the script is guarded against
+            // a stylesheet load, and a stylesheet is guarded against a script
+            // load, since Fetch § 3.6.1 refuses each destination the types it
+            // does not accept and a script load accepts no `text/css`.
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("Response"),
@@ -273,11 +278,10 @@ impl Rule for XContentTypeOptionsPresent {
                 // The 2xx gate is the rule's own tolerance (no sentence scopes the header
                 // to successful responses). The configured content-type list stands in for
                 // the request destination, which a proxy cannot know: the spec only blocks
-                // for script-like and style destinations, so the config names the types a
-                // deployment serves to those destinations. **Both of them** — the shipped
-                // list stood in for script-like alone, and a stylesheet served without the
-                // field, which is the whole of the `"style"` half, drew nothing.
-                // `config_example` says which type answers for which destination. That stand-in cannot hold for a
+                // for script-like and style destinations, and it blocks each of them the
+                // types it does *not* accept, so the config names the types a deployment
+                // wants refused to a page loading them as something they are not.
+                // `config_example` says why each shipped type is there. That stand-in cannot hold for a
                 // method whose destination is never script-like or style regardless of the
                 // content-type carried: a CORS preflight (OPTIONS), a loopback diagnostic
                 // (TRACE), and a tunnel's own response (CONNECT) are never fetched for
@@ -288,13 +292,70 @@ impl Rule for XContentTypeOptionsPresent {
                     && config.content_types.contains(&content_type)
                     && !resp.headers.contains_key("x-content-type-options")
                 {
-                    return Some(ctx.report(&X_CONTENT_TYPE_OPTIONS_MISSING));
+                    return Some(ctx.report_with(
+                        &X_CONTENT_TYPE_OPTIONS_MISSING,
+                        missing_sentence(&content_type),
+                    ));
                 }
             }
             None
         };
         Vec::from_iter(finding())
     }
+}
+
+/// The essences MIME Sniffing calls a *JavaScript MIME type*, which is the set
+/// § 3.6.1's script-like half compares against.
+///
+/// Written out because the finding's sentence depends on it: the field never
+/// refuses a script one of these, so for such a response the stylesheet load
+/// is the whole of what it guards.
+// cite(MIME Sniffing § 4.6): "A JavaScript MIME type is any MIME type whose essence is one of the following:"
+const JAVASCRIPT_MIME_TYPE_ESSENCES: &[&str] = &[
+    "application/ecmascript",
+    "application/javascript",
+    "application/x-ecmascript",
+    "application/x-javascript",
+    "text/ecmascript",
+    "text/javascript",
+    "text/javascript1.0",
+    "text/javascript1.1",
+    "text/javascript1.2",
+    "text/javascript1.3",
+    "text/javascript1.4",
+    "text/javascript1.5",
+    "text/jscript",
+    "text/livescript",
+    "text/x-ecmascript",
+    "text/x-javascript",
+];
+
+/// What the field would have refused this response to, named for its type.
+///
+/// **The destination a response is guarded against is the one whose type it is
+/// not**, so the sentence differs by type: a script type is guarded only
+/// against a stylesheet load, `text/css` only against a script load, and
+/// anything else against both. One sentence for all three told an operator
+/// serving a script that the field protects the script, which it cannot.
+/// `essence` arrives lowercased, and the comparison is exact against the
+/// lowercase set above.
+// cite(Fetch § 3.6.1): "If destination is script-like and mimeType is failure or is not a JavaScript MIME type, then return blocked."
+// cite(Fetch § 3.6.1): "If destination is "style" and mimeType is failure or its essence is not "text/css", then return blocked."
+fn missing_sentence(essence: &str) -> String {
+    let guarded = if JAVASCRIPT_MIME_TYPE_ESSENCES.contains(&essence) {
+        "to a stylesheet load, whose destination accepts only `text/css`; a script load \
+         accepts it either way, since it is a JavaScript MIME type"
+    } else if essence == "text/css" {
+        "to a script load, whose destination accepts only a JavaScript MIME type; a \
+         stylesheet load accepts it either way"
+    } else {
+        "to a script load and to a stylesheet load, whose destinations accept only a \
+         JavaScript MIME type and only `text/css`"
+    };
+    format!(
+        "Response of type '{essence}' carries no `X-Content-Type-Options: nosniff`; with it, \
+         Fetch \u{a7}3.6.1 would refuse the response {guarded}"
+    )
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -356,12 +417,12 @@ mod tests {
     }
 
     #[rstest]
-    #[case(200, vec![("content-type", "text/html")], vec!["text/html"], true, Some("Missing X-Content-Type-Options: nosniff header"))]
+    #[case(200, vec![("content-type", "text/html")], vec!["text/html"], true, Some("Response of type 'text/html' carries no `X-Content-Type-Options: nosniff`; with it, Fetch \u{a7}3.6.1 would refuse the response to a script load and to a stylesheet load, whose destinations accept only a JavaScript MIME type and only `text/css`"))]
     #[case(200, vec![("content-type", "text/javascript"), ("x-content-type-options", "nosniff")], vec!["text/javascript"], false, None)]
     #[case(404, vec![("content-type", "text/html")], vec!["text/html"], false, None)]
     #[case(101, vec![("content-type", "text/html")], vec!["text/html"], false, None)]
     #[case(200, vec![("content-type", "image/png")], vec!["text/html"], false, None)]
-    #[case(200, vec![("content-type", "text/html; charset=utf-8")], vec!["text/html"], true, Some("Missing X-Content-Type-Options: nosniff header"))]
+    #[case(200, vec![("content-type", "text/html; charset=utf-8")], vec!["text/html"], true, Some("Response of type 'text/html' carries no `X-Content-Type-Options: nosniff`; with it, Fetch \u{a7}3.6.1 would refuse the response to a script load and to a stylesheet load, whose destinations accept only a JavaScript MIME type and only `text/css`"))]
     // A present header must enable the protection: the first value is matched
     // ASCII case-insensitively against `nosniff`.
     #[case(200, vec![("content-type", "text/html"), ("x-content-type-options", "foobar")], vec!["text/html"], true, Some("X-Content-Type-Options value 'foobar' does not enable nosniff (the value must be `nosniff`, case-insensitive)"))]
@@ -370,13 +431,22 @@ mod tests {
     // The value check is independent of status and configured types: a malformed
     // security header is wrong wherever it is sent.
     #[case(404, vec![("content-type", "text/html"), ("x-content-type-options", "sniff")], vec!["text/html"], true, Some("X-Content-Type-Options value 'sniff' does not enable nosniff (the value must be `nosniff`, case-insensitive)"))]
-    // The `"style"` destination: `text/css` is the only essence it accepts, so
-    // a stylesheet is the shape the other half of Fetch §3.6.1 is about. Both
+    // A stylesheet is guarded against the destination it is not: a script
+    // load, which accepts only a JavaScript MIME type, while a stylesheet load
+    // accepts it either way. The sentence says so rather than the reverse. Both
     // directions, because a list that named the type and fired on it whatever
     // the field said would pass the first case alone.
-    #[case(200, vec![("content-type", "text/css")], vec!["text/css"], true, Some("Missing X-Content-Type-Options: nosniff header"))]
-    #[case(200, vec![("content-type", "text/css; charset=utf-8")], vec!["text/css"], true, Some("Missing X-Content-Type-Options: nosniff header"))]
+    #[case(200, vec![("content-type", "text/css")], vec!["text/css"], true, Some("Response of type 'text/css' carries no `X-Content-Type-Options: nosniff`; with it, Fetch \u{a7}3.6.1 would refuse the response to a script load, whose destination accepts only a JavaScript MIME type; a stylesheet load accepts it either way"))]
+    #[case(200, vec![("content-type", "text/css; charset=utf-8")], vec!["text/css"], true, Some("Response of type 'text/css' carries no `X-Content-Type-Options: nosniff`; with it, Fetch \u{a7}3.6.1 would refuse the response to a script load, whose destination accepts only a JavaScript MIME type; a stylesheet load accepts it either way"))]
     #[case(200, vec![("content-type", "text/css"), ("x-content-type-options", "nosniff")], vec!["text/css"], false, None)]
+    // A script is guarded against a stylesheet load only: the script-like
+    // half never refuses a JavaScript MIME type, so a sentence naming it would
+    // tell the operator the field protects the script. `application/x-javascript`
+    // is a spelling in the set and not in the shipped list; the sentence reads
+    // the set, not the list. `text/plain` is in neither group and draws both.
+    #[case(200, vec![("content-type", "text/javascript")], vec!["text/javascript"], true, Some("Response of type 'text/javascript' carries no `X-Content-Type-Options: nosniff`; with it, Fetch \u{a7}3.6.1 would refuse the response to a stylesheet load, whose destination accepts only `text/css`; a script load accepts it either way, since it is a JavaScript MIME type"))]
+    #[case(200, vec![("content-type", "application/x-javascript")], vec!["application/x-javascript"], true, Some("Response of type 'application/x-javascript' carries no `X-Content-Type-Options: nosniff`; with it, Fetch \u{a7}3.6.1 would refuse the response to a stylesheet load, whose destination accepts only `text/css`; a script load accepts it either way, since it is a JavaScript MIME type"))]
+    #[case(200, vec![("content-type", "text/plain")], vec!["text/plain"], true, Some("Response of type 'text/plain' carries no `X-Content-Type-Options: nosniff`; with it, Fetch \u{a7}3.6.1 would refuse the response to a script load and to a stylesheet load, whose destinations accept only a JavaScript MIME type and only `text/css`"))]
     // Two field lines are a defect before either value is read: Fetch §3.6
     // gives the field one literal and no list alternative, so §5.3's exception
     // does not reach it. The first pair is the shape a real origin sends —
@@ -438,7 +508,7 @@ mod tests {
             // read. The message tells them apart because each is worded by the
             // entry it reports, and none of the three could be worded as
             // another.
-            let (id, severity) = if found.message.starts_with("Missing") {
+            let (id, severity) = if found.message.starts_with("Response of type") {
                 (
                     "x_content_type_options_missing",
                     crate::lint::Severity::Info,
@@ -677,20 +747,22 @@ mod tests {
 
     /// The shipped list is a claim, and this is the claim run rather than read.
     ///
-    /// Fetch § 3.6.1 blocks for two destinations and names the type each
-    /// accepts. Neither name appears here: what is asserted is that a response
-    /// carrying each of those types, under **the configuration the binary
-    /// ships**, draws the entry when the field is absent — which is what the
-    /// list is for. A list that loses either half fails this, and a list that
-    /// gains a type does not.
+    /// What is asserted is that each type `config_example` gives a reason for
+    /// draws the entry, under **the configuration the binary ships**, when the
+    /// field is absent. `text/html` and `application/json` are refused to both
+    /// destinations Fetch § 3.6.1 blocks for; `text/javascript` is refused to a
+    /// stylesheet load and `text/css` to a script load, each the destination
+    /// whose type it is not. A list that loses one of them fails this, and a
+    /// list that gains a type does not.
     ///
-    /// The `text/css` row is the one that failed: the shipped list stood in for
-    /// script-like destinations alone, so a stylesheet served without the field
-    /// drew nothing at all.
+    /// The `text/css` row is the one that failed first: the shipped list had no
+    /// stylesheet type, so a stylesheet served without the field drew nothing.
     #[rstest]
+    #[case("text/html")]
+    #[case("application/json")]
     #[case("text/javascript")]
     #[case("text/css")]
-    fn the_shipped_list_answers_for_both_blocked_destinations(#[case] content_type: &str) {
+    fn the_shipped_list_asks_about_every_type_it_gives_a_reason_for(#[case] content_type: &str) {
         let rule = XContentTypeOptionsPresent;
 
         let mut config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);

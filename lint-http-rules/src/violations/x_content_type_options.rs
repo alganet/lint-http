@@ -71,7 +71,7 @@ defects! {
     X_CONTENT_TYPE_OPTIONS_MISSING = {
         id: "x_content_type_options_missing",
         title: "A response does not ask for its content type to be respected",
-        message: "Missing X-Content-Type-Options: nosniff header",
+        message: "",
         default_severity: Severity::Info,
         spec: &[FETCH_3_6],
     }

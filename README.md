@@ -45,7 +45,10 @@ GET https://example.com/ -> 200
         Text-based Content-Type header missing charset parameter.
         [RFC 9110 §8.3.2 https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2]
   info  x_content_type_options_missing
-        Missing X-Content-Type-Options: nosniff header
+        Response of type 'text/html' carries no `X-Content-Type-Options:
+        nosniff`; with it, Fetch §3.6.1 would refuse the response to a script
+        load and to a stylesheet load, whose destinations accept only a
+        JavaScript MIME type and only `text/css`
         [Fetch §3.6 https://fetch.spec.whatwg.org/#x-content-type-options-header]
 
 5 findings (5 info) in 2 transactions

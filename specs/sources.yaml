@@ -94,6 +94,12 @@ sources:
     # Cited only for the primitives the other WHATWG documents invoke by name:
     # isomorphic decoding, ASCII whitespace.
 
+  - label: MIME Sniffing
+    url: https://mimesniff.spec.whatwg.org/
+    type: text/html
+    # Cited for the MIME type groups Fetch invokes by name — "JavaScript MIME
+    # type" is defined here and only used there.
+
   # ── W3C ───────────────────────────────────────────────────────────────
 
   - label: CSP3

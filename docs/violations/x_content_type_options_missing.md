@@ -10,7 +10,7 @@ A response does not ask for its content type to be respected
 
 ## Message
 
-Missing X-Content-Type-Options: nosniff header
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 
