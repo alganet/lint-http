@@ -3164,6 +3164,11 @@ severity = "error"
 # A false precondition is answered with success, and nothing shows whether the change was already in place
 severity = "warn"
 
+[violations.status_412_forbidden]
+# A GET or HEAD whose If-None-Match was false is answered 412 rather than 304
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.status_412_missing]
 # A false precondition on a state-changing request is answered with success rather than 412
 # MUST obliges the sender, so this defaults to error.

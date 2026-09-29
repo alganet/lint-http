@@ -843,6 +843,40 @@ defects! {
         strength: Strength::Must,
     }
 
+    /// A `GET` or `HEAD` whose `If-None-Match` evaluated false, answered with
+    /// `412` rather than the `304` § 13.1.2 requires of those two methods.
+    ///
+    /// **The other half of [`STATUS_412_MISSING`]'s sentence.** § 13.1.2 fixes
+    /// which status answers a false `If-None-Match` by method: `304` for `GET`
+    /// and `HEAD`, `412` for the rest. A `412` on a `GET` is the second answer
+    /// given where the first is owed.
+    ///
+    /// **Read out of the one exchange.** § 15.5.13 defines `412` as a
+    /// condition in the request's header fields evaluating false, so where
+    /// `If-None-Match` is the only precondition the request carried that could
+    /// be, the status says which condition failed and nothing needs to be
+    /// recomputed. A request that also carried `If-Match` or
+    /// `If-Unmodified-Since` is declined, since § 13.2.2 evaluates those first
+    /// and answers either with `412` on every method; so is one carrying an
+    /// extension's precondition, whose place in that order its own document
+    /// defines.
+    ///
+    /// **`error`, and a different loss from [`STATUS_304_MISSING`]'s.** A
+    /// `200` there resends a representation the client already holds. A `412`
+    /// here is a full response to a cache revalidating a stored one, and a
+    /// cache handed a full response uses it: its client receives the error in
+    /// place of a representation that was still good.
+    ///
+    // cite(RFC 9110 § 13.1.2): "An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods."
+    STATUS_412_FORBIDDEN = {
+        id: "status_412_forbidden",
+        title: "A GET or HEAD whose If-None-Match was false is answered 412 rather than 304",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_13_1_2],
+        strength: Strength::Must,
+    }
+
     /// A state-changing request whose `If-Match` or `If-Unmodified-Since`
     /// evaluated false, answered with a `2xx` that carries no validator.
     ///
