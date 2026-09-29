@@ -224,6 +224,7 @@ pub fn challenge_defect(defect: AuthDefect<'_>) -> &'static ViolationDef {
         AuthDefect::ParameterQuotedValue { defect, .. } => quoted_string_defect(defect),
         AuthDefect::ParameterDuplicated(_) => &CHALLENGE_PARAMETER_DUPLICATED,
         AuthDefect::RealmUnquoted(_) => &AUTH_PARAM_REALM_QUOTING_INVALID,
+        AuthDefect::ParameterBws(_) => &crate::violations::bws::BWS_FORBIDDEN,
     }
 }
 
@@ -310,6 +311,7 @@ mod tests {
                 AuthDefect::RealmUnquoted("foo"),
                 "auth_param_realm_quoting_invalid",
             ),
+            (AuthDefect::ParameterBws("realm = \"x\""), "bws_forbidden"),
             (
                 AuthDefect::ParameterQuotedValue {
                     name: "realm",

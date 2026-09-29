@@ -31,7 +31,10 @@ severity = "error"
 
 ## Reported By
 
+- [authorization_credentials_valid](../rules/authorization_credentials_valid.md)
 - [link_header_valid](../rules/link_header_valid.md)
 - [prefer_header_valid](../rules/prefer_header_valid.md)
 - [preference_applied_header_valid](../rules/preference_applied_header_valid.md)
+- [proxy_authenticate_challenge_syntax](../rules/proxy_authenticate_challenge_syntax.md)
 - [te_header_valid](../rules/te_header_valid.md)
+- [www_authenticate_challenge_syntax](../rules/www_authenticate_challenge_syntax.md)

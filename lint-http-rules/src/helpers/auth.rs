@@ -414,6 +414,14 @@ pub enum AuthDefect<'a> {
     /// outside both alternatives is a value a recipient cannot read at all,
     /// and it is the one a sender fixes first.
     RealmUnquoted(&'a str),
+    /// Whitespace beside an `auth-param`'s `=`, carrying the member as written.
+    ///
+    /// **Held back like the two above, and ranked below them.** `auth-param`
+    /// prints `BWS` there, so the member derives, and a recipient is required
+    /// to remove the octets and read what is left. What refuses them is
+    /// § 5.6.3's requirement on the sender. A duplicated name and a token realm
+    /// change what a recipient reads, and this does not.
+    ParameterBws(&'a str),
 }
 
 impl AuthDefect<'_> {
@@ -483,6 +491,10 @@ impl AuthDefect<'_> {
                 "{field} writes its realm as the token '{}', and RFC 9110 \u{a7}11.5 admits only the quoted-string syntax for it (\"For historical reasons, a sender MUST only generate the quoted-string syntax\") \u{2014} write realm=\"{}\" instead",
                 crate::helpers::shown::shown_in_finding(value),
                 value
+            ),
+            Self::ParameterBws(member) => format!(
+                "{field} auth-param '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
+                crate::helpers::shown::shown_in_finding(member)
             ),
         }
     }
@@ -785,15 +797,22 @@ pub fn validate_scheme_tail(
         let mut seen: Vec<String> = Vec::new();
         let mut duplicated: Option<&str> = None;
 
+        // § 5.6.3's MUST NOT on the sender, held back behind both of the above:
+        // `auth-param` prints `BWS` beside its `=`, so the member derives and a
+        // recipient reads it with the whitespace removed. The first member
+        // carrying it, on the same footing as the realm.
+        // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
+        let mut bws: Option<&str> = None;
+
         for param in split_commas_respecting_quotes(rest) {
             if members == MemberEmptiness::ReadHere && param.trim().is_empty() {
                 return Err(AuthDefect::ParameterMemberEmpty);
             }
             let mut kv = param.splitn(2, '=');
-            let name = kv
+            let name_written = kv
                 .next()
                 .expect("splitn always yields at least one element");
-            let name = trim_ows(name);
+            let name = trim_ows(name_written);
             let val = kv.next();
             if name.is_empty() {
                 return Err(AuthDefect::EmptyParameterName);
@@ -811,6 +830,11 @@ pub fn validate_scheme_tail(
             let v = trim_ows(val);
             if v.is_empty() {
                 return Err(AuthDefect::ParameterValueEmpty(name));
+            }
+            if bws.is_none()
+                && (name_written.ends_with(is_sp_or_htab) || val.starts_with(is_sp_or_htab))
+            {
+                bws = Some(trim_ows(param));
             }
             if v.starts_with('"') {
                 if let Err(defect) = crate::helpers::quoted_string::check_quoted_string(v) {
@@ -843,6 +867,9 @@ pub fn validate_scheme_tail(
         }
         if let Some(value) = unquoted_realm {
             return Err(AuthDefect::RealmUnquoted(value));
+        }
+        if let Some(member) = bws {
+            return Err(AuthDefect::ParameterBws(member));
         }
     }
 
@@ -1496,6 +1523,52 @@ mod tests {
     fn quoted_commas_are_respected() {
         let got = split_and_group_challenges("Basic realm=\"a,b\", more=1").unwrap();
         assert_eq!(got, vec!["Basic realm=\"a,b\", more=1".to_string()]);
+    }
+
+    /// Whitespace on either side of an `auth-param`'s `=` is `BWS`, on either
+    /// side of the framework, and it is held back behind the realm's spelling.
+    #[test]
+    fn whitespace_beside_an_auth_params_equals_is_bws() {
+        for (value, side, member) in [
+            ("Basic realm = \"x\"", Side::Challenge, "realm = \"x\""),
+            (
+                "Digest realm=\"x\", algorithm = SHA-256",
+                Side::Challenge,
+                "algorithm = SHA-256",
+            ),
+            (
+                "Digest realm=\"x\", nonce\t=\"n\"",
+                Side::Challenge,
+                "nonce\t=\"n\"",
+            ),
+            (
+                "Digest username= \"u\", realm=\"x\"",
+                Side::Credentials,
+                "username= \"u\"",
+            ),
+        ] {
+            assert_eq!(
+                validate_scheme_tail(value, side, MemberEmptiness::ReadHere),
+                Err(AuthDefect::ParameterBws(member)),
+                "{value}"
+            );
+        }
+        assert_eq!(
+            validate_scheme_tail(
+                "Custom realm=x, a = b",
+                Side::Challenge,
+                MemberEmptiness::ReadHere
+            ),
+            Err(AuthDefect::RealmUnquoted("x"))
+        );
+        assert_eq!(
+            validate_scheme_tail(
+                "Basic  realm=\"x\",\tcharset=\"UTF-8\"",
+                Side::Challenge,
+                MemberEmptiness::ReadHere
+            ),
+            Ok(())
+        );
     }
 
     /// `BWS` before an `auth-param`'s `=` is whitespace inside a parameter, not

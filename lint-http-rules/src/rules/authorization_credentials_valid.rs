@@ -10,6 +10,7 @@ use crate::violations::auth_param::{
     RFC_9110_11_5,
 };
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
+use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
 use crate::violations::credentials::{
     credentials_defect, CREDENTIALS_CONTROL_CHARACTER_FORBIDDEN, CREDENTIALS_EMPTY,
     CREDENTIALS_MISSING, RFC_9110_11_4, RFC_9110_11_6_2,
@@ -77,6 +78,7 @@ static DECLARED: &[&ViolationDef] = &[
     &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
     &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
     &AUTH_PARAM_REALM_QUOTING_INVALID,
+    &BWS_FORBIDDEN,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
@@ -128,6 +130,7 @@ impl RuleMeta for AuthorizationCredentialsValid {
             RFC_9110_11_6_2,
             RFC_9110_11_4,
             RFC_9110_11_2,
+            RFC_9110_5_6_3,
             RFC_9110_11_5,
             // The `#` on `#auth-param` is the list construct, and its members
             // answer to § 5.6.1.1 like every other list's.
@@ -355,6 +358,7 @@ mod tests {
     // HTAB is `OWS` beside an `#auth-param` comma, and not a control octet
     // either alternative refuses.
     #[case("Digest username=\"Mufasa\",\trealm=\"test\"", None)]
+    #[case("Digest username = \"Mufasa\", realm=\"test\"", Some("bws_forbidden"))]
     #[case("", Some("credentials_empty"))]
     #[case(" ", Some("credentials_empty"))]
     #[case("Basic", Some("credentials_missing"))]

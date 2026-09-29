@@ -12,6 +12,13 @@
 //! and each of the rules reading them had written its own sentence about a
 //! space nobody should have typed.
 //!
+//! RFC 9110's own `auth-param = token BWS "=" BWS ( token / quoted-string )`
+//! is the fifth, and it went unreported for longest: the challenge and
+//! credentials walk removed the whitespace and read on. It reads the four
+//! challenge and credentials fields now. § 11.6.3 and § 11.7.3 write
+//! `Authentication-Info` and `Proxy-Authentication-Info` as `#auth-param`
+//! too, and no rule reads either field, so this sentence is unread there.
+//!
 //! **This is not `parameter_equals_whitespace_forbidden`, and the difference is
 //! which sentence refuses the octet.** § 5.6.6's `parameter` prints no
 //! whitespace at all and adds a Note refusing even the "bad" kind, so there the

@@ -10,6 +10,7 @@ use crate::violations::auth_param::{
     RFC_9110_11_5,
 };
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
+use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
 use crate::violations::challenge::{
     CHALLENGE_MEMBER_EMPTY, CHALLENGE_PARAMETER_DUPLICATED, CHALLENGE_SCHEME_MISSING,
     CHALLENGE_TOKEN68_INVALID, RFC_9110_11_3, RFC_9110_11_6_1,
@@ -43,6 +44,7 @@ static DECLARED: &[&ViolationDef] = &[
     &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
     &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
     &AUTH_PARAM_REALM_QUOTING_INVALID,
+    &BWS_FORBIDDEN,
     &CHALLENGE_PARAMETER_DUPLICATED,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_PAIR_MALFORMED,
@@ -69,6 +71,7 @@ impl RuleMeta for WwwAuthenticateChallengeSyntax {
             RFC_9110_11_6_1,
             RFC_9110_11_3,
             RFC_9110_11_2,
+            RFC_9110_5_6_3,
             RFC_9110_11_5,
             RFC_9110_5_6_4,
         ]
@@ -200,6 +203,11 @@ mod tests {
     #[case("Basic realm=\"example\"", false)]
     #[case("Bearer realm=\"example\", error=\"invalid_token\"", false)]
     #[case("NewScheme abcdef123=", false)]
+    // `auth-param` prints `BWS` beside its `=`, and § 5.6.3 forbids a sender
+    // to write it; the parameter after a comma is still a parameter.
+    #[case("Basic realm = \"example\"", true)]
+    #[case("Digest realm=\"x\", nonce=\"n\", algorithm = SHA-256", true)]
+    #[case("Basic realm=\"x\",\tcharset=\"UTF-8\"", false)]
     // `token68` closes with `*"="`, so a credential's padding is inside the
     // production. Both of these were an `error` about the second `=`, read as a
     // character where an `auth-param`'s value goes; `Negotiate <base64>==` is
