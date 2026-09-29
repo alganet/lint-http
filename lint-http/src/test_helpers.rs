@@ -18,3 +18,20 @@ pub fn make_proxy_config_with_enabled_rules(rules: &[&str]) -> crate::config::Co
         ..Default::default()
     }
 }
+
+/// A loopback port that refuses connections for as long as the returned socket
+/// is held.
+///
+/// The idiom this replaces bound a listener to port 0, read the port and
+/// dropped the listener, so the port was free the moment the test asked it to
+/// be refused -- and free for any test running beside it to bind. When one
+/// did, the connection the test expected to fail went through and the test
+/// failed on a machine doing nothing wrong. A socket that is bound and never
+/// listens holds the port against every other bind and answers a connection
+/// with a reset, which is the refusal the test is about.
+pub fn refusing_port() -> std::io::Result<(tokio::net::TcpSocket, u16)> {
+    let socket = tokio::net::TcpSocket::new_v4()?;
+    socket.bind(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))?;
+    let port = socket.local_addr()?.port();
+    Ok((socket, port))
+}

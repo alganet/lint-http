@@ -398,10 +398,8 @@ mod tests {
 
     #[tokio::test]
     async fn connect_upstream_for_upgrade_fails_with_closed_port() {
-        // pick a port that's not listening
-        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = l.local_addr().unwrap().port();
-        drop(l);
+        // A port that refuses, held for the whole test.
+        let (_held, port) = crate::test_helpers::refusing_port().unwrap();
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse().unwrap();
         let result =
             connect_upstream_for_upgrade(&uri, &hyper::http::uri::Scheme::HTTP, &test_tls_config())
@@ -416,10 +414,8 @@ mod tests {
         let mut temp = crate::temp_files::TempFiles::new();
         let (shared, tmp, cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
-        // Build a request targeting a closed port
-        let l = std::net::TcpListener::bind("127.0.0.1:0")?;
-        let port = l.local_addr()?.port();
-        drop(l);
+        // Build a request targeting a port that refuses, held for the whole test
+        let (_held, port) = crate::test_helpers::refusing_port()?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
         // Create a fake OnUpgrade that will never complete

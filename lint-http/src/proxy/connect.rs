@@ -257,10 +257,8 @@ mod tests {
     async fn tunnel_fails_when_remote_not_listening() -> anyhow::Result<()> {
         use tokio::io::AsyncWriteExt;
 
-        // pick a currently-unused port by binding and dropping
-        let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
-        let port = listener.local_addr()?.port();
-        drop(listener);
+        // A port that refuses, held for the whole test
+        let (_held, port) = crate::test_helpers::refusing_port()?;
 
         // Create a duplex pair to simulate the upgraded client side
         let (mut client_side, server_side) = tokio::io::duplex(64);
