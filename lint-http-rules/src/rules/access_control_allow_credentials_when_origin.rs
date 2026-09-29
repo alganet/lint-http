@@ -154,15 +154,18 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
             }
 
             // Same reading, same reason: the question is whether this value is
-            // the word `true`, and an octet is not it.
-            let acc_line = crate::helpers::headers::field_lines_as_written(
+            // the word `true`, and an octet is not it. **Every line, joined**,
+            // because the CORS check *gets* the field, and getting joins the
+            // lines with ", " before anything is compared. Two `true` lines are
+            // the value `true, true`, which shares with no credentialed request;
+            // the first line alone answered that they had turned sharing on.
+            // cite(Fetch § 2.2.2): "Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20"
+            let acc_joined = crate::helpers::headers::field_lines_as_written(
                 headers,
                 "access-control-allow-credentials",
             )
-            .into_iter()
-            .next()
-            .expect("a field line, since the count above is non-zero");
-            let acc_val = crate::helpers::headers::trim_ows(&acc_line);
+            .join(", ");
+            let acc_val = crate::helpers::headers::trim_ows(&acc_joined);
 
             // The production generates one value and the CORS check compares
             // against it as bytes, so `TRUE`, `false`, `1` and an octet all
@@ -187,11 +190,21 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
             // cite(Fetch § 3.3.4, label: the value the production generates): "Access-Control-Allow-Credentials = %s"true" ; case-sensitive"
             // cite(Fetch § 4.10, label: CORS check reads the field): "Let credentials be the result of getting `Access-Control-Allow-Credentials` from response’s header list."
             if acc_val != "true" {
+                // Several lines are named as lines: the sender wrote `true`
+                // on each, and the value the check compares is one they never
+                // typed.
+                let written = if acc_count > 1 {
+                    format!(
+                        "written on {acc_count} field lines, which the CORS check gets as '{}'",
+                        crate::helpers::shown::shown_in_finding(acc_val)
+                    )
+                } else {
+                    format!("'{}'", crate::helpers::shown::shown_in_finding(acc_val))
+                };
                 return Some(ctx.report_with(
                     &ACCESS_CONTROL_ALLOW_CREDENTIALS_INVALID,
                     format!(
-                        "Access-Control-Allow-Credentials is '{}', which is not the byte sequence `true`: the CORS check shares nothing with credentials for any other value",
-                        crate::helpers::shown::shown_in_finding(acc_val)
+                        "Access-Control-Allow-Credentials is {written}, which is not the byte sequence `true`: the CORS check shares nothing with credentials for any other value"
                     ),
                 ));
             }
@@ -449,6 +462,50 @@ mod tests {
         assert!(
             message.starts_with("Access-Control-Allow-Credentials is 'TRUE'"),
             "{message}"
+        );
+    }
+
+    /// **The CORS check gets the field, and getting joins its lines.** Two
+    /// `true` lines are `true, true`, which is not the byte sequence, so no
+    /// credentialed request is shared with. The first line alone drew nothing
+    /// beside a named origin, the pairing finding beside `*`, and the
+    /// redundancy finding for `false` followed by `true`.
+    #[rstest]
+    #[case::two_true("https://a.example", &["true", "true"], "true, true")]
+    #[case::two_true_beside_star("*", &["true", "true"], "true, true")]
+    #[case::false_then_true("https://a.example", &["false", "true"], "false, true")]
+    #[case::true_then_other("https://a.example", &["true", "yes"], "true, yes")]
+    fn several_lines_are_read_as_the_check_gets_them(
+        #[case] acao: &str,
+        #[case] lines: &[&str],
+        #[case] got: &str,
+    ) {
+        let rule = AccessControlAllowCredentialsWhenOrigin;
+        let mut pairs = vec![("access-control-allow-origin", acao)];
+        pairs.extend(
+            lines
+                .iter()
+                .map(|l| ("access-control-allow-credentials", *l)),
+        );
+        let tx = crate::test_helpers::make_test_transaction_with_response(200, &pairs);
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(
+            found[0].violation,
+            "access_control_allow_credentials_invalid"
+        );
+        assert_eq!(
+            found[0].message,
+            format!(
+                "Access-Control-Allow-Credentials is written on 2 field lines, which the CORS \
+                 check gets as '{got}', which is not the byte sequence `true`: the CORS check \
+                 shares nothing with credentials for any other value"
+            )
         );
     }
 

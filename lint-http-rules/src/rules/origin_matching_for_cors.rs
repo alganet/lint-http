@@ -298,17 +298,21 @@ impl Rule for OriginMatchingForCors {
             // to be case-insensitive**, which named the wildcard as the obstacle
             // in a response where echoing the origin would share nothing either.
             // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
+            //
+            // The credentials field is *got*, every line joined with ", ", so
+            // two `true` lines are `true, true` and turn nothing on either.
+            // cite(Fetch § 4.10, label: CORS check reads the field): "Let credentials be the result of getting `Access-Control-Allow-Credentials` from response’s header list."
             if acao_val == "*" {
-                if let Some(cred) = crate::helpers::headers::get_header_str(
+                let cred = crate::helpers::headers::field_lines_as_written(
                     &resp.headers,
                     "access-control-allow-credentials",
-                ) {
-                    if crate::helpers::headers::trim_ows(cred) == "true" {
-                        return Some(
-                            ctx.by_server()
-                                .report(&ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING),
-                        );
-                    }
+                )
+                .join(", ");
+                if crate::helpers::headers::trim_ows(&cred) == "true" {
+                    return Some(
+                        ctx.by_server()
+                            .report(&ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING),
+                    );
                 }
                 return None;
             }
@@ -663,23 +667,25 @@ mod tests {
     /// second half of this test asserts so the silence here is not the only
     /// word on it.
     #[rstest]
-    #[case::the_literal("true", true)]
-    #[case::padded_with_ows("  true ", true)]
-    #[case::upper_case("TRUE", false)]
-    #[case::title_case("True", false)]
-    #[case::a_digit("1", false)]
+    #[case::the_literal(&["true"], true)]
+    #[case::padded_with_ows(&["  true "], true)]
+    #[case::upper_case(&["TRUE"], false)]
+    #[case::title_case(&["True"], false)]
+    #[case::a_digit(&["1"], false)]
+    // The check gets the field, joining its lines: `true, true`.
+    #[case::two_true_lines(&["true", "true"], false)]
     fn wildcard_pairs_only_with_the_byte_sequence_true(
-        #[case] credentials: &str,
+        #[case] credentials: &[&str],
         #[case] pairs: bool,
     ) {
         let rule = OriginMatchingForCors;
-        let mut tx = make_test_transaction_with_response(
-            200,
-            &[
-                ("access-control-allow-origin", "*"),
-                ("access-control-allow-credentials", credentials),
-            ],
+        let mut headers = vec![("access-control-allow-origin", "*")];
+        headers.extend(
+            credentials
+                .iter()
+                .map(|c| ("access-control-allow-credentials", *c)),
         );
+        let mut tx = make_test_transaction_with_response(200, &headers);
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
         let v = crate::test_helpers::run_rule(
             &rule,

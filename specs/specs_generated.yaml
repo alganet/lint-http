@@ -15,12 +15,20 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
       line: 162
+  - label: access_control_allow_credentials_when_origin
+    section: § 2.2.2
+    snippet: Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20
+    cited_by:
+    - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
+      line: 162
+    - file: lint-http-rules/src/rules/refresh_header_syntax.rs
+      line: 323
   - label: the value the production generates
     section: § 3.3.4
     snippet: Access-Control-Allow-Credentials = %s"true" ; case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
-      line: 187
+      line: 190
     - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
       line: 101
     - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
@@ -30,7 +38,9 @@ sources:
     snippet: Let credentials be the result of getting `Access-Control-Allow-Credentials` from response’s header list.
     cited_by:
     - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
-      line: 188
+      line: 191
+    - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
+      line: 304
   - label: access_control_allow_origin_valid
     section: § 3.3.3
     snippet: Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response.
@@ -114,15 +124,9 @@ sources:
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 347
+      line: 351
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
       line: 127
-  - label: refresh_header_syntax
-    section: § 2.2.2
-    snippet: Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20
-    cited_by:
-    - file: lint-http-rules/src/rules/refresh_header_syntax.rs
-      line: 323
   - label: request_origin_header_present_for_cors
     section: § 3.2
     snippet: It is used for all HTTP fetches whose request’s response tainting is "cors", as well as those where request’s method is neither `GET` nor `HEAD`.
@@ -3639,7 +3643,7 @@ sources:
     - file: lint-http-rules/src/helpers/origin.rs
       line: 214
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 348
+      line: 352
   - label: lint-http-rules/src/helpers/origin.rs (5)
     section: § 6.2
     snippet: Otherwise, let result be the scheme part of the origin triple.
