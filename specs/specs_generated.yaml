@@ -3098,6 +3098,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 391
+  - label: content_type_present
+    section: § 2
+    snippet: The set of changes is represented in a format called a "patch document" identified by a media type.
+    cited_by:
+    - file: lint-http-rules/src/rules/content_type_present.rs
+      line: 160
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
+      line: 197
   - label: options_method_capabilities
     section: § 3.1
     snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
@@ -3133,12 +3141,6 @@ sources:
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 149
   - label: patch_partial_update (4)
-    section: § 2
-    snippet: The set of changes is represented in a format called a "patch document" identified by a media type.
-    cited_by:
-    - file: lint-http-rules/src/rules/patch_partial_update.rs
-      line: 197
-  - label: patch_partial_update (5)
     section: § 2
     snippet: Therefore, there is no single default patch document format that implementations are required to support.
     cited_by:
@@ -7135,7 +7137,7 @@ sources:
     - file: lint-http-rules/src/rules/charset_present.rs
       line: 171
     - file: lint-http-rules/src/violations/content_type.rs
-      line: 84
+      line: 88
   - label: charset_registered
     section: § 8.3
     snippet: 'The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics.'
@@ -7579,17 +7581,19 @@ sources:
     snippet: A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 177
+      line: 191
+    - file: lint-http-rules/src/rules/content_type_present.rs
+      line: 273
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 162
     - file: lint-http-rules/src/violations/content_type.rs
-      line: 57
+      line: 61
   - label: content_type_present (2)
     section: § 8.3
     snippet: Content-Type = media-type
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 178
+      line: 274
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 229
   - label: content_type_present (3)
@@ -7597,7 +7601,9 @@ sources:
     snippet: If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 184
+      line: 192
+    - file: lint-http-rules/src/rules/content_type_present.rs
+      line: 280
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 200
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
@@ -7607,7 +7613,41 @@ sources:
     snippet: This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation").
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 185
+      line: 281
+  - label: content_type_present (5)
+    section: § 9.3.6
+    snippet: A CONNECT request message does not have content.
+    cited_by:
+    - file: lint-http-rules/src/rules/content_type_present.rs
+      line: 166
+    - file: lint-http-rules/src/rules/request_version_method_valid.rs
+      line: 179
+    - file: lint-http-rules/src/violations/method.rs
+      line: 205
+  - label: content_type_present (6)
+    section: § 9.3.7
+    snippet: A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.
+    cited_by:
+    - file: lint-http-rules/src/rules/content_type_present.rs
+      line: 157
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 179
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 271
+    - file: lint-http-rules/src/violations/method.rs
+      line: 294
+  - label: content_type_present (7)
+    section: § 9.3.8
+    snippet: A client MUST NOT send content in a TRACE request.
+    cited_by:
+    - file: lint-http-rules/src/rules/content_type_present.rs
+      line: 163
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 136
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 191
+    - file: lint-http-rules/src/violations/method.rs
+      line: 139
   - label: content_type_valid
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
@@ -8916,6 +8956,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/content_length.rs
       line: 152
+    - file: lint-http-rules/src/rules/content_type_present.rs
+      line: 174
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 97
   - label: Content-Length grammar
@@ -10492,16 +10534,6 @@ sources:
       line: 360
   - label: options_method_capabilities (3)
     section: § 9.3.7
-    snippet: A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.
-    cited_by:
-    - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 179
-    - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 271
-    - file: lint-http-rules/src/violations/method.rs
-      line: 294
-  - label: options_method_capabilities (4)
-    section: § 9.3.7
     snippet: A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
@@ -10510,13 +10542,13 @@ sources:
       line: 319
     - file: lint-http-rules/src/violations/method.rs
       line: 316
-  - label: options_method_capabilities (5)
+  - label: options_method_capabilities (4)
     section: § 9.3.7
     snippet: If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 303
-  - label: options_method_capabilities (6)
+  - label: options_method_capabilities (5)
     section: § 9.3.7
     snippet: The OPTIONS method requests information about the communication options available for the target resource, at either the origin server or an intervening intermediary.
     cited_by:
@@ -11164,14 +11196,6 @@ sources:
       line: 173
   - label: request_version_method_valid (6)
     section: § 9.3.6
-    snippet: A CONNECT request message does not have content.
-    cited_by:
-    - file: lint-http-rules/src/rules/request_version_method_valid.rs
-      line: 179
-    - file: lint-http-rules/src/violations/method.rs
-      line: 205
-  - label: request_version_method_valid (7)
-    section: § 9.3.6
     snippet: The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use.
     cited_by:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
@@ -11683,16 +11707,6 @@ sources:
     - file: lint-http-rules/src/violations/method.rs
       line: 277
   - label: trace_method_echo (3)
-    section: § 9.3.8
-    snippet: A client MUST NOT send content in a TRACE request.
-    cited_by:
-    - file: lint-http-rules/src/rules/trace_method_echo.rs
-      line: 136
-    - file: lint-http-rules/src/rules/trace_method_echo.rs
-      line: 191
-    - file: lint-http-rules/src/violations/method.rs
-      line: 139
-  - label: trace_method_echo (4)
     section: § 9.3.8
     snippet: For example, it would be foolish for a user agent to send stored user credentials (Section 11) or cookies [COOKIE] in a TRACE request.
     cited_by:
@@ -12963,7 +12977,7 @@ sources:
     snippet: Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 148
+      line: 245
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 271
   - label: head_response_headers_match_get

@@ -48,6 +48,10 @@ defects! {
     /// which nothing on the wire records. So the finding is made anyway and
     /// the sender is the one who knows whether the excuse applies.
     ///
+    /// **Either sender.** The sentence says "a sender", so a client enclosing
+    /// content owes the field as a server does, and each finding names the
+    /// one that sent the message.
+    ///
     /// `warn`, and the same section is the argument: a recipient with no field
     /// to read may assume `application/octet-stream` or examine the data, and
     /// § 8.3 calls that second option a risk of drawing incorrect conclusions
@@ -58,7 +62,7 @@ defects! {
     CONTENT_TYPE_MISSING = {
         id: "content_type_missing",
         title: "A message carries content and does not say what it is",
-        message: "Response contains content but no Content-Type header",
+        message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_8_3],
         strength: Strength::Should,
