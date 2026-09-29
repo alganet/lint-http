@@ -3069,7 +3069,7 @@ sources:
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 185
     - file: lint-http-rules/src/violations/method.rs
-      line: 396
+      line: 400
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.html
   fragments:
@@ -6529,7 +6529,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 328
     - file: lint-http-rules/src/violations/method.rs
-      line: 561
+      line: 565
   - label: accept_encoding_present (5)
     section: § 9.3.6
     snippet: Any 2xx (Successful) response indicates that the sender (and all inbound proxies) will switch to tunnel mode immediately after the response header section; data received after that header section is from the server identified by the request target.
@@ -6625,7 +6625,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 283
     - file: lint-http-rules/src/violations/method.rs
-      line: 358
+      line: 362
   - label: accept_patch_header_valid (2)
     section: § 15.5.16
     snippet: If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used
@@ -6867,7 +6867,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 54
     - file: lint-http-rules/src/violations/method.rs
-      line: 359
+      line: 363
   - label: Allow grammar, sender-expanded
     section: § A
     snippet: Allow = [ method *( OWS "," OWS method ) ]
@@ -7063,7 +7063,7 @@ sources:
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 773
     - file: lint-http-rules/src/violations/method.rs
-      line: 522
+      line: 526
   - label: challenge
     section: § 11.5
     snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
@@ -7925,11 +7925,11 @@ sources:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 185
     - file: lint-http-rules/src/violations/method.rs
-      line: 445
+      line: 449
     - file: lint-http-rules/src/violations/method.rs
-      line: 457
+      line: 461
     - file: lint-http-rules/src/violations/method.rs
-      line: 487
+      line: 491
   - label: head_response_headers_match_get (5)
     section: § 8.8
     snippet: In responses to safe requests, validator fields describe the selected representation chosen by the origin server while handling the response.
@@ -7977,7 +7977,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 197
     - file: lint-http-rules/src/violations/method.rs
-      line: 414
+      line: 418
   - label: field-name grammar
     section: § A
     snippet: field-name = token field-value = *field-content
@@ -10133,7 +10133,7 @@ sources:
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created
     cited_by:
     - file: lint-http-rules/src/violations/method.rs
-      line: 378
+      line: 382
   - label: method (2)
     section: § 9.3.6
     snippet: A client MUST ignore any Content-Length or Transfer-Encoding header fields received in a successful response to CONNECT.
@@ -10851,7 +10851,7 @@ sources:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 316
     - file: lint-http-rules/src/violations/method.rs
-      line: 562
+      line: 566
   - label: request_method_token_valid (3)
     section: § 9.1
     snippet: By convention, standardized methods are defined in all-uppercase US-ASCII letters.
@@ -12677,7 +12677,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 180
     - file: lint-http-rules/src/violations/method.rs
-      line: 523
+      line: 527
   - label: chunked last, unconditionally
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.

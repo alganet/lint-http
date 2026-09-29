@@ -341,19 +341,23 @@ defects! {
     /// takes it: nothing is absent. A list of methods is present and complete on
     /// its own terms, and what disagrees with it is the status beside it.
     ///
-    /// **`info`, where the mirror is `warn`, and the reason is what sends it.**
-    /// Every response the counted web produced for this is a CORS preflight, where
-    /// `OPTIONS` is answered by a layer above the resource and the `Allow`
-    /// describes the resource — an argument about deployments rather than about
-    /// § 10.2.1, which is exactly the weight `info` carries. A client is not
-    /// misled: it has the successful response in hand.
+    /// **`info`, where the mirror is `warn`, and the reason is what the
+    /// recipient holds.** A client told by a `405` that the method it used is
+    /// in `Allow` has two statements that cannot both hold and nothing to act
+    /// on. A client whose `OPTIONS` succeeded holds the answer about the one
+    /// method the list leaves out, and every method the list names is still
+    /// true — so nothing it would do next is misdirected. The reason is not
+    /// the CORS preflight, where a layer above the resource answers `OPTIONS`
+    /// and Fetch § 3.3.3 calls `Allow` irrelevant: real traffic produces this
+    /// as often for a plain `OPTIONS` carrying no `Origin` at all, and the
+    /// level has to hold for both.
     ///
     /// **Scoped to `OPTIONS` and not to every method.** The reading generalises —
     /// a `200` answering a `GET` whose `Allow` omits `GET` says the same thing —
-    /// and the evidence does not: all 14 responses in the corpus are `OPTIONS`,
-    /// `Allow` is a MAY that deployments send almost only on this method, and an
-    /// entry written wider than anything has ever produced is an entry no
-    /// instrument can keep honest.
+    /// and the evidence does not: every such response in real traffic answers
+    /// `OPTIONS`, `Allow` is a MAY that deployments send almost only on this
+    /// method, and an entry written wider than anything has ever produced is an
+    /// entry no instrument can keep honest.
     ///
     // cite(RFC 9110 § 10.2.1): "The "Allow" header field lists the set of methods advertised as supported by the target resource."
     // cite(RFC 9110 § 10.2.1): "The purpose of this field is strictly to inform the recipient of valid request methods associated with the resource."
