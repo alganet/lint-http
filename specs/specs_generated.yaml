@@ -56,13 +56,13 @@ sources:
     snippet: If the ABNF for name allows a single header and list contains more than one, then return failure.
     cited_by:
     - file: lint-http-rules/src/rules/cors_response_header_syntax.rs
-      line: 319
+      line: 323
   - label: cors_response_header_syntax (2)
     section: § 4.8
     snippet: If max-age is failure or null, then set max-age to 5.
     cited_by:
     - file: lint-http-rules/src/rules/cors_response_header_syntax.rs
-      line: 320
+      line: 324
   - label: cross_origin_resource_policy_valid
     section: § 3.7
     snippet: Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive
@@ -10168,9 +10168,9 @@ sources:
     - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
       line: 122
     - file: lint-http-rules/src/rules/cors_request_header_syntax.rs
-      line: 257
+      line: 261
     - file: lint-http-rules/src/rules/cors_response_header_syntax.rs
-      line: 286
+      line: 290
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 92
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs

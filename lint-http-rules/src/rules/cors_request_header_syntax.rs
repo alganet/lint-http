@@ -194,10 +194,14 @@ impl Rule for CorsRequestHeaderSyntax {
                 out.push(match defect {
                     TokenListDefect::EmptyMember => ctx.report_with(
                         &LIST_MEMBER_EMPTY,
-                        "Access-Control-Request-Headers is a comma-separated list of \
-                         `field-name`s and holds an empty element (a leading, trailing or \
-                         doubled comma)"
-                            .into(),
+                        format!(
+                            "Access-Control-Request-Headers is a comma-separated list of \
+                             `field-name`s and holds an empty element (a leading, trailing or \
+                             doubled comma): '{}'",
+                            crate::helpers::shown::shown_in_finding(
+                                crate::helpers::headers::trim_ows(&line)
+                            )
+                        ),
                     ),
                     TokenListDefect::Character { member, offending } => ctx.report_with(
                         token_character(offending),
@@ -357,6 +361,23 @@ mod tests {
     #[case::acrm_case(&[("access-control-request-method", "post")], "method_case_invalid")]
     fn each_defect_names_its_production(#[case] headers: &[(&str, &str)], #[case] expected: &str) {
         assert_eq!(ids(headers), vec![expected.to_string()], "for {headers:?}");
+    }
+
+    /// The empty element has no member to name, so its sentence quotes the
+    /// line, as the response side's does.
+    #[rstest]
+    #[case("X-Foo,,X-Baz")]
+    #[case(",X-Foo")]
+    #[case("X-Foo,")]
+    fn an_empty_element_quotes_the_line_it_sits_in(#[case] value: &str) {
+        let v = run(&[("access-control-request-headers", value)]);
+        assert_eq!(v.len(), 1, "{v:?}");
+        assert_eq!(v[0].violation, "list_member_empty");
+        assert!(
+            v[0].message.contains(&format!("'{value}'")),
+            "{}",
+            v[0].message
+        );
     }
 
     /// The one grammar difference across the ABNF block, asserted from both

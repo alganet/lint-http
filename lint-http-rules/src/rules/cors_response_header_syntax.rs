@@ -204,7 +204,7 @@ impl Rule for CorsResponseHeaderSyntax {
             // then read the value across it.
             for line in crate::helpers::headers::field_lines_as_written(&resp.headers, field) {
                 for defect in token_list_defects(&line) {
-                    out.push(report(ctx, field, noun, defect));
+                    out.push(report(ctx, field, noun, &line, defect));
                 }
 
                 // The case reading is `#method`'s alone: a `field-name` is
@@ -225,18 +225,22 @@ fn report(
     ctx: &crate::rules::RuleContext<'_>,
     field: &str,
     noun: &str,
+    line: &str,
     defect: TokenListDefect<'_>,
 ) -> Violation {
     match defect {
         // What § 5.6.1.1 forbids generating is an empty element, and the
         // sentence that says so is on the def, where the twenty-odd other
-        // fields reporting a stray comma read the same one.
+        // fields reporting a stray comma read the same one. The line is
+        // quoted because the defect has no member to name: a leading, a
+        // trailing and a doubled comma draw this once each, in one sentence.
         TokenListDefect::EmptyMember => ctx.report_with(
             &LIST_MEMBER_EMPTY,
             format!(
                 "{} is a comma-separated list of `{noun}`s and holds an empty element \
-                 (a leading, trailing or doubled comma)",
-                header_name(field)
+                 (a leading, trailing or doubled comma): '{}'",
+                header_name(field),
+                crate::helpers::shown::shown_in_finding(crate::helpers::headers::trim_ows(line))
             ),
         ),
         // The member is named because the octet does not identify it: a value
@@ -530,6 +534,21 @@ mod tests {
         assert!(headers[0].message.contains("`field-name`"), "{:?}", headers);
         let methods = run(&[("access-control-allow-methods", "G T")]);
         assert!(methods[0].message.contains("`method`"), "{:?}", methods);
+    }
+
+    /// An empty element has no member to name, so the sentence quotes the line:
+    /// a leading, a trailing and a doubled comma are one finding each, and
+    /// only the value tells an operator which one was written.
+    #[rstest]
+    #[case("access-control-allow-methods", "GET,,POST")]
+    #[case("access-control-allow-headers", ",X-Foo")]
+    #[case("access-control-expose-headers", "X-Foo, ")]
+    fn an_empty_element_quotes_the_line_it_sits_in(#[case] field: &str, #[case] value: &str) {
+        let v = run(&[(field, value)]);
+        assert_eq!(v.len(), 1, "{v:?}");
+        assert_eq!(v[0].violation, "list_member_empty");
+        let shown = format!("'{}'", value.trim());
+        assert!(v[0].message.contains(&shown), "{}", v[0].message);
     }
 
     /// A value can be wrong in two members, and each is its own finding — the
