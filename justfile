@@ -188,10 +188,14 @@ genregistries:
             if bad:
                 raise SystemExit(f"{stem}: names outside visible ASCII or needing an escape: {bad}")
             consts.append((const, names))
+        # The markers keep `reuse lint` from reading the generated file's SPDX
+        # tag as a (malformed) one for this justfile.
         lines = [
+            # REUSE-IgnoreStart
             "// SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>",
             "//",
             "// SPDX-License-Identifier: ISC",
+            # REUSE-IgnoreEnd
             "",
             f"//! The IANA \"{title}\" registry, as last updated on {updated(index)}.",
             "//!",
