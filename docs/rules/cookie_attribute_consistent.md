@@ -23,6 +23,7 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 ## Violations
 
 - [cookie_attribute_duplicated](../violations/cookie_attribute_duplicated.md) — Set-Cookie writes one attribute name more than once
+- [cookie_attribute_separator_space_missing](../violations/cookie_attribute_separator_space_missing.md) — Set-Cookie separates an attribute with ';' and no space
 - [cookie_domain_missing](../violations/cookie_domain_missing.md) — Set-Cookie Domain attribute carries no value
 - [cookie_expires_malformed](../violations/cookie_expires_malformed.md) — Set-Cookie Expires is readable but derives from no HTTP-date
 - [cookie_expires_missing](../violations/cookie_expires_missing.md) — Set-Cookie Expires attribute carries no value
@@ -52,6 +53,7 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 
 - [RFC 6265 §4.1.1](https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1): Set-Cookie syntax — servers SHOULD NOT send a non-conforming Set-Cookie; the `cookie-av` list, where each attribute is written with or without a value, and the `path-value` that excludes control characters and `;`
 - [RFC 6265 §5.1.1](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.1): Dates — the algorithm a user agent MUST use to parse a cookie-date: delimiter-separated tokens, `-` among the delimiters, a two-to-four-digit year, and no zone read at all; and the two places it refuses, step 5's bound on each field and step 6's question of whether the fields name a day that exists
+- [RFC 6265 §5.2](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2): The Set-Cookie Header — the algorithm a user agent MUST use to parse a set-cookie-string: it discards each attribute's leading `;` and removes leading and trailing WSP from the name and value
 - [RFC 6265 §5.2.2](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.2): The Max-Age attribute — ignored unless it is a `-`-or-DIGIT first character with an all-DIGIT remainder
 - [RFC 6265 §5.2.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3): `Domain` attribute processing — an empty value is undefined (the user agent ignores it) and a leading dot is stripped; the value's *format* is § 4.1.1 and RFC 1035
 - [RFC 6265 §5.2.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.4): Path attribute — the user agent replaces an empty or non-`/` Path with the default-path (why those forms are flagged)
@@ -79,6 +81,12 @@ Set-Cookie: SID=31d4d96e407aad42; Secure; HttpOnly; Path=/; SameSite=None
 
 ```http
 Set-Cookie: sid=abcd; Path=/login; HttpOnly
+```
+
+### ❌ Bad — every user agent strips the whitespace, and § 4.1.1 still writes '; ' before each attribute
+
+```http
+Set-Cookie: SID=1;Path=/;Secure
 ```
 
 ### ❌ Bad — SameSite=None must be Secure

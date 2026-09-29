@@ -1680,6 +1680,12 @@ severity = "warn"
 # SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
+[violations.cookie_attribute_separator_space_missing]
+# Set-Cookie separates an attribute with ';' and no space
+# SHOULD obliges the sender, so this defaults to warn.
+# Departs from that: The SHOULD NOT is § 4.1.1's, and the sibling entries that quote it report at `warn` on the strength of it. This one cannot: § 5.2 is a MUST on the recipient, and it discards the `;` and strips whitespace from what follows, so the missing space changes nothing any conforming user agent does. The same bracket as `cookie_expires_malformed`: the sender departed from the grammar, and no reader can be affected by it.
+severity = "info"
+
 [violations.cookie_domain_empty]
 # Set-Cookie Domain attribute is empty
 severity = "warn"

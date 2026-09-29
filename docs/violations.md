@@ -160,6 +160,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [content_type_charset_missing](violations/content_type_charset_missing.md) — A text media type does not say which character encoding it used
 - [content_type_missing](violations/content_type_missing.md) — A message carries content and does not say what it is
 - [cookie_attribute_duplicated](violations/cookie_attribute_duplicated.md) — Set-Cookie writes one attribute name more than once
+- [cookie_attribute_separator_space_missing](violations/cookie_attribute_separator_space_missing.md) — Set-Cookie separates an attribute with ';' and no space
 - [cookie_domain_empty](violations/cookie_domain_empty.md) — Set-Cookie Domain attribute is empty
 - [cookie_domain_ipv4_address_forbidden](violations/cookie_domain_ipv4_address_forbidden.md) — Set-Cookie Domain attribute is an IPv4 address
 - [cookie_domain_ipv6_literal_forbidden](violations/cookie_domain_ipv6_literal_forbidden.md) — Set-Cookie Domain attribute is an IPv6 literal

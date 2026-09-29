@@ -7,13 +7,13 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::DRAFT_IETF_HTTPBIS_RFC6265BIS;
 use crate::violations::cookie::{
-    COOKIE_ATTRIBUTE_DUPLICATED, COOKIE_DOMAIN_MISSING, COOKIE_DOMAIN_MISSING_WORDING,
-    COOKIE_EXPIRES_MALFORMED, COOKIE_EXPIRES_MISSING, COOKIE_FLAG_VALUE_FORBIDDEN,
-    COOKIE_MAX_AGE_MALFORMED, COOKIE_MAX_AGE_MISSING, COOKIE_NAME_DUPLICATED,
-    COOKIE_PAIR_EQUALS_MISSING, COOKIE_PAIR_MISSING, COOKIE_PATH_EMPTY,
+    COOKIE_ATTRIBUTE_DUPLICATED, COOKIE_ATTRIBUTE_SEPARATOR_SPACE_MISSING, COOKIE_DOMAIN_MISSING,
+    COOKIE_DOMAIN_MISSING_WORDING, COOKIE_EXPIRES_MALFORMED, COOKIE_EXPIRES_MISSING,
+    COOKIE_FLAG_VALUE_FORBIDDEN, COOKIE_MAX_AGE_MALFORMED, COOKIE_MAX_AGE_MISSING,
+    COOKIE_NAME_DUPLICATED, COOKIE_PAIR_EQUALS_MISSING, COOKIE_PAIR_MISSING, COOKIE_PATH_EMPTY,
     COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING, COOKIE_PATH_MISSING_WORDING,
     COOKIE_SAME_SITE_INVALID, COOKIE_SAME_SITE_MISSING, COOKIE_SECURE_MISSING,
-    COOKIE_VALUE_CHARACTER_FORBIDDEN, RFC_6265_4_1_1, RFC_6265_5_1_1, RFC_6265_5_2_2,
+    COOKIE_VALUE_CHARACTER_FORBIDDEN, RFC_6265_4_1_1, RFC_6265_5_1_1, RFC_6265_5_2, RFC_6265_5_2_2,
     RFC_6265_5_2_3, RFC_6265_5_2_4,
 };
 use crate::violations::domain::{DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_1035_2_3_1};
@@ -64,6 +64,7 @@ static DECLARED: &[&ViolationDef] = &[
     &COOKIE_VALUE_CHARACTER_FORBIDDEN,
     &COOKIE_FLAG_VALUE_FORBIDDEN,
     &COOKIE_ATTRIBUTE_DUPLICATED,
+    &COOKIE_ATTRIBUTE_SEPARATOR_SPACE_MISSING,
     &COOKIE_NAME_DUPLICATED,
     &COOKIE_SECURE_MISSING,
     &COOKIE_SAME_SITE_MISSING,
@@ -184,6 +185,11 @@ impl CookieAttributeConsistent {
             ));
         }
 
+        out.extend(
+            Self::separator_space_missing(line)
+                .map(|m| ctx.report_with(&COOKIE_ATTRIBUTE_SEPARATOR_SPACE_MISSING, about(&m))),
+        );
+
         // One finding per name written more than once, quoting each
         // occurrence: whether they agree is what the operator needs to know,
         // and a user agent reads only one of them.
@@ -203,6 +209,42 @@ impl CookieAttributeConsistent {
             ));
         }
         out
+    }
+
+    /// The sentence for a line whose attributes follow their `;` without the
+    /// `SP` § 4.1.1 prints there, naming each one, or `None`.
+    ///
+    /// Read off the segments as written, because the splitter every other
+    /// question here asks trims them the way § 5.2 has a user agent do, and
+    /// the space is exactly what that trim removes. An empty segment is
+    /// skipped: a `;` at the end of the line or before another `;` is an empty
+    /// `cookie-av`, which a space would not repair.
+    // cite(RFC 6265 § 4.1.1): "set-cookie-string = cookie-pair *( ";" SP cookie-av )"
+    fn separator_space_missing(line: &str) -> Option<String> {
+        let mut total = 0;
+        let mut unspaced = Vec::new();
+        for segment in crate::helpers::cookie::set_cookie_segments_as_written(line) {
+            if crate::helpers::headers::trim_ows(segment).is_empty() {
+                continue;
+            }
+            total += 1;
+            if !segment.starts_with(' ') {
+                // Only the trailing whitespace goes, so a tab standing where
+                // the space belongs is shown rather than trimmed away.
+                let written = segment.trim_end_matches([' ', '\t']);
+                unspaced.push(format!(
+                    "'{}'",
+                    crate::helpers::shown::shown_in_finding(written)
+                ));
+            }
+        }
+        (!unspaced.is_empty()).then(|| {
+            format!(
+                "Set-Cookie writes {} of its {total} attributes with no space after the ';' before it: {}; RFC 6265 § 4.1.1 separates each with '; '",
+                unspaced.len(),
+                unspaced.join(", ")
+            )
+        })
     }
 
     /// One finding per cookie-name the response sets on more than one line.
@@ -615,6 +657,7 @@ impl RuleMeta for CookieAttributeConsistent {
         &[
             RFC_6265_4_1_1,
             RFC_6265_5_1_1,
+            RFC_6265_5_2,
             RFC_6265_5_2_2,
             RFC_6265_5_2_3,
             RFC_6265_5_2_4,
@@ -648,6 +691,13 @@ impl RuleMeta for CookieAttributeConsistent {
                 compliance: Compliance::Compliant,
                 label: None,
                 snippet: "Set-Cookie: sid=abcd; Path=/login; HttpOnly",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "— every user agent strips the whitespace, and § 4.1.1 still writes '; ' before each attribute",
+                ),
+                snippet: "Set-Cookie: SID=1;Path=/;Secure",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -808,6 +858,51 @@ mod tests {
     /// unrecognised `SameSite` on the next — two different defects on two
     /// different cookies, one of them reported nowhere. Ten `Set-Cookie` lines
     /// is an ordinary response.
+    /// § 4.1.1 prints one `SP` after each attribute's `;`. The finding is one
+    /// per line and names every attribute written without it; an empty
+    /// `cookie-av` and a second space are other shapes and draw nothing here.
+    #[rstest]
+    #[case(
+        "a=b;Path=/;Secure",
+        Some("Set-Cookie writes 2 of its 2 attributes with no space after the ';' before it: 'Path=/', 'Secure'; RFC 6265 § 4.1.1 separates each with '; ' (cookie 'a')")
+    )]
+    #[case(
+        "a=b; Path=/;Secure",
+        Some("Set-Cookie writes 1 of its 2 attributes with no space after the ';' before it: 'Secure'; RFC 6265 § 4.1.1 separates each with '; ' (cookie 'a')")
+    )]
+    #[case("a=b; Path=/; Secure", None)]
+    #[case("a=b", None)]
+    #[case("a=b; Path=/;", None)]
+    #[case("a=b;; Path=/", None)]
+    #[case("a=b;  Path=/", None)]
+    fn an_attribute_separator_is_a_semicolon_and_one_space(
+        #[case] value: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let found: Vec<String> = all_set_cookie(value)
+            .into_iter()
+            .filter(|v| v.violation == "cookie_attribute_separator_space_missing")
+            .map(|v| v.message)
+            .collect();
+        assert_eq!(found, Vec::from_iter(expected.map(str::to_string)));
+    }
+
+    /// A tab where the space belongs is not the space, and the sentence shows
+    /// the tab rather than trimming it off the attribute it names.
+    #[test]
+    fn a_tab_after_the_semicolon_is_not_the_space_and_is_shown() {
+        let found: Vec<Violation> = all_set_cookie("a=b;\tPath=/")
+            .into_iter()
+            .filter(|v| v.violation == "cookie_attribute_separator_space_missing")
+            .collect();
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(
+            !found[0].message.contains("'Path=/'"),
+            "{:?}",
+            found[0].message
+        );
+    }
+
     #[test]
     fn every_cookie_on_the_response_is_answered_for() {
         use crate::test_helpers::make_test_transaction_with_response;

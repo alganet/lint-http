@@ -2280,7 +2280,7 @@ enabled = "true"
         // without deciding which — the previous form was an allowlist nobody
         // was obliged to keep current, and `cache_control::members_of` walked
         // the most repeated list on the web without appearing in it.
-        const WALKS: [&str; 12] = [
+        const WALKS: [&str; 13] = [
             "list_members(",
             "sender_list_members(",
             "list_members_as_written(",
@@ -2303,6 +2303,9 @@ enabled = "true"
             // A `Set-Cookie` line's attributes, which are the same repetition
             // under this document's name for it.
             "split_set_cookie(",
+            // The same attributes untrimmed, for the one question about how
+            // they were separated.
+            "set_cookie_segments_as_written(",
             // The request field's own pairs: `cookie-string = cookie-pair
             // *( ";" SP cookie-pair )`, which is the same repetition on the
             // other side of the exchange.
@@ -2316,7 +2319,7 @@ enabled = "true"
         //
         // `helpers/cookie.rs` joins the two list modules because a `Set-Cookie`
         // line's attributes and a `Cookie` line's pairs are repetitions under
-        // this document's names for them. What it exports besides those two
+        // this document's names for them. What it exports besides those
         // splitters is a predicate, a lookup, a sentence, or one whole cookie
         // assembled out of a walk that has already happened.
         const NOT_A_MEMBER_WALK: [&str; 33] = [

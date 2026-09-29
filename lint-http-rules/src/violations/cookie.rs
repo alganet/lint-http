@@ -61,6 +61,17 @@ pub const RFC_6265_4_1_1: SpecRef = SpecRef {
     note: "Set-Cookie syntax — servers SHOULD NOT send a non-conforming Set-Cookie; the `cookie-av` list, where each attribute is written with or without a value, and the `path-value` that excludes control characters and `;`",
 };
 
+/// The algorithm a user agent runs over a whole `set-cookie-string`, which is
+/// where the separator between two attributes is read: it discards the `;`
+/// and strips whitespace from what follows, so an `SP` the grammar requires
+/// there changes nothing a recipient does.
+pub const RFC_6265_5_2: SpecRef = SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2",
+    note: "The Set-Cookie Header — the algorithm a user agent MUST use to parse a set-cookie-string: it discards each attribute's leading `;` and removes leading and trailing WSP from the name and value",
+};
+
 /// What a user agent does with a `Path` it cannot use — the sentence behind
 /// the three defects that are about a value being discarded rather than about
 /// a value being ungrammatical.
@@ -575,6 +586,47 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_6265_4_1_1],
         strength: Strength::Should,
+    }
+
+    /// A `Set-Cookie` line whose attributes are separated by a `;` with no `SP`
+    /// after it: `a=b;Path=/;Secure`, where § 4.1.1 writes `a=b; Path=/;
+    /// Secure`.
+    ///
+    /// **The `SP` is in the grammar, not beside it.** `set-cookie-string =
+    /// cookie-pair *( ";" SP cookie-av )` prints exactly one space, where
+    /// RFC 9110's lists print `OWS`, so a line without it derives from nothing
+    /// § 4.1.1 generates.
+    ///
+    /// `info`, on [`COOKIE_EXPIRES_MALFORMED`]'s footing and for its reason:
+    /// the SHOULD NOT is the sender's, and § 5.2's algorithm, a MUST on every
+    /// user agent, discards the `;` and strips whitespace from what follows,
+    /// so no conforming recipient reads the line differently. It is reported
+    /// once per line, naming each attribute written without the space, because
+    /// the sender made one decision per line and not one per attribute.
+    ///
+    /// A `;` with nothing after it, or a second `;` straight after it, is an
+    /// empty `cookie-av` and not this defect: adding a space would not make it
+    /// derive. Two spaces are not this defect either; the one it requires is
+    /// there.
+    ///
+    // cite(RFC 6265 § 4.1.1, label: set-cookie-string): "set-cookie-header = "Set-Cookie:" SP set-cookie-string set-cookie-string = cookie-pair *( ";" SP cookie-av )"
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
+    // cite(RFC 6265 § 5.2): "A user agent MUST use an algorithm equivalent to the following algorithm to parse a "set-cookie-string":"
+    // cite(RFC 6265 § 5.2): "Discard the first character of the unparsed-attributes (which will be a %x3B (";") character)."
+    // cite(RFC 6265 § 5.2): "Remove any leading or trailing WSP characters from the attribute-name string and the attribute-value string."
+    COOKIE_ATTRIBUTE_SEPARATOR_SPACE_MISSING = {
+        id: "cookie_attribute_separator_space_missing",
+        title: "Set-Cookie separates an attribute with ';' and no space",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_6265_4_1_1, RFC_6265_5_2],
+        strength: Strength::Should,
+        departure: "The SHOULD NOT is § 4.1.1's, and the sibling entries that quote it \
+            report at `warn` on the strength of it. This one cannot: § 5.2 is a MUST on \
+            the recipient, and it discards the `;` and strips whitespace from what \
+            follows, so the missing space changes nothing any conforming user agent \
+            does. The same bracket as `cookie_expires_malformed`: the sender departed \
+            from the grammar, and no reader can be affected by it.",
     }
 
     /// An `Expires` a user agent reads without difficulty and § 4.1.1's

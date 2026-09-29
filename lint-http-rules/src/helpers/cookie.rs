@@ -340,6 +340,19 @@ pub fn split_set_cookie(line: &str) -> (&str, impl Iterator<Item = Attribute<'_>
     (pair, attributes)
 }
 
+/// Every `cookie-av` segment of one `Set-Cookie` field line exactly as
+/// written: whatever stands after each `;`, untrimmed and with the empty ones
+/// kept.
+///
+/// [`split_set_cookie`] makes the same cut and trims each segment the way
+/// § 5.2 has a user agent do, which is right for every question about what an
+/// attribute says and wrong for the one about how it was separated: the `SP`
+/// § 4.1.1 prints after each `;` is exactly what the trim removes.
+// cite(RFC 6265 § 4.1.1): "set-cookie-string = cookie-pair *( ";" SP cookie-av )"
+pub fn set_cookie_segments_as_written(line: &str) -> impl Iterator<Item = &str> {
+    line.split(';').skip(1)
+}
+
 /// The host the request was sent to, which a cookie with no `Domain` is bound
 /// to — `None` when nothing in the request names one.
 ///
