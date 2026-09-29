@@ -721,7 +721,14 @@ defects! {
     }
 
     /// A `GET` or `HEAD` whose precondition evaluated false, answered with a
-    /// `200` and a whole representation instead of a `304`.
+    /// `2xx` instead of a `304`.
+    ///
+    /// **Any `2xx`, not a `200`.** Each one says the method was performed,
+    /// which is the act § 13.1.2 forbids. § 13.2.2 evaluates both fields
+    /// before `Range`, so a `206` answering a matching tag beside a range sent
+    /// part of a representation the client already holds; a `203` and a `2xx`
+    /// no document defines (§ 15 makes it a `200` to its recipient) sent the
+    /// whole of one. The message names the status that was sent.
     ///
     /// **One entry over a MUST and a SHOULD, which is a decision and not an
     /// oversight.** § 13.1.2 says an origin server evaluating a false
@@ -750,7 +757,7 @@ defects! {
     /// bandwidth the conditional request existed to save.
     STATUS_304_MISSING = {
         id: "status_304_missing",
-        title: "A false precondition is answered with 200 rather than 304",
+        title: "A false precondition is answered with a 2xx rather than 304",
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_13_1_2, crate::violations::conditional::RFC_9110_13_1_3],

@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # status_304_missing
 
-A false precondition is answered with 200 rather than 304
+A false precondition is answered with a 2xx rather than 304
 
 ## Message
 
@@ -25,7 +25,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.status_304_missing]
-# A false precondition is answered with 200 rather than 304
+# A false precondition is answered with a 2xx rather than 304
 severity = "warn"
 ```
 

@@ -10,7 +10,7 @@ SPDX-License-Identifier: ISC
 
 Warn when a conditional request names a validator (ETag / Last-Modified) that no response for the same resource and client ever carried. **The question is about the value, not about the response that happened to arrive last**: a tag an earlier response handed out is accounted for however many validator-less responses have followed it, and a tag no response ever carried is unaccounted for however recently some *other* tag was sent. `If-None-Match: *` and `If-Match: *` are never reported *as an unaccounted validator* — `*` is an existence condition, names no validator, and is a legitimate thing for a client holding nothing to send.
 
-**And flag a conditional `GET` or `HEAD` whose condition was false and was answered `200` anyway** (RFC 9110 §13.1.2 and §13.1.3 owe a `304 (Not Modified)` there). The condition is evaluated the way each section says: entity tags by the **weak** comparison §13.1.2 mandates, so `If-None-Match: W/"abc"` against an `ETag: "abc"` is a match and one `W/` added or dropped in a CDN does not make the check silent; a list is split on the commas between its members and not on the ones an `etagc` admits inside a tag; and `If-None-Match: *` is false against any `200` that carried a representation, whether or not that response also carried a validator.
+**And flag a conditional `GET` or `HEAD` whose condition was false and was answered with a `2xx` anyway** (RFC 9110 §13.1.2 and §13.1.3 owe a `304 (Not Modified)` there). The whole class, not only `200`: §13.2.2 evaluates both fields before `Range`, so a matching tag beside a range is owed a `304` and a `206` performed the method just as a `200` does, and a `2xx` nobody registered is a `200` to every recipient (§15). The condition is evaluated the way each section says: entity tags by the **weak** comparison §13.1.2 mandates, so `If-None-Match: W/"abc"` against an `ETag: "abc"` is a match and one `W/` added or dropped in a CDN does not make the check silent; a list is split on the commas between its members and not on the ones an `etagc` admits inside a tag; and `If-None-Match: *` is false against any `2xx` that carried a representation, whether or not that response also carried a validator.
 
 **And flag a `412` answering a `GET` or `HEAD` whose only precondition was `If-None-Match`.** RFC 9110 §15.5.13 defines `412` as a condition in the request's header fields evaluating false, so the status says that one did, and §13.1.2 answers a false `If-None-Match` with `304` on those two methods and `412` only on the rest. A request that also carried `If-Match`, `If-Unmodified-Since` or an extension's `If`-named field is not read, since those may produce a `412` of their own.
 
@@ -19,7 +19,7 @@ Warn when a conditional request names a validator (ETag / Last-Modified) that no
 ## Violations
 
 - [conditional_validator_missing](../violations/conditional_validator_missing.md) — A precondition names a validator this exchange never provided
-- [status_304_missing](../violations/status_304_missing.md) — A false precondition is answered with 200 rather than 304
+- [status_304_missing](../violations/status_304_missing.md) — A false precondition is answered with a 2xx rather than 304
 - [status_304_unsolicited](../violations/status_304_unsolicited.md) — 304 Not Modified answers a request that was not a conditional GET or HEAD
 - [status_412_ambiguous](../violations/status_412_ambiguous.md) — A false precondition is answered with success, and nothing shows whether the change was already in place
 - [status_412_forbidden](../violations/status_412_forbidden.md) — A GET or HEAD whose If-None-Match was false is answered 412 rather than 304
@@ -97,6 +97,23 @@ enabled = true
 
 < 200 OK  HTTP/1.1
 < ETag: "abc"
+```
+
+### ❌ Bad — If-None-Match is evaluated before Range, so a matching tag is owed 304 and not part of a copy
+
+```http
+> GET /resource HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: "abc"
+
+> GET /resource HTTP/1.1
+> If-None-Match: "abc"
+> Range: bytes=0-1
+
+< 206 Partial Content  HTTP/1.1
+< ETag: "abc"
+< Content-Range: bytes 0-1/2
 ```
 
 ### ❌ Bad — one weakness indicator apart is still a match under §13.1.2's weak comparison

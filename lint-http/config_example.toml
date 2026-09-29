@@ -3135,7 +3135,7 @@ severity = "error"
 severity = "warn"
 
 [violations.status_304_missing]
-# A false precondition is answered with 200 rather than 304
+# A false precondition is answered with a 2xx rather than 304
 severity = "warn"
 
 [violations.status_304_unsolicited]

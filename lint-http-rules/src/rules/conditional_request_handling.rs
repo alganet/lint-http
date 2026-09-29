@@ -20,7 +20,7 @@ use crate::violations::ViolationDef;
 ///   `If-Unmodified-Since`) should only be used when the client previously
 ///   observed a validator (ETag or Last-Modified) for the same resource.
 /// - For `If-None-Match` / `If-Modified-Since` on `GET`/`HEAD`, a response that
-///   matches the validator SHOULD be `304 Not Modified` rather than a `200`.
+///   matches the validator SHOULD be `304 Not Modified` rather than a `2xx`.
 /// - For any other method, a precondition that evaluated false against the
 ///   validators the resource was last seen with must not have been performed:
 ///   a `2xx` to a false `If-None-Match` owes a `412`, and a `2xx` to a false
@@ -109,6 +109,33 @@ impl Preconditions {
 // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
 fn is_get_or_head(method: &str) -> bool {
     matches!(method, "GET" | "HEAD")
+}
+
+/// Whether a response to a `GET` or `HEAD` says the method was performed,
+/// which is what § 13.1.2 forbids when `If-None-Match` is false and § 13.1.3
+/// advises against when `If-Modified-Since` is.
+///
+/// **The whole `2xx` class, not a `200`.** § 13.2.2 evaluates both fields
+/// before `Range`, so a matching tag beside a range is answered `304` and a
+/// `206` performed the method as a `200` would have; so did a `203` a proxy
+/// transformed, and a `2xx` nobody registered is a `200` to every recipient.
+/// The class is also the whole of what § 13.2.1 lets a precondition be
+/// evaluated on: a response that would not have been a `2xx` or a `412` had
+/// its preconditions ignored, so a `3xx` or a `4xx` says nothing either way.
+// cite(RFC 9110 § 13.2.2): "if false for GET/HEAD, respond 304 (Not Modified)"
+// cite(RFC 9110 § 13.2.1): "A server MUST ignore all received preconditions if its response to the same request without those conditions, prior to processing the request content, would have been a status code other than a 2xx (Successful) or 412 (Precondition Failed)."
+// cite(RFC 9110 § 15): "However, a client MUST understand the class of any status code, as indicated by the first digit, and treat an unrecognized status code as being equivalent to the x00 status code of that class."
+fn performed_the_method(status: u16) -> bool {
+    (200..300).contains(&status)
+}
+
+/// What a finding says the server sent in place of the `304`.
+fn what_was_sent_instead(status: u16) -> String {
+    match status {
+        200 => "200 with the whole representation".to_string(),
+        206 => "206 with part of the representation".to_string(),
+        other => other.to_string(),
+    }
 }
 
 /// The methods on which a false precondition is answered with `412` rather
@@ -592,7 +619,7 @@ impl ConditionalRequestHandling {
     }
 
     /// A GET or HEAD whose `If-None-Match` condition is false is answered with
-    /// 304, not 200.
+    /// 304, not with a `2xx`.
     ///
     /// **The condition is evaluated by § 13.1.2's own two rules, and by the
     /// readers the rest of this file already uses for them.** The list is read
@@ -626,19 +653,20 @@ impl ConditionalRequestHandling {
             return None;
         }
         let resp = tx.response.as_ref()?;
-        if resp.status != 200 {
+        if !performed_the_method(resp.status) {
             return None;
         }
         let method = tx.request.method.as_str();
+        let answered = what_was_sent_instead(resp.status);
         let listed = listed_tags(&tx.request.headers, "if-none-match");
 
         if listed.iter().any(|tag| tag == "*") {
             return Some(ctx.by_server().report_with(
                 &STATUS_304_MISSING,
                 format!(
-                    "{method} carried If-None-Match: *, and the server answered 200 with a \
-                     representation, so the condition was false; RFC 9110 \u{a7}13.1.2 requires \
-                     a 304 (Not Modified) for GET or HEAD"
+                    "{method} carried If-None-Match: *, and the server answered {answered}, so \
+                     the condition was false; RFC 9110 \u{a7}13.1.2 requires a 304 (Not \
+                     Modified) for GET or HEAD"
                 ),
             ));
         }
@@ -658,9 +686,8 @@ impl ConditionalRequestHandling {
             &STATUS_304_MISSING,
             format!(
                 "{method} carried If-None-Match: {matched}, which weakly matches the response's \
-                 ETag {etag}, so the condition was false; the server answered 200 with the whole \
-                 representation where RFC 9110 \u{a7}13.1.2 requires a 304 (Not Modified) for \
-                 GET or HEAD"
+                 ETag {etag}, so the condition was false; the server answered {answered} where \
+                 RFC 9110 \u{a7}13.1.2 requires a 304 (Not Modified) for GET or HEAD"
             ),
         ))
     }
@@ -683,13 +710,13 @@ impl ConditionalRequestHandling {
             return None;
         }
         let resp = tx.response.as_ref()?;
-        if resp.status != 200 {
+        if !performed_the_method(resp.status) {
             return None;
         }
         let since = crate::http_date::header_timestamp(&tx.request.headers, "if-modified-since")?;
         let last_modified = crate::http_date::header_timestamp(&resp.headers, "last-modified")?;
 
-        (last_modified <= since).then(|| ctx.by_server().report_with(&STATUS_304_MISSING, "Conditional GET/HEAD used If-Modified-Since but server returned 200 even though Last-Modified indicates the resource was not modified; RFC 9110 \u{a7}13.1.3 says such a response SHOULD be a 304 (Not Modified)".into()))
+        (last_modified <= since).then(|| ctx.by_server().report_with(&STATUS_304_MISSING, format!("Conditional GET/HEAD used If-Modified-Since but server returned {} even though Last-Modified indicates the resource was not modified; RFC 9110 \u{a7}13.1.3 says such a response SHOULD be a 304 (Not Modified)", what_was_sent_instead(resp.status))))
     }
 
     /// A `GET` or `HEAD` whose only precondition was `If-None-Match`, answered
@@ -914,7 +941,7 @@ impl RuleMeta for ConditionalRequestHandling {
     }
 
     fn description(&self) -> &'static str {
-        "Warn when a conditional request names a validator (ETag / Last-Modified) that no response for the same resource and client ever carried. **The question is about the value, not about the response that happened to arrive last**: a tag an earlier response handed out is accounted for however many validator-less responses have followed it, and a tag no response ever carried is unaccounted for however recently some *other* tag was sent. `If-None-Match: *` and `If-Match: *` are never reported *as an unaccounted validator* — `*` is an existence condition, names no validator, and is a legitimate thing for a client holding nothing to send.\n\n**And flag a conditional `GET` or `HEAD` whose condition was false and was answered `200` anyway** (RFC 9110 §13.1.2 and §13.1.3 owe a `304 (Not Modified)` there). The condition is evaluated the way each section says: entity tags by the **weak** comparison §13.1.2 mandates, so `If-None-Match: W/\"abc\"` against an `ETag: \"abc\"` is a match and one `W/` added or dropped in a CDN does not make the check silent; a list is split on the commas between its members and not on the ones an `etagc` admits inside a tag; and `If-None-Match: *` is false against any `200` that carried a representation, whether or not that response also carried a validator.\n\n**And flag a `412` answering a `GET` or `HEAD` whose only precondition was `If-None-Match`.** RFC 9110 §15.5.13 defines `412` as a condition in the request's header fields evaluating false, so the status says that one did, and §13.1.2 answers a false `If-None-Match` with `304` on those two methods and `412` only on the rest. A request that also carried `If-Match`, `If-Unmodified-Since` or an extension's `If`-named field is not read, since those may produce a `412` of their own.\n\n**And flag a `304` that answers anything but a conditional `GET` or `HEAD`.** RFC 9110 §15.4.5 defines the status as a conditional `GET` or `HEAD` whose condition evaluated false, so a `304` to a `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `TRACE` or `CONNECT` is an answer no precondition can produce there — §13.1.2 answers a false `If-None-Match` with `412` on every other method, and §13.1.3 has `If-Modified-Since` ignored on them — and a `304` to a `GET` or `HEAD` that carried neither `If-None-Match` nor `If-Modified-Since` tells the client to reuse a stored response its request never said it holds. A method no cited document defines is declined, since it may define conditional semantics of its own."
+        "Warn when a conditional request names a validator (ETag / Last-Modified) that no response for the same resource and client ever carried. **The question is about the value, not about the response that happened to arrive last**: a tag an earlier response handed out is accounted for however many validator-less responses have followed it, and a tag no response ever carried is unaccounted for however recently some *other* tag was sent. `If-None-Match: *` and `If-Match: *` are never reported *as an unaccounted validator* — `*` is an existence condition, names no validator, and is a legitimate thing for a client holding nothing to send.\n\n**And flag a conditional `GET` or `HEAD` whose condition was false and was answered with a `2xx` anyway** (RFC 9110 §13.1.2 and §13.1.3 owe a `304 (Not Modified)` there). The whole class, not only `200`: §13.2.2 evaluates both fields before `Range`, so a matching tag beside a range is owed a `304` and a `206` performed the method just as a `200` does, and a `2xx` nobody registered is a `200` to every recipient (§15). The condition is evaluated the way each section says: entity tags by the **weak** comparison §13.1.2 mandates, so `If-None-Match: W/\"abc\"` against an `ETag: \"abc\"` is a match and one `W/` added or dropped in a CDN does not make the check silent; a list is split on the commas between its members and not on the ones an `etagc` admits inside a tag; and `If-None-Match: *` is false against any `2xx` that carried a representation, whether or not that response also carried a validator.\n\n**And flag a `412` answering a `GET` or `HEAD` whose only precondition was `If-None-Match`.** RFC 9110 §15.5.13 defines `412` as a condition in the request's header fields evaluating false, so the status says that one did, and §13.1.2 answers a false `If-None-Match` with `304` on those two methods and `412` only on the rest. A request that also carried `If-Match`, `If-Unmodified-Since` or an extension's `If`-named field is not read, since those may produce a `412` of their own.\n\n**And flag a `304` that answers anything but a conditional `GET` or `HEAD`.** RFC 9110 §15.4.5 defines the status as a conditional `GET` or `HEAD` whose condition evaluated false, so a `304` to a `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `TRACE` or `CONNECT` is an answer no precondition can produce there — §13.1.2 answers a false `If-None-Match` with `412` on every other method, and §13.1.3 has `If-Modified-Since` ignored on them — and a `304` to a `GET` or `HEAD` that carried neither `If-None-Match` nor `If-Modified-Since` tells the client to reuse a stored response its request never said it holds. A method no cited document defines is declined, since it may define conditional semantics of its own."
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -969,6 +996,11 @@ impl RuleMeta for ConditionalRequestHandling {
                 compliance: Compliance::NonCompliant,
                 label: Some("— the condition was not met, so the response owed is 304 and not a second copy"),
                 snippet: "> GET /resource HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n\n> GET /resource HTTP/1.1\n> If-None-Match: \"abc\"\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— If-None-Match is evaluated before Range, so a matching tag is owed 304 and not part of a copy"),
+                snippet: "> GET /resource HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n\n> GET /resource HTTP/1.1\n> If-None-Match: \"abc\"\n> Range: bytes=0-1\n\n< 206 Partial Content  HTTP/1.1\n< ETag: \"abc\"\n< Content-Range: bytes 0-1/2",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -1663,6 +1695,86 @@ mod tests {
         let found = conditional_get("*", &[("content-type", "text/html")]);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].violation, "status_304_missing");
+    }
+
+    /// § 13.2.2 evaluates `If-None-Match` and `If-Modified-Since` before
+    /// `Range`, so the method a false condition forbids is performed by any
+    /// `2xx`: a `206` answering a matching tag beside a range, a `203`, and a
+    /// `2xx` nobody registered. A `3xx` or a `4xx` is a response § 13.2.1 has
+    /// the preconditions ignored for, so it says nothing either way.
+    #[rstest]
+    #[case::partial_content(206, "\"a\"", Some("206 with part of the representation"))]
+    #[case::star_partial_content(206, "*", Some("206 with part of the representation"))]
+    #[case::non_authoritative(203, "\"a\"", Some("answered 203 "))]
+    #[case::unregistered_2xx(250, "\"a\"", Some("answered 250 "))]
+    #[case::no_content(204, "\"a\"", Some("answered 204 "))]
+    #[case::whole(200, "\"a\"", Some("200 with the whole representation"))]
+    #[case::found(302, "\"a\"", None)]
+    #[case::not_found(404, "\"a\"", None)]
+    #[case::partial_content_other_tag(206, "\"b\"", None)]
+    fn any_2xx_to_a_false_condition_performed_the_method(
+        #[case] status: u16,
+        #[case] inm: &str,
+        #[case] said: Option<&str>,
+    ) {
+        let etag = [("etag", "\"a\"")];
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &etag);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("if-none-match", inm),
+            ("range", "bytes=0-1"),
+        ]);
+        let found = crate::test_helpers::run_rule_all(
+            &ConditionalRequestHandling,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![
+                make_prev_with_headers(&etag),
+            ]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "conditional_request_handling",
+            ]),
+        );
+        let hit = found.iter().find(|v| v.violation == "status_304_missing");
+        match said {
+            Some(text) => {
+                let hit = hit.unwrap_or_else(|| panic!("{status} {inm}: {found:?}"));
+                assert!(hit.message.contains(text), "{}", hit.message);
+            }
+            None => assert!(hit.is_none(), "{status} {inm}: {hit:?}"),
+        }
+    }
+
+    /// The date half, on the same class: a `206` whose `Last-Modified` is no
+    /// later than `If-Modified-Since` was owed a `304` by § 13.1.3's SHOULD.
+    #[rstest]
+    #[case(206, true)]
+    #[case(250, true)]
+    #[case(200, true)]
+    #[case(302, false)]
+    fn any_2xx_to_an_unmodified_date_performed_the_method(
+        #[case] status: u16,
+        #[case] expected: bool,
+    ) {
+        let lm = [("last-modified", "Mon, 01 Sep 2025 00:00:00 GMT")];
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &lm);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("if-modified-since", "Mon, 01 Sep 2025 00:00:00 GMT"),
+            ("range", "bytes=0-1"),
+        ]);
+        let found = crate::test_helpers::run_rule_all(
+            &ConditionalRequestHandling,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![
+                make_prev_with_headers(&lm),
+            ]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "conditional_request_handling",
+            ]),
+        );
+        assert_eq!(
+            found.iter().any(|v| v.violation == "status_304_missing"),
+            expected,
+            "{status}: {found:?}"
+        );
     }
 
     /// An entity tag may carry `obs-text`, so the response's validator is read
